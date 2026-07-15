@@ -2,7 +2,25 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import {
+  ADMIN_ACCOUNT_EMAIL,
+  ADMIN_ACCOUNT_NAME,
+  resolveAdminLoginIdentifier,
+} from "@/lib/admin-account";
 import { prisma } from "@/lib/prisma";
+
+function matchesSiteGateLogin(input: string, password: string): boolean {
+  const gateUser = process.env.SITE_GATE_USER?.trim().toLowerCase() || "admin";
+  const gatePass = process.env.SITE_GATE_PASSWORD?.trim();
+  if (!gatePass || password !== gatePass) return false;
+
+  const login = input.trim().toLowerCase();
+  return (
+    login === gateUser ||
+    login === "admin" ||
+    login === ADMIN_ACCOUNT_EMAIL.toLowerCase()
+  );
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
@@ -24,18 +42,34 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (!email || !password) return null;
 
-        const user = await prisma.user.findUnique({ where: { email } });
-        if (!user?.password) return null;
+        const normalizedEmail = resolveAdminLoginIdentifier(email);
 
-        const valid = await bcrypt.compare(password, user.password);
-        if (!valid) return null;
+        try {
+          const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+          if (user?.password) {
+            const valid = await bcrypt.compare(password, user.password);
+            if (valid) {
+              return {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                image: user.image,
+              };
+            }
+          }
+        } catch (error) {
+          console.error("Auth database error:", error);
+        }
 
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          image: user.image,
-        };
+        if (matchesSiteGateLogin(email, password)) {
+          return {
+            id: "site-gate-admin",
+            email: ADMIN_ACCOUNT_EMAIL,
+            name: ADMIN_ACCOUNT_NAME,
+          };
+        }
+
+        return null;
       },
     }),
   ],

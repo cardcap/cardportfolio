@@ -92,17 +92,17 @@ export function AuthForm({ mode }: AuthFormProps) {
 
         <div>
           <label htmlFor="email" className="mb-1.5 block text-sm font-medium">
-            E-Mail
+            E-Mail oder Benutzername
           </label>
           <input
             id="email"
-            type="email"
+            type="text"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            autoComplete="email"
+            autoComplete="username"
             className="h-11 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 text-sm outline-none focus:border-[var(--accent)]"
-            placeholder="name@beispiel.de"
+            placeholder="admin"
           />
         </div>
 
