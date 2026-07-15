@@ -102,7 +102,7 @@ export function SetCardDetailPanel({
         className="fixed inset-0 z-40 bg-black/40 lg:bg-black/25"
         onClick={onClose}
       />
-      <aside className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-50 flex max-h-[min(88dvh,100%)] w-full flex-col overflow-hidden rounded-t-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl lg:inset-y-4 lg:right-4 lg:bottom-4 lg:top-4 lg:w-[min(100vw-2rem,26rem)] lg:max-h-none lg:rounded-2xl">
+      <aside className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-50 flex max-h-[min(88dvh,100%)] w-full flex-col overflow-hidden rounded-t-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl lg:inset-x-auto lg:inset-y-4 lg:left-auto lg:right-4 lg:bottom-4 lg:top-4 lg:w-[min(100vw-2rem,26rem)] lg:max-h-none lg:rounded-2xl">
         {/* Header nav */}
         <div className="flex shrink-0 items-center justify-between border-b border-[var(--border)] px-3 py-2.5">
           <div className="flex items-center gap-1">
@@ -139,18 +139,9 @@ export function SetCardDetailPanel({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
-          {/* Image + title row */}
-          <div className="flex gap-3">
-            <div className="w-[42%] shrink-0">
-              <CardImage
-                src={getCardImageUrl(card)}
-                alt={card.name}
-                fallbacks={getCardImageFallbacks(card)}
-                size="lg"
-                className="!w-full shadow-lg"
-              />
-            </div>
-            <div className="min-w-0 flex-1">
+          {/* Title + full card image on the right (desktop) */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+            <div className="min-w-0 flex-1 order-2 sm:order-1">
               <h2 className="text-lg font-semibold leading-tight tracking-tight">
                 {card.name}
               </h2>
@@ -181,6 +172,15 @@ export function SetCardDetailPanel({
                   </p>
                 )}
               </div>
+            </div>
+            <div className="mx-auto w-[min(100%,11.5rem)] shrink-0 order-1 sm:order-2 sm:mx-0 sm:w-[48%]">
+              <CardImage
+                src={getCardImageUrl(card)}
+                alt={card.name}
+                fallbacks={getCardImageFallbacks(card)}
+                size="lg"
+                className="!w-full !rounded-xl shadow-lg ring-1 ring-white/10"
+              />
             </div>
           </div>
 
