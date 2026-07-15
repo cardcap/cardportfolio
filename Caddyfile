@@ -1,0 +1,11 @@
+# Preview ohne Domain: nur HTTP auf Port 80
+:80 {
+	encode gzip
+	reverse_proxy app:3004
+}
+
+# Mit Domain (in .env.preview DOMAIN=preview.deine-domain.de setzen):
+# {$DOMAIN} {
+# 	encode gzip
+# 	reverse_proxy app:3004
+# }

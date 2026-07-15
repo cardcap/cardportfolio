@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #f8f8fa;
+  --foreground: #111114;
+  --muted: #6b6b76;
+  --surface: #ffffff;
+  --surface-elevated: #ffffff;
+  --border: rgba(17, 17, 20, 0.08);
+  --border-strong: rgba(17, 17, 20, 0.12);
+  --accent: #d9779a;
+  --accent-soft: rgba(217, 119, 154, 0.12);
+  --accent-glow: rgba(217, 119, 154, 0.18);
+  --preview-shadow: 0 24px 64px -16px rgba(17, 17, 20, 0.14);
+  --positive: #16a34a;
+  --positive-soft: rgba(22, 163, 74, 0.1);
+  --negative: #dc2626;
+  --negative-soft: rgba(220, 38, 38, 0.08);
+  --warning: #d97706;
+  --warning-soft: rgba(217, 119, 6, 0.1);
+}
+
+.dark {
+  --background: #09090b;
+  --foreground: #f4f4f5;
+  --muted: #a1a1aa;
+  --surface: #111113;
+  --surface-elevated: #18181b;
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.11);
+  --accent: #e8a0bf;
+  --accent-soft: rgba(232, 160, 191, 0.1);
+  --accent-glow: rgba(232, 160, 191, 0.16);
+  --preview-shadow: 0 32px 80px -20px rgba(0, 0, 0, 0.65);
+  --positive: #4ade80;
+  --positive-soft: rgba(74, 222, 128, 0.1);
+  --negative: #f87171;
+  --negative-soft: rgba(248, 113, 113, 0.1);
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.1);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --font-sans: var(--font-inter);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  overflow-x: hidden;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.app-main {
+  padding-top: calc(3.5rem + env(safe-area-inset-top));
+  padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 1024px) {
+  .app-main {
+    padding-top: 1.25rem;
+    padding-bottom: 1.5rem;
+  }
+
+  .detail-panel-sticky-preview {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--surface);
+    padding-bottom: 0.75rem;
+  }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
