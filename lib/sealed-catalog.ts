@@ -1,4 +1,5 @@
 import type { TcgSet } from "@/lib/pokemon-tcg";
+import { buildSealedImagesFromSet } from "@/lib/sealed-images";
 
 export type SealedProductType =
   | "Booster Display"
@@ -21,6 +22,9 @@ export type CatalogSealedProduct = {
   changePct: number;
   /** gradient seed for placeholder art */
   hue: number;
+  /** Set logo / product art */
+  imageUrl: string;
+  imageFallbacks?: string[];
 };
 
 export const PRODUCT_TYPE_CHIPS: {
@@ -108,6 +112,7 @@ export function buildSealedCatalog(sets: TcgSet[]): CatalogSealedProduct[] {
       const langs = TYPE_CONFIG[type].langs;
       const lang = langs[h % langs.length];
       const id = `sealed-cat-${set.id}-${type.replace(/\s+/g, "-").toLowerCase()}-${lang}`;
+      const images = buildSealedImagesFromSet(set);
       products.push({
         id,
         name: `${set.name} ${TYPE_CONFIG[type].suffix}`,
@@ -120,6 +125,8 @@ export function buildSealedCatalog(sets: TcgSet[]): CatalogSealedProduct[] {
         price: priceFor(type, set.id, lang),
         changePct: changeFor(id),
         hue: h % 360,
+        imageUrl: images.imageUrl,
+        imageFallbacks: images.imageFallbacks,
       });
     }
   }

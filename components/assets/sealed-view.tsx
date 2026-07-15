@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { SealedOpenDialog } from "@/components/assets/sealed-open-dialog";
 import { ThemeToggleButton } from "@/components/theme-toggle";
+import { SealedProductImage } from "@/components/ui/sealed-product-image";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import {
   getSealedMetrics,
@@ -386,7 +387,7 @@ function SealedRow({
     <li className="px-4 py-3 transition-colors hover:bg-[var(--surface-elevated)]/50 sm:px-5">
       {/* mobile */}
       <div className="flex gap-3 xl:hidden">
-        <ProductThumb name={product.name} />
+        <ProductThumb product={product} />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
@@ -433,7 +434,7 @@ function SealedRow({
       <div className="hidden items-center gap-2 xl:grid xl:grid-cols-[2rem_minmax(12rem,1.6fr)_minmax(7rem,1fr)_7rem_3rem_minmax(6rem,0.9fr)_3.5rem_6rem_6rem_5.5rem_6rem_1.5rem]">
         <input type="checkbox" className="rounded border-[var(--border)]" aria-label={product.name} />
         <div className="flex min-w-0 items-center gap-3">
-          <ProductThumb name={product.name} />
+          <ProductThumb product={product} />
           <p className="truncate text-sm font-medium">{product.name}</p>
         </div>
         <p className="truncate text-sm text-[var(--muted)]">{product.setName}</p>
@@ -513,7 +514,7 @@ function SealedCard({
   return (
     <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)]/40 p-4">
       <div className="flex gap-3">
-        <ProductThumb name={product.name} large />
+        <ProductThumb product={product} large />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{product.name}</p>
           <p className="truncate text-xs text-[var(--muted)]">{product.setName}</p>
@@ -551,22 +552,27 @@ function SealedCard({
   );
 }
 
-function ProductThumb({ name, large }: { name: string; large?: boolean }) {
+function ProductThumb({
+  product,
+  large,
+}: {
+  product: SealedProduct;
+  large?: boolean;
+}) {
   return (
-    <div
-      className={`shrink-0 overflow-hidden rounded-lg border border-[var(--border)] bg-gradient-to-br from-pink-500/20 via-violet-500/15 to-zinc-900 ${
-        large ? "h-16 w-16" : "h-12 w-12"
-      }`}
-      title={name}
-      aria-hidden
-    >
-      <div className="flex h-full w-full items-center justify-center">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" className="text-pink-300/80" aria-hidden>
-          <path d="M12 3 4 7v10l8 4 8-4V7l-8-4Z" stroke="currentColor" strokeWidth="1.5" />
-          <path d="M12 12 4 7M12 12l8-5M12 12v10" stroke="currentColor" strokeWidth="1.5" />
-        </svg>
-      </div>
-    </div>
+    <SealedProductImage
+      src={product.imageUrl}
+      fallbacks={product.imageFallbacks}
+      alt={product.name}
+      badge={product.category}
+      language={product.language}
+      size="sm"
+      className={
+        large
+          ? "!h-16 !w-16 shrink-0 ring-1 ring-[var(--border)]"
+          : "!h-12 !w-12 shrink-0 ring-1 ring-[var(--border)]"
+      }
+    />
   );
 }
 

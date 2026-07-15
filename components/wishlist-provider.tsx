@@ -17,7 +17,7 @@ import {
 
 const STORAGE_KEY = "cardcap-wishlist";
 const STORAGE_KEY_LEGACY = "cardportfolio-wishlist";
-const SEEDED_KEY = "cardcap-wishlist-seeded-v3";
+const SEEDED_KEY = "cardcap-wishlist-seeded-v4";
 
 type WishlistContextValue = {
   items: WishlistItem[];
@@ -210,7 +210,8 @@ function buildDemoWishlist(): WishlistItem[] {
       id: `wl-sealed-${product?.id ?? i}`,
       name: p.name,
       setName: p.category,
-      imageUrl: "",
+      imageUrl: product?.imageUrl ?? "",
+      imageFallbacks: product?.imageFallbacks,
       price: p.price,
       kind: "Sealed" as const,
       language: p.lang,

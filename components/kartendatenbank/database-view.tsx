@@ -42,6 +42,7 @@ import {
 import { formatCurrency, formatDateDE } from "@/lib/format";
 import { wishlistItemFromTcg } from "@/lib/wishlist";
 import { CardImage } from "@/components/ui/card-image";
+import { SealedProductImage } from "@/components/ui/sealed-product-image";
 import { useWishlist } from "@/components/wishlist-provider";
 
 const PAGE_SIZE = 40;
@@ -1003,37 +1004,39 @@ function SealedProductCard({
       }`}
     >
       <div
-        className={`relative shrink-0 overflow-hidden ${
-          compact
-            ? "h-24 w-20 rounded-lg"
-            : "aspect-[4/5] w-full rounded-t-xl"
+        className={`relative shrink-0 ${
+          compact ? "h-24 w-20" : "w-full"
         }`}
-        style={{
-          background: `linear-gradient(145deg, hsl(${product.hue} 45% 22%), #0a0a0c 70%)`,
-        }}
       >
-        <div className="absolute inset-0 flex items-center justify-center opacity-80">
-          <div className="flex h-[70%] w-[55%] flex-col items-center justify-center rounded-md border border-white/10 bg-black/30 shadow-lg">
-            <span className="text-[9px] font-semibold tracking-wider text-white/70">
-              {product.language}
-            </span>
-            <span className="mt-1 px-1 text-center text-[10px] font-medium leading-tight text-white/90">
-              {product.productType}
-            </span>
-          </div>
-        </div>
-        <span className="absolute left-2 top-2 rounded-md bg-black/50 px-1.5 py-0.5 text-[9px] font-medium text-zinc-200 backdrop-blur-sm">
+        <SealedProductImage
+          src={product.imageUrl}
+          fallbacks={product.imageFallbacks}
+          alt={product.name}
+          badge={product.productType}
+          language={product.language}
+          hue={product.hue}
+          size={compact ? "sm" : "lg"}
+          className={
+            compact
+              ? "!h-24 !w-20 !rounded-lg"
+              : "!aspect-[4/5] !w-full !rounded-none !rounded-t-xl"
+          }
+        />
+        <span className="absolute left-2 top-2 z-[3] rounded-md bg-black/50 px-1.5 py-0.5 text-[9px] font-medium text-zinc-200 backdrop-blur-sm">
           Sealed
         </span>
-        <div className="absolute right-1.5 top-1.5">
+        <div className="absolute right-1.5 top-1.5 z-[3]">
           <WishlistHeart
             item={{
               id: product.id,
               name: product.name,
               setName: product.setName,
               number: product.productType,
-              imageUrl: "",
+              imageUrl: product.imageUrl,
+              imageFallbacks: product.imageFallbacks,
               price: product.price,
+              kind: "Sealed",
+              rarity: product.productType,
             }}
           />
         </div>

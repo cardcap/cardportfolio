@@ -1,4 +1,5 @@
 import { formatChange, formatCurrency } from "./format";
+import { getDemoSealedImages } from "@/lib/sealed-images";
 
 export type Card = {
   id: string;
@@ -1808,16 +1809,17 @@ export type SealedProduct = {
   quantity: number;
   purchasePrice: number;
   marketValue: number;
-  /** optional product image – use gradient placeholder if missing */
+  /** Set logo / product art */
   imageUrl?: string;
+  imageFallbacks?: string[];
   ean?: string;
 };
 
-export const sealedProducts: SealedProduct[] = [
+const sealedProductsRaw: Omit<SealedProduct, "imageUrl" | "imageFallbacks">[] = [
   {
     id: "sp1",
-    name: "Stellar Horizon Display",
-    setName: "Stellar Horizon",
+    name: "Stellarkrone Booster Display",
+    setName: "Stellarkrone",
     category: "Display",
     language: "DE",
     condition: "OVP",
@@ -1828,8 +1830,8 @@ export const sealedProducts: SealedProduct[] = [
   },
   {
     id: "sp2",
-    name: "Nebula Guardians Elite Box",
-    setName: "Nebula Guardians",
+    name: "Paradoxrift Top-Trainer-Box",
+    setName: "Paradoxrift",
     category: "Elite Trainer Box",
     language: "EN",
     condition: "OVP",
@@ -1840,8 +1842,8 @@ export const sealedProducts: SealedProduct[] = [
   },
   {
     id: "sp3",
-    name: "Chrono Rift Booster Bundle",
-    setName: "Chrono Rift",
+    name: "Temporal Forces Booster Bundle",
+    setName: "Temporal Forces",
     category: "Booster Bundle",
     language: "DE",
     condition: "OVP",
@@ -1852,8 +1854,8 @@ export const sealedProducts: SealedProduct[] = [
   },
   {
     id: "sp4",
-    name: "Lunar Legacy Kollektion",
-    setName: "Lunar Legacy",
+    name: "Pokémon 151 Kollektion",
+    setName: "151",
     category: "Kollektion",
     language: "DE",
     condition: "OVP",
@@ -1864,8 +1866,8 @@ export const sealedProducts: SealedProduct[] = [
   },
   {
     id: "sp5",
-    name: "Mythic Realms Tin",
-    setName: "Mythic Realms",
+    name: "Maskerade im Zwielicht Tin",
+    setName: "Maskerade im Zwielicht",
     category: "Tin",
     language: "EN",
     condition: "OVP – leichte Mängel",
@@ -1876,8 +1878,8 @@ export const sealedProducts: SealedProduct[] = [
   },
   {
     id: "sp6",
-    name: "Void Strike Blister",
-    setName: "Void Strike",
+    name: "Entwicklungen in Paldea Blister",
+    setName: "Entwicklungen in Paldea",
     category: "Blister",
     language: "JP",
     condition: "OVP",
@@ -1888,8 +1890,8 @@ export const sealedProducts: SealedProduct[] = [
   },
   {
     id: "sp7",
-    name: "Eclipse Aufstieg Display",
-    setName: "Eclipse",
+    name: "Stürmische Funken Display",
+    setName: "Stürmische Funken",
     category: "Display",
     language: "DE",
     condition: "OVP",
@@ -1900,8 +1902,8 @@ export const sealedProducts: SealedProduct[] = [
   },
   {
     id: "sp8",
-    name: "Sturmfront Booster Box",
-    setName: "Sturmfront",
+    name: "Silberne Sturmwinde Booster Box",
+    setName: "Silberne Sturmwinde",
     category: "Display",
     language: "DE",
     condition: "OVP",
@@ -1912,8 +1914,8 @@ export const sealedProducts: SealedProduct[] = [
   },
   {
     id: "sp9",
-    name: "Schattenzirkel Trainer Box",
-    setName: "Schattenzirkel",
+    name: "Karmesin & Purpur Top-Trainer-Box",
+    setName: "Karmesin & Purpur",
     category: "Elite Trainer Box",
     language: "DE",
     condition: "OVP",
@@ -1924,8 +1926,8 @@ export const sealedProducts: SealedProduct[] = [
   },
   {
     id: "sp10",
-    name: "Prism Surge Bundle",
-    setName: "Prism Surge",
+    name: "Nebel der Sagen Bundle",
+    setName: "Nebel der Sagen",
     category: "Booster Bundle",
     language: "EN",
     condition: "OVP",
@@ -1936,8 +1938,8 @@ export const sealedProducts: SealedProduct[] = [
   },
   {
     id: "sp11",
-    name: "Aurora Peak Tin",
-    setName: "Aurora Peak",
+    name: "Obsidianflammen Tin",
+    setName: "Obsidianflammen",
     category: "Tin",
     language: "DE",
     condition: "OVP",
@@ -1948,8 +1950,8 @@ export const sealedProducts: SealedProduct[] = [
   },
   {
     id: "sp12",
-    name: "Galaxy Drift Blister",
-    setName: "Galaxy Drift",
+    name: "Verlorener Ursprung Blister",
+    setName: "Verlorener Ursprung",
     category: "Blister",
     language: "EN",
     condition: "OVP",
@@ -1959,6 +1961,15 @@ export const sealedProducts: SealedProduct[] = [
     ean: "4001234567901",
   },
 ];
+
+export const sealedProducts: SealedProduct[] = sealedProductsRaw.map((p) => {
+  const imgs = getDemoSealedImages(p.id);
+  return {
+    ...p,
+    imageUrl: imgs.imageUrl,
+    imageFallbacks: imgs.imageFallbacks,
+  };
+});
 
 export function getSealedMetrics(products: SealedProduct[] = sealedProducts) {
   const productCount = products.length;

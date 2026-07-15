@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ThemeToggleButton } from "@/components/theme-toggle";
 import { CardImage } from "@/components/ui/card-image";
+import { SealedProductImage } from "@/components/ui/sealed-product-image";
 import { useWishlist } from "@/components/wishlist-provider";
 import { formatCurrency } from "@/lib/format";
 import {
@@ -566,8 +567,19 @@ function WishlistCard({
   return (
     <article className="flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
       <div className="flex gap-3 p-3.5">
-        <div className="relative h-[7.25rem] w-[5.25rem] shrink-0 overflow-hidden rounded-xl bg-[var(--surface-elevated)] ring-1 ring-[var(--border)]">
-          {item.imageUrl ? (
+        <div className="relative h-[7.25rem] w-[5.25rem] shrink-0 overflow-hidden rounded-xl ring-1 ring-[var(--border)]">
+          {kind === "Sealed" ? (
+            <SealedProductImage
+              src={item.imageUrl}
+              fallbacks={item.imageFallbacks}
+              alt={item.name}
+              badge={item.rarity ?? item.setName}
+              language={item.language}
+              hue={hashHue(item.id)}
+              size="sm"
+              className="!h-full !w-full !rounded-xl"
+            />
+          ) : item.imageUrl ? (
             <CardImage
               src={item.imageUrl}
               fallbacks={item.imageFallbacks}
@@ -576,18 +588,8 @@ function WishlistCard({
               className="!h-full !w-full !rounded-none object-cover"
             />
           ) : (
-            <div
-              className="flex h-full w-full flex-col items-center justify-center gap-1 px-1 text-center text-[var(--muted)]"
-              style={{
-                background: `linear-gradient(145deg, hsl(${hashHue(item.id)} 42% 24%), #0a0a0c)`,
-              }}
-            >
-              <span className="text-[10px] font-semibold tracking-wide">
-                SEALED
-              </span>
-              <span className="line-clamp-2 text-[9px] opacity-80">
-                {item.name}
-              </span>
+            <div className="flex h-full w-full items-center justify-center bg-[var(--surface-elevated)] text-[var(--muted)]">
+              <span className="text-[10px]">{item.name.slice(0, 2)}</span>
             </div>
           )}
         </div>
