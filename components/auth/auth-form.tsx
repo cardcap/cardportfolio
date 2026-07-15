@@ -116,10 +116,10 @@ export function AuthForm({ mode }: AuthFormProps) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            minLength={8}
+            minLength={isRegister ? 8 : undefined}
             autoComplete={isRegister ? "new-password" : "current-password"}
             className="h-11 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 text-sm outline-none focus:border-[var(--accent)]"
-            placeholder="Mindestens 8 Zeichen"
+            placeholder={isRegister ? "Mindestens 8 Zeichen" : "Passwort"}
           />
         </div>
 
