@@ -5,19 +5,34 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { useAuthMode } from "@/components/auth/use-auth-mode";
-import { Logo } from "@/components/logo";
+import { BrandMark } from "@/components/landing/icons";
 import { NavIcon } from "@/components/layout/nav-icon";
 import { ThemeToggleButton } from "@/components/theme-toggle";
-import { mainNav, mobileBottomNav } from "@/lib/nav-config";
+import {
+  flattenNav,
+  mainNav,
+  mobileBottomNav,
+  type NavEntry,
+  type NavGroup,
+} from "@/lib/nav-config";
 
 function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function isGroupActive(pathname: string, group: NavGroup): boolean {
+  return (
+    pathname === group.matchPrefix ||
+    pathname.startsWith(`${group.matchPrefix}/`) ||
+    group.children.some((c) => isActive(pathname, c.href))
+  );
 }
 
 export function MobileNav() {
   const pathname = usePathname();
   const { isAuthenticated, isDemo, user } = useAuthMode();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setMenuOpen(false);
@@ -30,9 +45,22 @@ export function MobileNav() {
     };
   }, [menuOpen]);
 
-  const moreActive = mainNav
-    .filter((item) => !mobileBottomNav.some((bottom) => bottom.href === item.href))
-    .some((item) => isActive(pathname, item.href));
+  useEffect(() => {
+    setOpenGroups((prev) => {
+      const next = { ...prev };
+      for (const entry of mainNav) {
+        if (entry.type === "group" && isGroupActive(pathname, entry)) {
+          next[entry.label] = true;
+        }
+      }
+      return next;
+    });
+  }, [pathname]);
+
+  const bottomHrefs = new Set(mobileBottomNav.map((i) => i.href));
+  const moreActive = flattenNav().some(
+    (item) => !bottomHrefs.has(item.href) && isActive(pathname, item.href),
+  );
 
   return (
     <>
@@ -42,9 +70,9 @@ export function MobileNav() {
           className="flex min-w-0 items-center gap-2"
           onClick={() => setMenuOpen(false)}
         >
-          <Logo className="h-7 w-7 shrink-0" />
+          <BrandMark className="h-7 w-7 shrink-0" />
           <span className="truncate text-sm font-semibold tracking-tight">
-            Card<span className="text-[var(--accent)]">portfolio</span>
+            Card<span className="text-[var(--accent)]">Cap</span>
           </span>
         </Link>
         <div className="flex items-center gap-1">
@@ -85,19 +113,21 @@ export function MobileNav() {
         )}
 
         <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-4">
-          {mainNav.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 rounded-lg px-3 py-3 text-sm transition-colors ${
-                isActive(pathname, item.href)
-                  ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
-                  : "text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)]"
-              }`}
-            >
-              <NavIcon type={item.icon} />
-              {item.label}
-            </Link>
+          {mainNav.map((entry) => (
+            <MobileNavEntry
+              key={entry.type === "group" ? entry.label : entry.href}
+              entry={entry}
+              pathname={pathname}
+              open={entry.type === "group" ? !!openGroups[entry.label] : false}
+              onToggle={() => {
+                if (entry.type === "group") {
+                  setOpenGroups((prev) => ({
+                    ...prev,
+                    [entry.label]: !prev[entry.label],
+                  }));
+                }
+              }}
+            />
           ))}
         </nav>
 
@@ -170,5 +200,69 @@ export function MobileNav() {
         </div>
       </nav>
     </>
+  );
+}
+
+function MobileNavEntry({
+  entry,
+  pathname,
+  open,
+  onToggle,
+}: {
+  entry: NavEntry;
+  pathname: string;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  if (entry.type === "group") {
+    const groupActive = isGroupActive(pathname, entry);
+    return (
+      <div>
+        <button
+          type="button"
+          onClick={onToggle}
+          className={`flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm transition-colors ${
+            groupActive
+              ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+              : "text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)]"
+          }`}
+        >
+          <NavIcon type={entry.icon} />
+          <span className="flex-1 text-left">{entry.label}</span>
+          <span className={open ? "rotate-90" : ""}>
+            <NavIcon type="chevron" className="h-3.5 w-3.5" />
+          </span>
+        </button>
+        {open &&
+          entry.children.map((child) => (
+            <Link
+              key={child.href}
+              href={child.href}
+              className={`ml-3 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                isActive(pathname, child.href)
+                  ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+                  : "text-[var(--muted)] hover:bg-[var(--surface-elevated)]"
+              }`}
+            >
+              <NavIcon type={child.icon} className="h-4 w-4" />
+              {child.label}
+            </Link>
+          ))}
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      href={entry.href}
+      className={`flex items-center gap-3 rounded-lg px-3 py-3 text-sm transition-colors ${
+        isActive(pathname, entry.href)
+          ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+          : "text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)]"
+      }`}
+    >
+      <NavIcon type={entry.icon} />
+      {entry.label}
+    </Link>
   );
 }

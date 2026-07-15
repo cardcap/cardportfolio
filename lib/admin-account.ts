@@ -1,4 +1,4 @@
-export const ADMIN_ACCOUNT_EMAIL = "admin@cardportfolio.de";
+export const ADMIN_ACCOUNT_EMAIL = "admin@cardcap.de";
 export const ADMIN_ACCOUNT_NAME = "Admin";
 
 export function resolveAdminLoginIdentifier(input: string): string {

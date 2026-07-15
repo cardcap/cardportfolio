@@ -6,7 +6,8 @@ import {
   type CardLanguage,
 } from "@/lib/tcgdex-constants";
 
-const STORAGE_KEY = "cardportfolio-database-filters";
+const STORAGE_KEY = "cardcap-database-filters";
+const STORAGE_KEY_LEGACY = "cardportfolio-database-filters";
 
 export type DatabaseFilters = {
   language: CardLanguage;
@@ -32,7 +33,9 @@ export function loadDatabaseFilters(): DatabaseFilters {
   if (typeof window === "undefined") return DEFAULT_FILTERS;
 
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw =
+      localStorage.getItem(STORAGE_KEY) ??
+      localStorage.getItem(STORAGE_KEY_LEGACY);
     if (!raw) return DEFAULT_FILTERS;
 
     const parsed = JSON.parse(raw) as Partial<DatabaseFilters>;

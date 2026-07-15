@@ -13,9 +13,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "CardPortfolio.de — Dein persönliches TCG Portfolio",
+  title: "CardCap — Deine Sammlung. Dein Wert. Alles im Blick.",
   description:
-    "Die Nummer 1 Anlaufstelle für dein persönliches TCG Portfolio. Sammlung verwalten, Werte tracken, Markttrends analysieren.",
+    "Verwalte Karten & Sealed Produkte, verfolge ihre Wertentwicklung und vervollständige deine Sets – an einem Ort.",
 };
 
 export const viewport: Viewport = {
@@ -27,7 +27,8 @@ export const viewport: Viewport = {
 const themeScript = `
 (function () {
   try {
-    var stored = localStorage.getItem('cardportfolio-theme');
+    var stored = localStorage.getItem('cardcap-theme')
+      || localStorage.getItem('cardportfolio-theme');
     var theme = stored === 'light' || stored === 'dark'
       ? stored
       : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';

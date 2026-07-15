@@ -8,7 +8,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 VPS_HOST="${VPS_HOST:?VPS_HOST fehlt (z. B. 123.45.67.89)}"
 VPS_USER="${VPS_USER:-root}"
-REMOTE_DIR="${REMOTE_DIR:-/opt/cardportfolio}"
+REMOTE_DIR="${REMOTE_DIR:-/opt/cardcap}"
 
 echo "==> Deploy nach ${VPS_USER}@${VPS_HOST}:${REMOTE_DIR}"
 

@@ -7,7 +7,7 @@ export type TcgSet = {
   official?: number;
   secretRareCount?: number;
   releaseDate: string;
-  images: { logo: string; symbol: string };
+  images: { logo: string; symbol: string; fallbacks?: string[] };
 };
 
 export type TcgCard = {

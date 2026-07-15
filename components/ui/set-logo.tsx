@@ -50,14 +50,24 @@ export function SetLogo({
     }
   };
 
+  const isBanner = className.includes("!h-full") || className.includes("aspect");
+
   return (
     <div className={containerClass}>
       <Image
         src={currentSrc}
         alt={alt}
         fill
-        className="object-contain p-2"
-        sizes={size === "sm" ? "72px" : size === "lg" ? "144px" : "200px"}
+        className={`object-contain ${isBanner ? "p-6 sm:p-8" : "p-2"}`}
+        sizes={
+          size === "sm"
+            ? "72px"
+            : size === "lg"
+              ? "144px"
+              : isBanner
+                ? "(max-width: 768px) 100vw, 33vw"
+                : "200px"
+        }
         onError={handleError}
       />
     </div>

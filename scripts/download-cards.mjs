@@ -208,7 +208,7 @@ async function main() {
   const onlyLang = process.argv.find((a) => a.startsWith("--lang="))?.split("=")[1];
 
   console.log("═══════════════════════════════════════════");
-  console.log("  CardPortfolio – Kartendaten-Download");
+  console.log("  CardCap – Kartendaten-Download");
   console.log("  Quelle: TCGdex API");
   console.log("═══════════════════════════════════════════");
 

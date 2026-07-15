@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 
-const ADMIN_EMAIL = "admin@cardportfolio.de";
+const ADMIN_EMAIL = "admin@cardcap.de";
 const ADMIN_NAME = "Admin";
 
 async function main() {

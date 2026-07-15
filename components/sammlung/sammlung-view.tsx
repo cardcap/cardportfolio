@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { cardMatchesColor, isAllColorsFilter } from "@/lib/card-colors";
 import { CARD_CONDITIONS } from "@/lib/card-conditions";
@@ -221,19 +222,33 @@ export function SammlungView() {
       />
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
+          <div className="mb-1 text-xs text-[var(--muted)]">
+            <Link href="/assets/sealed" className="hover:text-[var(--foreground)]">
+              Assets
+            </Link>
+            <span className="mx-1 opacity-50">/</span>
+            <span className="text-[var(--foreground)]">Karten</span>
+            <span className="mx-1.5 opacity-50">·</span>
+            <Link href="/assets/sealed" className="hover:text-[var(--foreground)]">
+              Sealed
+            </Link>
+          </div>
           <PageHeader
-            title="Sammlung"
-            subtitle={`${displayMetrics.totalCards.toLocaleString("de-DE")} Karten`}
+            title="Karten"
+            subtitle={`${displayMetrics.totalCards.toLocaleString("de-DE")} Karten in deiner Sammlung`}
           >
             <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
-              <Button className="w-full sm:w-auto" onClick={() => requireAuth(() => {})}>
+              <Link
+                href="/kartendatenbank"
+                className="inline-flex h-10 w-full items-center justify-center rounded-full bg-[var(--accent)] px-4 text-sm font-medium text-white transition-all hover:brightness-110 sm:w-auto"
+              >
                 + Karte hinzufügen
-              </Button>
+              </Link>
               <Button className="w-full sm:w-auto" variant="secondary" onClick={() => requireAuth(() => {})}>
                 Kartenscanner
               </Button>
               <Button className="w-full sm:w-auto" variant="secondary" onClick={openImport}>
-                Excel Import
+                Excel-Import
               </Button>
             </div>
           </PageHeader>

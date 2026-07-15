@@ -77,6 +77,33 @@ export function NavIcon({ type, className }: NavIconProps) {
           <path d="M4 7h16M4 12h16M4 17h16" />
         </svg>
       );
+    case "assets":
+      return (
+        <svg {...props}>
+          <path d="M4 8h16v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V8Z" />
+          <path d="M8 8V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+        </svg>
+      );
+    case "box":
+      return (
+        <svg {...props}>
+          <path d="M12 3 4 7v10l8 4 8-4V7l-8-4Z" />
+          <path d="M12 12 4 7M12 12l8-5M12 12v10" />
+        </svg>
+      );
+    case "chevron":
+      return (
+        <svg {...props}>
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+      );
+    case "settings":
+      return (
+        <svg {...props}>
+          <circle cx="12" cy="12" r="3" />
+          <path d="M12 3v2M12 19v2M3.5 12h2M18.5 12h2M6 6l1.4 1.4M16.6 16.6 18 18M18 6l-1.4 1.4M7.4 16.6 6 18" />
+        </svg>
+      );
     default:
       return null;
   }

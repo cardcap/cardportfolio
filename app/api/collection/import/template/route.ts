@@ -5,7 +5,7 @@ export async function GET() {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition":
-        'attachment; filename="cardportfolio-sammlung-vorlage.csv"',
+        'attachment; filename="cardcap-sammlung-vorlage.csv"',
     },
   });
 }

@@ -3,7 +3,7 @@
  * Tägliche Preisaktualisierung über die TCGdex API (Cardmarket EUR / TCGplayer USD).
  *
  * Cron-Beispiel (täglich 6:00 Uhr):
- *   0 6 * * * cd /home/bngh/cardportfolio && npm run update-prices >> /var/log/cardportfolio-prices.log 2>&1
+ *   0 6 * * * cd /home/bngh/cardportfolio && npm run update-prices >> /var/log/cardcap-prices.log 2>&1
  *
  * Optionen:
  *   --lang=de     Nur eine Sprache
@@ -110,7 +110,7 @@ async function main() {
   const limit = limitArg ? Number(limitArg) : undefined;
 
   console.log("═══════════════════════════════════════════");
-  console.log("  CardPortfolio – Preis-Update (TCGdex)");
+  console.log("  CardCap – Preis-Update (TCGdex)");
   console.log("  Quellen: Cardmarket (EUR), TCGplayer (USD)");
   console.log("═══════════════════════════════════════════");
 

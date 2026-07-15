@@ -68,8 +68,8 @@ export function AuthForm({ mode }: AuthFormProps) {
       </h1>
       <p className="mt-2 text-sm text-[var(--muted)]">
         {isRegister
-          ? "Starte dein persönliches TCG-Portfolio."
-          : "Willkommen zurück bei CardPortfolio."}
+          ? "Starte dein persönliches TCG-Portfolio bei CardCap."
+          : "Willkommen zurück bei CardCap."}
       </p>
 
       <form onSubmit={handleSubmit} className="mt-8 space-y-4">

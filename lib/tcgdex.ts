@@ -134,7 +134,7 @@ export function buildSetSymbolUrl(set: TcgdexCachedSet): string {
 export function resolveSetImageUrls(
   set: TcgdexCachedSet,
   lang: CardLanguage,
-): { logo: string; symbol: string } {
+): { logo: string; symbol: string; fallbacks: string[] } {
   const symbol = buildSetSymbolUrl(set);
   let logo = "";
 
@@ -146,7 +146,21 @@ export function resolveSetImageUrls(
     logo = buildSetLogoUrl(set, lang);
   }
 
-  return { logo, symbol };
+  // Additional sources when TCGdex logo is missing
+  const fallbacks = [
+    logo,
+    symbol,
+    buildSetLogoUrl(set, lang),
+    buildSetLogoUrl(set, "en"),
+    `https://images.pokemontcg.io/${set.id}/logo.png`,
+    symbol ? symbol.replace(/\.webp$/i, ".png") : "",
+  ].filter(Boolean);
+
+  return {
+    logo,
+    symbol,
+    fallbacks: [...new Set(fallbacks)].filter((u) => u !== logo),
+  };
 }
 
 function normalizeImageBase(url: string): string {

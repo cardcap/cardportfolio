@@ -6,7 +6,7 @@ import { BRAND_NAME } from "@/lib/landing-nav";
 export const metadata: Metadata = {
   title: `Die Reise hat erst begonnen — ${BRAND_NAME}`,
   description:
-    "Was bei CardPortfolio als Nächstes kommt — Features, Vision und Community.",
+    "Was bei CardCap als Nächstes kommt — Features, Vision und Community.",
 };
 
 const available = [

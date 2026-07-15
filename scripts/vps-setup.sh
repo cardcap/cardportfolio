@@ -20,5 +20,5 @@ ufw allow 443/tcp
 ufw --force enable
 
 echo "==> App-Verzeichnis"
-mkdir -p /opt/cardportfolio
-echo "Fertig. Als Nächstes: Projekt nach /opt/cardportfolio deployen."
+mkdir -p /opt/cardcap
+echo "Fertig. Als Nächstes: Projekt nach /opt/cardcap deployen."

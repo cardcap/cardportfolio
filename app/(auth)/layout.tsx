@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Logo } from "@/components/logo";
+import { BrandMark } from "@/components/landing/icons";
 
 export default function AuthLayout({
   children,
@@ -13,9 +13,9 @@ export default function AuthLayout({
           href="/"
           className="inline-flex items-center gap-2.5 transition-opacity hover:opacity-80"
         >
-          <Logo className="h-8 w-8" />
+          <BrandMark className="h-8 w-8" />
           <span className="text-sm font-semibold tracking-tight">
-            Card<span className="text-[var(--accent)]">portfolio</span>
+            Card<span className="text-[var(--accent)]">Cap</span>
           </span>
         </Link>
       </header>

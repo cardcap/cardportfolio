@@ -6,6 +6,7 @@ import { useTheme } from "./theme-provider";
 
 const APP_PREFIXES = [
   "/dashboard",
+  "/assets",
   "/sammlung",
   "/portfolio",
   "/sets",
@@ -18,6 +19,8 @@ function isAppRoute(pathname: string): boolean {
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
 }
+
+// Theme toggle is embedded in dashboard header; hide floating one on app routes.
 
 type ThemeToggleButtonProps = {
   className?: string;
@@ -81,9 +84,12 @@ export function ThemeToggleButton({ className = "" }: ThemeToggleButtonProps) {
   );
 }
 
+const MARKETING_PATHS = new Set(["/", "/die-reise"]);
+
 export function ThemeToggle() {
   const pathname = usePathname();
-  if (isAppRoute(pathname)) return null;
+  // App hat eigenes Theme-UI; Marketing-Pages sind fest dunkel (CardCap-Design)
+  if (isAppRoute(pathname) || MARKETING_PATHS.has(pathname)) return null;
 
   return <ThemeToggleButton className="fixed top-5 right-5 z-50" />;
 }

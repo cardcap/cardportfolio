@@ -1,5 +1,6 @@
-import { SammlungView } from "@/components/sammlung/sammlung-view";
+import { redirect } from "next/navigation";
 
-export default function SammlungPage() {
-  return <SammlungView />;
+/** Legacy URL — Assets → Karten */
+export default function SammlungRedirectPage() {
+  redirect("/assets/karten");
 }

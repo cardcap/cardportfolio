@@ -23,7 +23,7 @@ export function FeaturePreview() {
           <span className="h-2.5 w-2.5 rounded-full bg-[var(--border-strong)]" />
         </div>
         <div className="mx-auto rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-1 text-xs text-[var(--muted)]">
-          cardportfolio.de/app
+          cardcap.de/app
         </div>
       </div>
 

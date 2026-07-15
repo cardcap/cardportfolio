@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     env_file: .env.preview
     volumes:
-      - cardportfolio-db:/app/prisma-data
+      - cardcap-db:/app/prisma-data
     expose:
       - "3004"
 
@@ -24,6 +24,6 @@ services:
       - app
 
 volumes:
-  cardportfolio-db:
+  cardcap-db:
   caddy-data:
   caddy-config:

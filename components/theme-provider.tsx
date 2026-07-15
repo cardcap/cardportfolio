@@ -23,12 +23,17 @@ function applyTheme(theme: Theme) {
   document.documentElement.style.colorScheme = theme;
 }
 
+const THEME_STORAGE_KEY = "cardcap-theme";
+const THEME_STORAGE_KEY_LEGACY = "cardportfolio-theme";
+
 function getInitialTheme(): Theme {
   if (typeof window === "undefined") {
     return "dark";
   }
 
-  const stored = window.localStorage.getItem("cardportfolio-theme");
+  const stored =
+    window.localStorage.getItem(THEME_STORAGE_KEY) ??
+    window.localStorage.getItem(THEME_STORAGE_KEY_LEGACY);
   if (stored === "light" || stored === "dark") {
     return stored;
   }
@@ -48,14 +53,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const setTheme = useCallback((next: Theme) => {
     setThemeState(next);
     applyTheme(next);
-    window.localStorage.setItem("cardportfolio-theme", next);
+    window.localStorage.setItem(THEME_STORAGE_KEY, next);
   }, []);
 
   const toggleTheme = useCallback(() => {
     setThemeState((current) => {
       const next = current === "dark" ? "light" : "dark";
       applyTheme(next);
-      window.localStorage.setItem("cardportfolio-theme", next);
+      window.localStorage.setItem(THEME_STORAGE_KEY, next);
       return next;
     });
   }, []);

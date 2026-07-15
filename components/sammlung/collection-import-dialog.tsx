@@ -51,12 +51,15 @@ const STATUS_LABELS = {
   not_found: "Nicht gefunden",
 } as const;
 
+type ImportMode = "choose" | "collection" | "portfolio";
+
 export function CollectionImportDialog({
   open,
   onClose,
   onImported,
 }: CollectionImportDialogProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [mode, setMode] = useState<ImportMode>("choose");
   const [url, setUrl] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -66,6 +69,7 @@ export function CollectionImportDialog({
   const [rows, setRows] = useState<ImportPreviewRow[]>([]);
 
   const reset = useCallback(() => {
+    setMode("choose");
     setUrl("");
     setError(null);
     setPreview(null);
@@ -196,9 +200,19 @@ export function CollectionImportDialog({
       <div className="flex max-h-[min(92dvh,100%)] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl border border-[var(--border)] bg-[var(--background)] shadow-xl sm:max-h-[90vh] sm:rounded-xl">
         <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
           <div>
-            <h2 className="text-lg font-semibold">Sammlung importieren</h2>
+            <h2 className="text-lg font-semibold">
+              {mode === "portfolio"
+                ? "Portfolio importieren"
+                : mode === "collection"
+                  ? "Sammlung importieren"
+                  : "Import"}
+            </h2>
             <p className="text-sm text-[var(--muted)]">
-              Excel, CSV oder öffentlicher Google-Sheets-Link
+              {mode === "choose"
+                ? "Wähle, was du importieren möchtest"
+                : mode === "portfolio"
+                  ? "Mit EK, Kaufdatum und Kauf-Losen für echte Renditen"
+                  : "Karten ohne Einkaufspreis – nur Bestand & Marktwert"}
             </p>
           </div>
           <button
@@ -212,8 +226,57 @@ export function CollectionImportDialog({
         </div>
 
         <div className="overflow-y-auto px-5 py-4">
-          {!preview ? (
+          {mode === "choose" ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setMode("collection")}
+                className="rounded-xl border border-[var(--border)] p-4 text-left transition-colors hover:border-[var(--accent)] hover:bg-[var(--accent-soft)]"
+              >
+                <p className="font-semibold">Sammlung importieren</p>
+                <p className="mt-2 text-sm text-[var(--muted)]">
+                  Nur Karten, Menge, Zustand, Sprache usw. <strong className="font-medium text-[var(--foreground)]">Einkaufspreis und Kaufdatum bleiben leer</strong>.
+                  Die App zeigt den aktuellen Marktwert, aber keine echte persönliche Rendite.
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("portfolio")}
+                className="rounded-xl border border-[var(--border)] p-4 text-left transition-colors hover:border-[var(--accent)] hover:bg-[var(--accent-soft)]"
+              >
+                <p className="font-semibold">Portfolio importieren</p>
+                <p className="mt-2 text-sm text-[var(--muted)]">
+                  Detaillierte Excel mit Spalten wie EK, Kaufdatum, Bezugsquelle, Gebühren.
+                  Jede Zeile erzeugt einen <strong className="font-medium text-[var(--foreground)]">historischen Kauf</strong>;
+                  in der Sammlung wird die Karte zusammengefasst, intern bleiben Kauf-Lose erhalten.
+                </p>
+                <p className="mt-2 text-xs text-[var(--muted)]">
+                  Nur ein alter Gesamtwert? Wird als „Importierter Startwert“ behandelt – nicht als EK.
+                </p>
+              </button>
+            </div>
+          ) : !preview ? (
             <div className="space-y-4">
+              <button
+                type="button"
+                onClick={() => setMode("choose")}
+                className="text-sm text-[var(--accent)] hover:opacity-80"
+              >
+                ← Andere Importart wählen
+              </button>
+
+              {mode === "portfolio" && (
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--muted)]">
+                  <p className="font-medium text-[var(--foreground)]">
+                    Empfohlene Spalten
+                  </p>
+                  <p className="mt-1">
+                    Karte · Set · Nummer · Menge · Sprache · Zustand · EK pro Stück ·
+                    Kaufdatum · Bezugsquelle · Gebühren
+                  </p>
+                </div>
+              )}
+
               <div
                 onDragOver={(e) => {
                   e.preventDefault();
