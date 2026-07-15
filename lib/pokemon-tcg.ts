@@ -64,38 +64,75 @@ function normalizeImageUrl(url: string): string {
   return url;
 }
 
+function pokemonTcgUrlsFromCardId(cardId: string): string[] {
+  const dash = cardId.lastIndexOf("-");
+  if (dash <= 0) return [];
+  const setId = cardId.slice(0, dash);
+  const number = cardId.slice(dash + 1);
+  if (!setId || !number) return [];
+  const normalized = /^\d+$/.test(number)
+    ? String(parseInt(number, 10))
+    : number;
+  return [
+    `https://images.pokemontcg.io/${setId}/${normalized}_hires.png`,
+    `https://images.pokemontcg.io/${setId}/${normalized}.png`,
+  ];
+}
+
+/** Swap TCGdex language segment to English when non-EN scans are missing */
+function tcgdexEnglishMirrors(url: string): string[] {
+  if (!url.includes("assets.tcgdex.net")) return [];
+  const en = url.replace(
+    /assets\.tcgdex\.net\/(?:de|fr|es|it|ja|pt|nl|pl|ru|ko|zh-tw|zh-cn)\//i,
+    "assets.tcgdex.net/en/",
+  );
+  return en !== url ? [en] : [];
+}
+
 export function getCardImageUrl(card: TcgCard): string {
   if (card.images?.large) return normalizeImageUrl(card.images.large);
   if (card.images?.small) return normalizeImageUrl(card.images.small);
 
-  const [setId, number] = card.id.split("-");
-  if (setId && number) {
-    const normalized = /^\d+$/.test(number)
-      ? String(parseInt(number, 10))
-      : number;
-    return `https://images.pokemontcg.io/${setId}/${normalized}_hires.png`;
-  }
-
-  return "";
+  const ptcg = pokemonTcgUrlsFromCardId(card.id);
+  return ptcg[0] ?? "";
 }
 
 export function getCardImageFallbacks(card: TcgCard): string[] {
+  const urls: string[] = [];
+
   if (card.imageFallbacks?.length) {
-    return [...new Set(card.imageFallbacks.filter(Boolean))];
+    for (const u of card.imageFallbacks) {
+      if (!u) continue;
+      urls.push(u);
+      urls.push(...tcgdexEnglishMirrors(u));
+    }
   }
 
-  const urls: string[] = [];
-  if (card.images?.large) urls.push(normalizeImageUrl(card.images.large));
-  if (card.images?.small) urls.push(normalizeImageUrl(card.images.small));
+  if (card.images?.large) {
+    const large = normalizeImageUrl(card.images.large);
+    urls.push(large, ...tcgdexEnglishMirrors(large));
+  }
+  if (card.images?.small) {
+    const small = normalizeImageUrl(card.images.small);
+    urls.push(small, ...tcgdexEnglishMirrors(small));
+  }
 
   const base =
     card.images?.large?.replace(/\/high\.webp$/, "") ??
     card.images?.small?.replace(/\/low\.webp$/, "");
   if (base?.includes("assets.tcgdex.net")) {
     urls.push(`${base}/high.webp`, `${base}/low.webp`);
+    for (const en of tcgdexEnglishMirrors(base)) {
+      urls.push(`${en}/high.webp`, `${en}/low.webp`);
+    }
   }
 
-  return [...new Set(urls.filter(Boolean))];
+  // Last resort: Pokémon TCG API CDN (works for many classic English scans)
+  urls.push(...pokemonTcgUrlsFromCardId(card.id));
+
+  // Drop primary so CardImage does not retry the same failed URL twice
+  const primary = getCardImageUrl(card);
+  return [...new Set(urls.filter(Boolean).filter((u) => u !== primary))];
 }
 
 export function getCardPrice(card: TcgCard): number | null {

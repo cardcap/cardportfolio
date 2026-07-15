@@ -177,18 +177,44 @@ function buildImageCandidates(
 ): string[] {
   const candidates: string[] = [];
   const serieId = set ? extractSerieId(set) : null;
+  const pathFor = (l: string) =>
+    serieId
+      ? `https://assets.tcgdex.net/${l}/${serieId}/${card.setId}/${card.localId}`
+      : "";
 
+  // Explicit image from cache (usually language-correct when present)
   if (card.image) {
     candidates.push(normalizeImageBase(card.image));
   }
 
   if (serieId) {
-    candidates.push(
-      `https://assets.tcgdex.net/${lang}/${serieId}/${card.setId}/${card.localId}`,
-    );
+    // Older DE/FR/… sets often lack scans → prefer EN when no cache image
+    if (card.image) {
+      candidates.push(pathFor(lang));
+      if (lang !== "en") candidates.push(pathFor("en"));
+    } else if (lang !== "en") {
+      candidates.push(pathFor("en"), pathFor(lang));
+    } else {
+      candidates.push(pathFor("en"));
+    }
   }
 
-  return [...new Set(candidates)];
+  return [...new Set(candidates.filter(Boolean))];
+}
+
+/** Pokémon TCG API CDN — last-resort images when TCGdex assets 404 */
+export function buildPokemonTcgImageUrls(
+  setId: string,
+  localId: string,
+): string[] {
+  if (!setId || !localId) return [];
+  const normalized = /^\d+$/.test(localId)
+    ? String(parseInt(localId, 10))
+    : localId;
+  return [
+    `https://images.pokemontcg.io/${setId}/${normalized}_hires.png`,
+    `https://images.pokemontcg.io/${setId}/${normalized}.png`,
+  ];
 }
 
 export function resolveCardImages(
@@ -203,11 +229,14 @@ export function resolveCardImages(
     fallbacks.push(`${base}/high.webp`, `${base}/low.webp`);
   }
 
+  // Older / non-EN sets often have no TCGdex scan — use Pokémon TCG CDN
+  fallbacks.push(...buildPokemonTcgImageUrls(card.setId, card.localId));
+
   const unique = [...new Set(fallbacks.filter(Boolean))];
 
   return {
     large: unique[0] ?? "",
-    small: unique[1] ?? unique[0] ?? "",
+    small: unique.find((u) => u.includes("/low.webp")) ?? unique[0] ?? "",
     fallbacks: unique,
   };
 }
