@@ -199,7 +199,7 @@ export function TopPerformersView() {
           </p>
         </div>
 
-        <div className="hidden border-b border-[var(--border)] px-4 py-2.5 text-[10px] uppercase tracking-wider text-[var(--muted)] xl:grid xl:grid-cols-[2rem_minmax(11rem,1.3fr)_minmax(6.5rem,0.9fr)_3.25rem_3rem_5.5rem_5.5rem_7.5rem_4.5rem_1.25rem] xl:gap-2 xl:px-5">
+        <div className="hidden border-b border-[var(--border)] px-4 py-2.5 text-[10px] uppercase tracking-wider text-[var(--muted)] xl:grid xl:grid-cols-[2rem_minmax(10rem,1.2fr)_minmax(5.5rem,0.8fr)_auto_2.5rem_2.75rem_minmax(5.25rem,auto)_minmax(9.5rem,auto)_3.75rem_1.25rem] xl:items-center xl:gap-3 xl:px-5">
           <span>#</span>
           <span>Sammlerstück</span>
           <span>Set / Produkt</span>
