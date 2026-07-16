@@ -238,19 +238,35 @@ export function SetCardDetailPanel({
     return () => window.removeEventListener("keydown", onKey);
   }, [goNext, goPrev, onClose]);
 
+  const panelRef = useRef<HTMLElement | null>(null);
+
+  // Click outside closes — without blocking page scroll (no full-screen hit target)
+  useEffect(() => {
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (panelRef.current?.contains(target)) return;
+      // Don't close when interacting with other fixed UI (modals etc.)
+      const el = target as HTMLElement;
+      if (el.closest?.("[data-keep-detail-open]")) return;
+      onClose();
+    };
+    // capture phase so we run before other handlers that might stopPropagation
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () =>
+      document.removeEventListener("pointerdown", onPointerDown, true);
+  }, [onClose]);
+
   return (
     <>
-      {/* Click outside closes detail. Panel sits above (z-50). */}
-      <button
-        type="button"
-        aria-label="Detailansicht schließen"
-        className="fixed inset-0 z-40 cursor-default bg-black/40 lg:bg-black/25"
-        onMouseDown={(e) => {
-          // Only close if press starts on backdrop (avoids steal after drag)
-          if (e.button === 0) onClose();
-        }}
+      {/* Visual dimmer only — pointer-events-none so the page stays scrollable */}
+      <div
+        className="pointer-events-none fixed inset-0 z-40 bg-black/25 lg:bg-black/15"
+        aria-hidden
       />
       <aside
+        ref={panelRef}
         className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-50 flex max-h-[min(88dvh,100%)] w-full flex-col overflow-hidden rounded-t-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl touch-pan-y lg:inset-x-auto lg:inset-y-4 lg:left-auto lg:right-4 lg:bottom-4 lg:top-4 lg:w-[min(100vw-2rem,26rem)] lg:max-h-none lg:rounded-2xl"
         onPointerDown={onPanelPointerDown}
       >
