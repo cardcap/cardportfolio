@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { CardImage } from "@/components/ui/card-image";
 import { InfoTip } from "@/components/ui/metric-card";
 import { useWishlist } from "@/components/wishlist-provider";
@@ -154,6 +154,52 @@ export function SetCardDetailPanel({
   const typeLabel = card.types?.[0];
   const rarityLabel = card.rarity ? formatRarityEnglish(card.rarity) : null;
 
+  /** Drag right → next, drag left → previous (mouse + touch) */
+  const swipeRef = useRef<{ x: number; y: number } | null>(null);
+  const SWIPE_PX = 56;
+
+  const onSwipePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (e.button !== 0) return;
+      const el = e.target as HTMLElement | null;
+      if (
+        el?.closest(
+          "button, a, input, select, textarea, label, [role='button'], [role='switch']",
+        )
+      ) {
+        return;
+      }
+      swipeRef.current = { x: e.clientX, y: e.clientY };
+    },
+    [],
+  );
+
+  const onSwipePointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      const start = swipeRef.current;
+      swipeRef.current = null;
+      if (!start) return;
+      const dx = e.clientX - start.x;
+      const dy = e.clientY - start.y;
+      // Prefer horizontal swipe over scroll
+      if (Math.abs(dx) < SWIPE_PX || Math.abs(dx) < Math.abs(dy) * 1.15) {
+        return;
+      }
+      if (dx > 0) {
+        // Maustaste / Finger nach rechts → nächste Karte
+        if (hasNext) onNext?.();
+      } else {
+        // nach links → vorherige Karte
+        if (hasPrev) onPrev?.();
+      }
+    },
+    [hasNext, hasPrev, onNext, onPrev],
+  );
+
+  const onSwipePointerCancel = useCallback(() => {
+    swipeRef.current = null;
+  }, []);
+
   return (
     <>
       {/* Mobile: full dimmer closes on tap. Desktop: no blocking overlay so page can scroll */}
@@ -167,7 +213,16 @@ export function SetCardDetailPanel({
         className="pointer-events-none fixed inset-0 z-40 hidden bg-black/15 lg:block"
         aria-hidden
       />
-      <aside className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-50 flex max-h-[min(88dvh,100%)] w-full flex-col overflow-hidden rounded-t-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl lg:inset-x-auto lg:inset-y-4 lg:left-auto lg:right-4 lg:bottom-4 lg:top-4 lg:w-[min(100vw-2rem,26rem)] lg:max-h-none lg:rounded-2xl lg:pointer-events-auto">
+      <aside
+        className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-50 flex max-h-[min(88dvh,100%)] w-full flex-col overflow-hidden rounded-t-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl touch-pan-y lg:inset-x-auto lg:inset-y-4 lg:left-auto lg:right-4 lg:bottom-4 lg:top-4 lg:w-[min(100vw-2rem,26rem)] lg:max-h-none lg:rounded-2xl lg:pointer-events-auto"
+        onPointerDown={onSwipePointerDown}
+        onPointerUp={onSwipePointerUp}
+        onPointerCancel={onSwipePointerCancel}
+        onPointerLeave={(e) => {
+          // End swipe if pointer leaves panel while dragging
+          if (swipeRef.current) onSwipePointerUp(e);
+        }}
+      >
         {/* Header nav */}
         <div className="flex shrink-0 items-center justify-between border-b border-[var(--border)] px-3 py-2.5">
           <div className="flex items-center gap-1">
