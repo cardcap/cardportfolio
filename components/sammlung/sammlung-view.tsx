@@ -33,11 +33,13 @@ import { Price, formatMarketPrice } from "@/components/ui/price";
 import { formatCurrency } from "@/lib/format";
 import {
   getLocalCollection,
+  itemInvested,
   localCollectionMetrics,
   removeLocalCollectionItem,
   replaceLocalCollectionByCopies,
   updateLocalCollectionItem,
   type LocalCollectionItem,
+  type LocalExemplar,
 } from "@/lib/local-collection";
 import type { TcgCard } from "@/lib/pokemon-tcg";
 import type { SetDetail } from "@/lib/set-stats";
@@ -156,6 +158,8 @@ type DisplayRow = {
   rarity?: string | null;
   language: string;
   variant: string;
+  /** Per-copy EK/condition when saved */
+  exemplars?: LocalExemplar[];
 };
 
 function rowToTcgCard(row: DisplayRow): TcgCard {
@@ -299,6 +303,13 @@ type CollectionMetrics = {
 };
 
 function mapLocalItem(item: LocalCollectionItem): DisplayRow {
+  const invested = itemInvested(item);
+  const avgEk =
+    item.quantity > 0
+      ? Math.round((invested / item.quantity) * 100) / 100
+      : (item.purchasePrice ?? 0);
+  const profit =
+    Math.round((item.marketValue - invested) * 100) / 100;
   return {
     id: item.id,
     tcgCardId: item.tcgCardId,
@@ -310,16 +321,17 @@ function mapLocalItem(item: LocalCollectionItem): DisplayRow {
     imageFallbacks: item.imageFallbacks,
     condition: item.condition,
     quantity: item.quantity,
-    purchasePrice: item.purchasePrice ?? 0,
+    purchasePrice: avgEk,
     purchaseDate: item.purchaseDate ?? "—",
     marketValue: item.marketValue,
-    profit: item.profit ?? 0,
+    profit,
     colors: item.types,
     types: item.types,
     category: item.category,
     rarity: item.rarity,
     language: item.language || DEFAULT_LANGUAGE,
     variant: detectVariant(item.rarity, item.category),
+    exemplars: item.exemplars,
   };
 }
 
@@ -720,10 +732,15 @@ export function SammlungView() {
     const totalCards = displayItems.reduce((s, i) => s + i.quantity, 0);
     const uniqueCards = new Set(displayItems.map((i) => i.name)).size;
     const totalValue = displayItems.reduce((s, i) => s + i.marketValue, 0);
-    const invested = displayItems.reduce(
-      (s, i) => s + i.purchasePrice * i.quantity,
-      0,
-    );
+    const invested = displayItems.reduce((s, i) => {
+      if (i.exemplars && i.exemplars.length > 0) {
+        return (
+          s +
+          i.exemplars.reduce((a, e) => a + (e.purchasePrice ?? 0), 0)
+        );
+      }
+      return s + i.purchasePrice * i.quantity;
+    }, 0);
     return {
       totalCards,
       uniqueCards,
@@ -758,13 +775,26 @@ export function SammlungView() {
   const startEdit = useCallback(() => {
     if (!selectedRow) return;
     const qty = Math.max(1, selectedRow.quantity);
+    const ex =
+      selectedRow.exemplars && selectedRow.exemplars.length === qty
+        ? selectedRow.exemplars
+        : null;
     const priceStr = formatPriceInput(selectedRow.purchasePrice);
     setEditQty(qty);
     setEditCondition(selectedRow.condition);
     setEditConditions(
-      Array.from({ length: qty }, () => selectedRow.condition || "Near Mint"),
+      ex
+        ? ex.map((e) => e.condition || selectedRow.condition || "Near Mint")
+        : Array.from(
+            { length: qty },
+            () => selectedRow.condition || "Near Mint",
+          ),
     );
-    setEditPrices(Array.from({ length: qty }, () => priceStr));
+    setEditPrices(
+      ex
+        ? ex.map((e) => formatPriceInput(e.purchasePrice))
+        : Array.from({ length: qty }, () => priceStr),
+    );
     setEditPrice(priceStr);
     setEditDate(toDateInputValue(selectedRow.purchaseDate));
     setEditing(true);
@@ -1536,22 +1566,27 @@ export function SammlungView() {
                                   Array.from(
                                     { length: row.quantity },
                                     (_, i) => {
+                                      const ex = row.exemplars?.[i];
+                                      const exCondition =
+                                        ex?.condition || row.condition;
+                                      const exEk =
+                                        ex?.purchasePrice ?? row.purchasePrice;
                                       const unitProfit =
-                                        row.quantity > 0
-                                          ? row.profit / row.quantity
-                                          : row.profit;
-                                      const isFirst = i === 0;
+                                        Math.round(
+                                          (unitMarket - (exEk ?? 0)) * 100,
+                                        ) / 100;
+                                      const exProfitClass =
+                                        unitProfit > 0
+                                          ? "text-[var(--positive)]"
+                                          : unitProfit < 0
+                                            ? "text-[var(--negative)]"
+                                            : "text-[var(--muted)]";
                                       const isLast = i === row.quantity - 1;
-                                      // Pink frame around the whole expanded block only
                                       const frame = [
-                                        "border-[var(--accent)] bg-[var(--accent-soft)]/25",
-                                        "border-x-2",
-                                        isFirst
-                                          ? "border-t-2 rounded-t-xl"
-                                          : "border-t border-t-[var(--accent)]/25",
+                                        groupSide,
                                         isLast
-                                          ? "border-b-2 rounded-b-xl"
-                                          : "",
+                                          ? "border-b rounded-b-xl"
+                                          : "border-b border-b-[var(--accent)]/20",
                                       ]
                                         .filter(Boolean)
                                         .join(" ");
@@ -1559,7 +1594,7 @@ export function SammlungView() {
                                         <tr
                                           key={`${row.id}-ex-${i}`}
                                           onClick={openRow}
-                                          className={`cursor-pointer text-sm transition-colors hover:bg-[var(--accent-soft)]/50 ${frame}`}
+                                          className={`cursor-pointer text-sm transition-colors hover:bg-[var(--accent-soft)]/40 ${frame}`}
                                         >
                                           <td
                                             className="px-3 py-2.5 pl-12"
@@ -1570,7 +1605,7 @@ export function SammlungView() {
                                                 Exemplar {i + 1}
                                               </span>
                                               <ConditionBadge
-                                                condition={row.condition}
+                                                condition={exCondition}
                                                 short
                                               />
                                             </div>
@@ -1583,14 +1618,14 @@ export function SammlungView() {
                                           </td>
                                           <td className="px-3 py-2.5">
                                             <ConditionBadge
-                                              condition={row.condition}
+                                              condition={exCondition}
                                             />
                                           </td>
                                           <td className="px-3 py-2.5 text-right tabular-nums text-[var(--muted)]">
                                             1
                                           </td>
                                           <td className="px-3 py-2.5 text-right tabular-nums text-[var(--muted)]">
-                                            {formatCurrency(row.purchasePrice)}
+                                            {formatCurrency(exEk ?? 0)}
                                           </td>
                                           <td className="px-3 py-2.5 text-right tabular-nums">
                                             <Price value={unitMarket} />
@@ -1599,12 +1634,12 @@ export function SammlungView() {
                                             <Price value={unitMarket} />
                                           </td>
                                           <td
-                                            className={`px-3 py-2.5 text-right tabular-nums ${profitClass}`}
+                                            className={`px-3 py-2.5 text-right tabular-nums ${exProfitClass}`}
                                           >
                                             {unitProfit > 0 ? "+" : ""}
                                             <Price
                                               value={unitProfit}
-                                              className={profitClass}
+                                              className={exProfitClass}
                                             />
                                           </td>
                                         </tr>
