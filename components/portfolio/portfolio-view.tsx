@@ -837,17 +837,30 @@ function CashflowChart({
   data: { label: string; buys: number; sells: number }[];
 }) {
   const [hover, setHover] = useState<number | null>(null);
+  const [tip, setTip] = useState({ x: 0, y: 0 });
+  const wrapRef = useRef<HTMLDivElement>(null);
   const max = Math.max(...data.flatMap((d) => [d.buys, d.sells]), 1) * 1.15;
   const h = 160;
 
+  function trackMouse(e: React.MouseEvent, index: number) {
+    const rect = wrapRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setHover(index);
+    setTip({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    });
+  }
+
   return (
-    <div className="relative">
+    <div className="relative" ref={wrapRef}>
       <div className="flex h-44 items-end gap-1.5 sm:gap-2">
         {data.map((d, i) => (
           <div
             key={d.label}
             className="flex flex-1 flex-col items-center gap-1"
-            onMouseEnter={() => setHover(i)}
+            onMouseEnter={(e) => trackMouse(e, i)}
+            onMouseMove={(e) => trackMouse(e, i)}
             onMouseLeave={() => setHover(null)}
           >
             <div
@@ -855,7 +868,7 @@ function CashflowChart({
               style={{ height: h }}
             >
               <div
-                className="w-[45%] rounded-t-sm bg-pink-400/80 transition-opacity hover:opacity-100"
+                className="w-[45%] rounded-t-sm bg-pink-400/80 transition-opacity"
                 style={{
                   height: `${Math.max(4, (d.buys / max) * h)}px`,
                   opacity: hover == null || hover === i ? 1 : 0.45,
@@ -877,7 +890,17 @@ function CashflowChart({
       </div>
 
       {hover != null && data[hover] && (
-        <div className="pointer-events-none absolute left-1/2 top-0 z-10 min-w-[10rem] -translate-x-1/2 rounded-lg border border-[var(--border-strong)] bg-[var(--surface-elevated)] px-3 py-2 text-xs shadow-lg">
+        <div
+          className="pointer-events-none absolute z-20 min-w-[10rem] rounded-lg border border-[var(--border-strong)] bg-[var(--surface-elevated)] px-3 py-2 text-xs shadow-lg"
+          style={{
+            left: tip.x + 12,
+            top: tip.y - 8,
+            transform:
+              tip.x > (wrapRef.current?.clientWidth ?? 0) * 0.65
+                ? "translate(-100%, -100%)"
+                : "translateY(-100%)",
+          }}
+        >
           <p className="font-medium">{data[hover].label}</p>
           <div className="mt-1.5 space-y-1">
             <div className="flex justify-between gap-4">

@@ -564,6 +564,8 @@ function CashflowChart({
   mode: CashMode;
 }) {
   const [hover, setHover] = useState<number | null>(null);
+  const [tip, setTip] = useState({ x: 0, y: 0 });
+  const wrapRef = useRef<HTMLDivElement>(null);
 
   const series = useMemo(() => {
     if (mode === "monatlich") return data;
@@ -587,8 +589,18 @@ function CashflowChart({
   );
   const barMaxH = 120;
 
+  function trackMouse(e: React.MouseEvent, index: number) {
+    const rect = wrapRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setHover(index);
+    setTip({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    });
+  }
+
   return (
-    <div className="relative">
+    <div className="relative" ref={wrapRef}>
       <div className="flex h-52 items-end gap-2 sm:gap-3">
         {series.map((d, i) => {
           const buyH = Math.max(4, (d.buys / maxVal) * barMaxH);
@@ -597,19 +609,24 @@ function CashflowChart({
             <div
               key={d.label}
               className="flex flex-1 flex-col items-center gap-1.5"
-              onMouseEnter={() => setHover(i)}
+              onMouseEnter={(e) => trackMouse(e, i)}
+              onMouseMove={(e) => trackMouse(e, i)}
               onMouseLeave={() => setHover(null)}
             >
               <div className="flex h-[7.5rem] w-full items-end justify-center gap-1">
                 <div
                   className="w-[40%] max-w-[1.25rem] rounded-t-md bg-pink-400/90"
-                  style={{ height: buyH }}
-                  title={`Käufe ${d.buys}`}
+                  style={{
+                    height: buyH,
+                    opacity: hover == null || hover === i ? 1 : 0.4,
+                  }}
                 />
                 <div
                   className="w-[40%] max-w-[1.25rem] rounded-t-md bg-emerald-400/90"
-                  style={{ height: sellH }}
-                  title={`Verkäufe ${d.sells}`}
+                  style={{
+                    height: sellH,
+                    opacity: hover == null || hover === i ? 1 : 0.4,
+                  }}
                 />
               </div>
               <span
@@ -627,7 +644,17 @@ function CashflowChart({
       </div>
 
       {hover != null && series[hover] && (
-        <div className="pointer-events-none absolute left-1/2 top-0 z-10 min-w-[10rem] -translate-x-1/2 rounded-lg border border-[var(--border-strong)] bg-[var(--surface-elevated)] px-3 py-2 text-xs shadow-lg">
+        <div
+          className="pointer-events-none absolute z-20 min-w-[10rem] rounded-lg border border-[var(--border-strong)] bg-[var(--surface-elevated)] px-3 py-2 text-xs shadow-lg"
+          style={{
+            left: tip.x + 12,
+            top: tip.y - 8,
+            transform:
+              tip.x > (wrapRef.current?.clientWidth ?? 0) * 0.65
+                ? "translate(-100%, -100%)"
+                : "translateY(-100%)",
+          }}
+        >
           <p className="font-medium">{series[hover].label}</p>
           <div className="mt-1.5 space-y-1">
             <div className="flex justify-between gap-4">
