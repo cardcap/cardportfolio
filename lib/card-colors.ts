@@ -260,6 +260,43 @@ export function getCardColorKeys(
   return [...keys];
 }
 
+/** Soft RGB glow tints for hover pulse (subtle, not neon) */
+const GLOW_RGB: Record<ColorKey, string> = {
+  grass: "74, 222, 128",
+  fire: "248, 113, 113",
+  water: "96, 165, 250",
+  lightning: "250, 204, 21",
+  psychic: "192, 132, 252",
+  fighting: "251, 146, 60",
+  darkness: "129, 140, 248",
+  metal: "161, 161, 170",
+  fairy: "244, 114, 182",
+  dragon: "167, 139, 250",
+  colorless: "212, 212, 216",
+};
+
+/**
+ * CSS-ready glow color for card hover. Uses first energy type when available.
+ * `types` may be DE/EN labels (Pflanze, Fire, …).
+ */
+export function getCardGlowColor(
+  types?: string[] | null,
+  fallback = "232, 160, 191",
+): string {
+  if (!types?.length) return `rgba(${fallback}, 0.45)`;
+  for (const t of types) {
+    const key =
+      tokenToColorKey(t) ??
+      FILTER_LABEL_TO_KEY.de[t] ??
+      FILTER_LABEL_TO_KEY.en[t] ??
+      null;
+    if (key && GLOW_RGB[key]) {
+      return `rgba(${GLOW_RGB[key]}, 0.45)`;
+    }
+  }
+  return `rgba(${fallback}, 0.45)`;
+}
+
 /** @deprecated Nutze getCardColorKeys – für Anzeige in der UI-Sprache */
 export function getCardColors(card: CardColorSource, lang: CardLanguage): string[] {
   const labels = COLORS_BY_LANG[lang].slice(1);

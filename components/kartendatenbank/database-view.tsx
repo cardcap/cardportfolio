@@ -956,6 +956,7 @@ function FragmentCard({
               src={getCardImageUrl(card)}
               alt={card.name}
               fallbacks={getCardImageFallbacks(card)}
+              types={card.types}
               size="lg"
               className="!aspect-[5/7] !h-full !w-full !rounded-none"
             />

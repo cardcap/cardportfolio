@@ -187,6 +187,7 @@ export function SetCardDetailPanel({
                 src={getCardImageUrl(card)}
                 alt={card.name}
                 fallbacks={getCardImageFallbacks(card)}
+                types={card.types}
                 size="lg"
                 className="!w-full !rounded-xl shadow-lg ring-1 ring-white/10"
               />
