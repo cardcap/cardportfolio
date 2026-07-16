@@ -1,12 +1,15 @@
 import type { TcgCard } from "@/lib/pokemon-tcg";
 import { getCardPrice } from "@/lib/pokemon-tcg";
 
+/** Rohzustände best → worst (Cardmarket-ähnlich) */
 export const RAW_CONDITIONS = [
-  "Near Mint",
   "Mint",
+  "Near Mint",
   "Excellent",
   "Good",
+  "Light Played",
   "Played",
+  "Poor",
 ] as const;
 
 export const PSA_CONDITIONS = [
@@ -28,11 +31,13 @@ export type CardCondition = (typeof CARD_CONDITIONS)[number];
 /** Cardmarket-Trend ≈ Near Mint; Roh- und PSA-Zustände geschätzt */
 const CONDITION_MULTIPLIERS: Record<Exclude<CardCondition, "Alle Zustände">, number> =
   {
+    Mint: 1.05,
     "Near Mint": 1,
-    Mint: 1.02,
     Excellent: 0.85,
-    Good: 0.65,
-    Played: 0.45,
+    Good: 0.7,
+    "Light Played": 0.55,
+    Played: 0.4,
+    Poor: 0.25,
     "PSA 10": 4,
     "PSA 9": 2.2,
     "PSA 8": 1.5,

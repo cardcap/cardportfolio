@@ -401,9 +401,13 @@ export function PortfolioPositionsView() {
           }}
           options={[
             "Alle",
-            "Near Mint",
             "Mint",
+            "Near Mint",
             "Excellent",
+            "Good",
+            "Light Played",
+            "Played",
+            "Poor",
             "OVP",
           ]}
         />

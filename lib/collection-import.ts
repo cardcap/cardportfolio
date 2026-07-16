@@ -89,22 +89,30 @@ const FIELD_ALIASES: Record<keyof Omit<ParsedImportRow, "rowIndex">, string[]> =
   };
 
 const CONDITION_ALIASES: Record<string, string> = {
+  mint: "Mint",
+  m: "Mint",
   "near mint": "Near Mint",
   nearmint: "Near Mint",
   nm: "Near Mint",
-  mint: "Mint",
-  m: "Mint",
   excellent: "Excellent",
   ex: "Excellent",
   exzellent: "Excellent",
   good: "Good",
   gd: "Good",
   gut: "Good",
+  "light played": "Light Played",
+  lightplayed: "Light Played",
+  "lightly played": "Light Played",
+  lightlyplayed: "Light Played",
+  lp: "Light Played",
   played: "Played",
-  lp: "Played",
   mp: "Played",
-  lightlyplayed: "Played",
-  "lightly played": "Played",
+  "moderately played": "Played",
+  poor: "Poor",
+  hp: "Poor",
+  "heavily played": "Poor",
+  dam: "Poor",
+  damaged: "Poor",
 };
 
 const LANGUAGE_ALIASES: Record<string, CardLanguage> = {

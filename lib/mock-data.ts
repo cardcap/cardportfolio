@@ -20,7 +20,14 @@ export type CollectionRow = {
   cardId: string;
   /** TCGdex-Karten-ID für Abgleich mit der Kartendatenbank */
   tcgCardId?: string;
-  condition: "Near Mint" | "Mint" | "Excellent" | "Good" | "Played";
+  condition:
+    | "Mint"
+    | "Near Mint"
+    | "Excellent"
+    | "Good"
+    | "Light Played"
+    | "Played"
+    | "Poor";
   quantity: number;
   purchasePrice: number;
   purchaseDate: string;

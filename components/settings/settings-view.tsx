@@ -183,10 +183,13 @@ export function SettingsView() {
                   onChange={(e) => setDefaultCondition(e.target.value)}
                   className={fieldClass}
                 >
-                  <option value="NM">Near Mint (NM)</option>
                   <option value="M">Mint (M)</option>
+                  <option value="NM">Near Mint (NM)</option>
                   <option value="EX">Excellent (EX)</option>
                   <option value="GD">Good (GD)</option>
+                  <option value="LP">Light Played (LP)</option>
+                  <option value="PL">Played (PL)</option>
+                  <option value="PO">Poor (PO)</option>
                   <option value="OVP">OVP / Sealed</option>
                 </select>
               </Field>

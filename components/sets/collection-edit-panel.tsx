@@ -64,11 +64,13 @@ const SOURCES = [
 ] as const;
 
 function shortCondition(c: string): string {
-  if (c === "Near Mint") return "NM";
   if (c === "Mint") return "M";
+  if (c === "Near Mint") return "NM";
   if (c === "Excellent") return "EX";
   if (c === "Good") return "GD";
+  if (c === "Light Played") return "LP";
   if (c === "Played") return "PL";
+  if (c === "Poor") return "PO";
   if (c.startsWith("PSA")) return c.replace("PSA ", "PSA");
   return c.slice(0, 3).toUpperCase();
 }
@@ -354,7 +356,21 @@ export function CollectionEditPanel({
                   >
                     {RAW_CONDITIONS.map((c) => (
                       <option key={c} value={c}>
-                        {c === "Near Mint" ? "Near Mint (NM)" : c}
+                        {c === "Mint"
+                          ? "Mint (M)"
+                          : c === "Near Mint"
+                            ? "Near Mint (NM)"
+                            : c === "Excellent"
+                              ? "Excellent (EX)"
+                              : c === "Good"
+                                ? "Good (GD)"
+                                : c === "Light Played"
+                                  ? "Light Played (LP)"
+                                  : c === "Played"
+                                    ? "Played (PL)"
+                                    : c === "Poor"
+                                      ? "Poor (PO)"
+                                      : c}
                       </option>
                     ))}
                   </select>
