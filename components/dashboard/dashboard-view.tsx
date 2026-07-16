@@ -11,6 +11,7 @@ import { Panel } from "@/components/ui/panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { SetLogo } from "@/components/ui/set-logo";
 import { formatMarketPrice } from "@/components/ui/price";
+import { useWishlist } from "@/components/wishlist-provider";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import {
   getCard,
@@ -38,6 +39,7 @@ function scaleSpark(values: number[], targetEnd: number): number[] {
 
 export function DashboardView() {
   const [scope, setScope] = useState<Scope>("gesamt");
+  const { count: wishlistCount } = useWishlist();
   const m = portfolioMetrics;
 
   const scoped = useMemo(() => {
@@ -282,7 +284,7 @@ export function DashboardView() {
                 Wunschliste
               </p>
               <p className="tabular-nums text-xl font-semibold">
-                {portfolioMetrics.wishlistCount}
+                {wishlistCount}
               </p>
             </div>
           </div>
