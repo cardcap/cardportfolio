@@ -107,9 +107,11 @@ function loadKartenUi(): KartenUiState {
           : DEFAULT_UI.rarityFilter,
       sort:
         parsed.sort === "name" ||
+        parsed.sort === "name-desc" ||
         parsed.sort === "value-desc" ||
         parsed.sort === "value-asc" ||
         parsed.sort === "profit-desc" ||
+        parsed.sort === "profit-asc" ||
         parsed.sort === "set" ||
         parsed.sort === "recent"
           ? parsed.sort
@@ -506,12 +508,16 @@ export function SammlungView() {
       switch (sort) {
         case "name":
           return a.name.localeCompare(b.name, "de");
+        case "name-desc":
+          return b.name.localeCompare(a.name, "de");
         case "value-desc":
           return b.marketValue - a.marketValue;
         case "value-asc":
           return a.marketValue - b.marketValue;
         case "profit-desc":
           return b.profit - a.profit;
+        case "profit-asc":
+          return a.profit - b.profit;
         case "set":
           return (
             a.setName.localeCompare(b.setName, "de") ||
@@ -992,11 +998,6 @@ export function SammlungView() {
             <MetricCard
               label="Investiert"
               value={formatCurrency(displayMetrics.invested)}
-              periodNote={
-                displayMetrics.totalCards > 0
-                  ? `Ø ${formatCurrency(displayMetrics.invested / displayMetrics.totalCards)} pro Exemplar`
-                  : undefined
-              }
             />
             <MetricCard
               label="Gewinn / Verlust"
@@ -1085,10 +1086,12 @@ export function SammlungView() {
             >
               <option value="recent">Zuletzt hinzugefügt</option>
               <option value="name">Name A–Z</option>
+              <option value="name-desc">Name Z–A</option>
               <option value="set">Set / Nummer</option>
               <option value="value-desc">Marktwert: höchster zuerst</option>
               <option value="value-asc">Marktwert: niedrigster zuerst</option>
               <option value="profit-desc">Gewinn: höchster zuerst</option>
+              <option value="profit-asc">Gewinn: niedrigster zuerst</option>
             </select>
 
             <div className="ml-auto flex h-10 rounded-full border border-[var(--border)] bg-[var(--surface)] p-0.5">
