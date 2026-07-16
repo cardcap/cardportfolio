@@ -247,8 +247,6 @@ export function DashboardView() {
           negative={scoped.weeklyChangeInvested < 0}
           info
           infoText={scoped.investInfo}
-          sparkline={scoped.sparkInvested}
-          sparkStyle="step"
           periodNote="letzte 7 Tage"
         />
         <MetricCard
