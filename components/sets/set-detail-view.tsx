@@ -257,7 +257,11 @@ export function SetDetailView({
 
   return (
     <>
-      <div className="pb-8">
+      <div
+        className={`pb-8 transition-[padding] ${
+          panelOpen || editOpen ? "lg:pr-[min(27rem,calc(100vw-2rem))]" : ""
+        }`}
+      >
         {/* Breadcrumb + tools */}
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-[var(--muted)]">
