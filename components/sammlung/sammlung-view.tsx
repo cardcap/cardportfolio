@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CARD_CONDITIONS, RAW_CONDITIONS, PSA_CONDITIONS } from "@/lib/card-conditions";
+import { CARD_CONDITIONS, RAW_CONDITIONS } from "@/lib/card-conditions";
 import { formatRarityEnglish } from "@/lib/rarity-labels";
 import {
   CARD_LANGUAGES,
@@ -32,7 +32,7 @@ import type { SetDetail } from "@/lib/set-stats";
 import { wishlistItemFromTcg } from "@/lib/wishlist";
 import { useWishlist } from "@/components/wishlist-provider";
 
-const EDIT_CONDITIONS = [...RAW_CONDITIONS, ...PSA_CONDITIONS] as const;
+const EDIT_CONDITIONS = [...RAW_CONDITIONS] as const;
 const PAGE_SIZES = [25, 50, 100] as const;
 const UI_STORAGE_KEY = "cardcap-assets-karten-ui";
 
