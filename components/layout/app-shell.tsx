@@ -10,15 +10,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <MobileNav />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--background)]">
         {/*
-          Single scroll container: content uses full width to the right edge.
-          Thin transparent scrollbar (globals.css) — no dark gutter strip.
+          One natural scroll column: page content first, then disclaimer.
+          Avoid flex-1 on the page body — that pinned the disclaimer to the
+          viewport bottom and let content paint over it (overlap).
         */}
-        <main className="app-main flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain bg-[var(--background)] px-4 sm:px-6 lg:px-6 xl:px-8">
+        <main className="app-main min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain bg-[var(--background)] px-4 sm:px-6 lg:px-6 xl:px-8">
           <DemoBanner />
-          <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
-            {children}
-          </div>
-          <MarketPriceDisclaimer className="shrink-0 pt-3" />
+          <div className="w-full min-w-0">{children}</div>
+          <MarketPriceDisclaimer className="mt-6 border-t border-[var(--border)] pb-2 pt-3" />
         </main>
       </div>
     </div>

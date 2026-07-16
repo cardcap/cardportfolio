@@ -109,13 +109,15 @@ body {
 
 .app-main {
   padding-top: calc(3.5rem + env(safe-area-inset-top));
-  padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+  /* Extra bottom gap so content / disclaimer clear the mobile nav + window edge */
+  padding-bottom: calc(5.25rem + env(safe-area-inset-bottom));
 }
 
 @media (min-width: 1024px) {
   .app-main {
     padding-top: 1.25rem;
-    padding-bottom: 1.5rem;
+    /* Short clear space at the bottom of the page on desktop */
+    padding-bottom: 2.25rem;
   }
 
   .detail-panel-sticky-preview {

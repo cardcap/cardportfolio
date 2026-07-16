@@ -33,7 +33,7 @@ export function DashboardView() {
   const [scope, setScope] = useState<Scope>("gesamt");
 
   return (
-    <>
+    <div className="pb-2">
       <PageHeader
         title="Dashboard"
         subtitle="Deine Sammlung auf einen Blick"
@@ -407,7 +407,7 @@ export function DashboardView() {
           </div>
         </Panel>
       </div>
-    </>
+    </div>
   );
 }
 

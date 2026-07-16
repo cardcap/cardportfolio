@@ -25,8 +25,8 @@ export function Panel({
     <div
       className={`rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5 ${className}`}
     >
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="text-sm font-medium">{title}</h2>
+      <div className="relative z-[1] mb-4 flex items-center justify-between gap-3">
+        <h2 className="relative text-sm font-medium">{title}</h2>
         {label &&
           (actionHref ? (
             <Link
