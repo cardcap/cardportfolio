@@ -920,6 +920,23 @@ export function DatabaseView() {
             setPanelOpen(false);
             setSelected(null);
           }}
+          onPrev={() => {
+            const idx = sortedCards.findIndex((c) => c.id === selected.id);
+            if (idx > 0) setSelected(sortedCards[idx - 1]);
+          }}
+          onNext={() => {
+            const idx = sortedCards.findIndex((c) => c.id === selected.id);
+            if (idx >= 0 && idx < sortedCards.length - 1) {
+              setSelected(sortedCards[idx + 1]);
+            }
+          }}
+          hasPrev={
+            sortedCards.findIndex((c) => c.id === selected.id) > 0
+          }
+          hasNext={(() => {
+            const idx = sortedCards.findIndex((c) => c.id === selected.id);
+            return idx >= 0 && idx < sortedCards.length - 1;
+          })()}
           onAddToWishlist={() => toggleItem(wishlistItemFromTcg(selected))}
           onEditCollection={() => {
             if (!selected || collectionBusy) return;

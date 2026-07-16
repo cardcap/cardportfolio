@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CardImage } from "@/components/ui/card-image";
 import { InfoTip } from "@/components/ui/metric-card";
 import { useWishlist } from "@/components/wishlist-provider";
@@ -154,91 +154,128 @@ export function SetCardDetailPanel({
   const typeLabel = card.types?.[0];
   const rarityLabel = card.rarity ? formatRarityEnglish(card.rarity) : null;
 
-  /** Drag right → next, drag left → previous (mouse + touch) */
-  const swipeRef = useRef<{ x: number; y: number } | null>(null);
-  const SWIPE_PX = 56;
+  const canPrev = Boolean(hasPrev && onPrev);
+  const canNext = Boolean(hasNext && onNext);
 
-  const onSwipePointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      if (e.button !== 0) return;
-      const el = e.target as HTMLElement | null;
-      if (
-        el?.closest(
-          "button, a, input, select, textarea, label, [role='button'], [role='switch']",
-        )
-      ) {
-        return;
-      }
-      swipeRef.current = { x: e.clientX, y: e.clientY };
+  const goPrev = useCallback(
+    (e?: { stopPropagation?: () => void; preventDefault?: () => void }) => {
+      e?.stopPropagation?.();
+      e?.preventDefault?.();
+      if (canPrev) onPrev?.();
     },
-    [],
+    [canPrev, onPrev],
   );
 
-  const onSwipePointerUp = useCallback(
-    (e: React.PointerEvent) => {
-      const start = swipeRef.current;
-      swipeRef.current = null;
+  const goNext = useCallback(
+    (e?: { stopPropagation?: () => void; preventDefault?: () => void }) => {
+      e?.stopPropagation?.();
+      e?.preventDefault?.();
+      if (canNext) onNext?.();
+    },
+    [canNext, onNext],
+  );
+
+  /** Horizontal drag (document-level so release outside panel still counts) */
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
+  const SWIPE_PX = 48;
+
+  const onPanelPointerDown = useCallback((e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    const el = e.target as HTMLElement | null;
+    // Don't start swipe on controls — let buttons work normally
+    if (
+      el?.closest(
+        "button, a, input, select, textarea, label, [role='button'], [role='switch']",
+      )
+    ) {
+      swipeStart.current = null;
+      return;
+    }
+    swipeStart.current = { x: e.clientX, y: e.clientY };
+  }, []);
+
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      // keep start; evaluation on up
+      void e;
+    };
+    const onUp = (e: PointerEvent) => {
+      const start = swipeStart.current;
+      swipeStart.current = null;
       if (!start) return;
       const dx = e.clientX - start.x;
       const dy = e.clientY - start.y;
-      // Prefer horizontal swipe over scroll
-      if (Math.abs(dx) < SWIPE_PX || Math.abs(dx) < Math.abs(dy) * 1.15) {
-        return;
-      }
-      if (dx > 0) {
-        // Maustaste / Finger nach rechts → nächste Karte
-        if (hasNext) onNext?.();
-      } else {
-        // nach links → vorherige Karte
-        if (hasPrev) onPrev?.();
-      }
-    },
-    [hasNext, hasPrev, onNext, onPrev],
-  );
+      if (Math.abs(dx) < SWIPE_PX || Math.abs(dx) < Math.abs(dy) * 1.1) return;
+      // Drag right → next, drag left → previous
+      if (dx > 0) goNext();
+      else goPrev();
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [goNext, goPrev]);
 
-  const onSwipePointerCancel = useCallback(() => {
-    swipeRef.current = null;
-  }, []);
+  // Keyboard: ← → Esc
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        goPrev();
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        goNext();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [goNext, goPrev, onClose]);
 
   return (
     <>
-      {/* Click outside closes detail (mobile + desktop). Panel sits above (z-50). */}
+      {/* Click outside closes detail. Panel sits above (z-50). */}
       <button
         type="button"
         aria-label="Detailansicht schließen"
-        className="fixed inset-0 z-40 bg-black/40 lg:bg-black/25"
-        onClick={onClose}
+        className="fixed inset-0 z-40 cursor-default bg-black/40 lg:bg-black/25"
+        onMouseDown={(e) => {
+          // Only close if press starts on backdrop (avoids steal after drag)
+          if (e.button === 0) onClose();
+        }}
       />
       <aside
         className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-50 flex max-h-[min(88dvh,100%)] w-full flex-col overflow-hidden rounded-t-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl touch-pan-y lg:inset-x-auto lg:inset-y-4 lg:left-auto lg:right-4 lg:bottom-4 lg:top-4 lg:w-[min(100vw-2rem,26rem)] lg:max-h-none lg:rounded-2xl"
-        onPointerDown={onSwipePointerDown}
-        onPointerUp={onSwipePointerUp}
-        onPointerCancel={onSwipePointerCancel}
-        onPointerLeave={(e) => {
-          // End swipe if pointer leaves panel while dragging
-          if (swipeRef.current) onSwipePointerUp(e);
-        }}
+        onPointerDown={onPanelPointerDown}
       >
         {/* Header nav */}
         <div className="flex shrink-0 items-center justify-between border-b border-[var(--border)] px-3 py-2.5">
           <div className="flex items-center gap-1">
             <button
               type="button"
-              onClick={onPrev}
-              disabled={!hasPrev}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-elevated)] disabled:opacity-30"
+              onClick={goPrev}
+              onPointerDown={(e) => e.stopPropagation()}
+              disabled={!canPrev}
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)] disabled:pointer-events-none disabled:opacity-30"
               aria-label="Vorherige Karte"
             >
               ‹
             </button>
-            <span className="tabular-nums min-w-[4.5rem] text-center text-xs font-medium text-[var(--muted)]">
+            <span className="tabular-nums min-w-[4.5rem] select-none text-center text-xs font-medium text-[var(--muted)]">
               {positionLabel}
             </span>
             <button
               type="button"
-              onClick={onNext}
-              disabled={!hasNext}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-elevated)] disabled:opacity-30"
+              onClick={goNext}
+              onPointerDown={(e) => e.stopPropagation()}
+              disabled={!canNext}
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)] disabled:pointer-events-none disabled:opacity-30"
               aria-label="Nächste Karte"
             >
               ›
@@ -246,9 +283,13 @@ export function SetCardDetailPanel({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
             aria-label="Schließen"
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)]"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)]"
           >
             ×
           </button>

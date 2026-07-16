@@ -1345,12 +1345,8 @@ export function SammlungView() {
                                     )}
                                   </div>
                                 </td>
-                                <td className="px-3 py-2.5">
-                                  <span
-                                    className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${rarityBadgeClass(row.rarity)}`}
-                                  >
-                                    {rarityLabel}
-                                  </span>
+                                <td className="px-3 py-2.5 text-sm text-[var(--muted)]">
+                                  {rarityLabel}
                                 </td>
                                 <td className="px-3 py-2.5 tabular-nums text-[var(--muted)]">
                                   {languageShort(row.language)}
@@ -1502,22 +1498,32 @@ export function SammlungView() {
             setEditing(false);
           }}
           onPrev={() => {
-            if (selectedIndex > 0) {
-              setSelectedId(filteredItems[selectedIndex - 1].id);
+            const idx = filteredItems.findIndex(
+              (r) => r.id === selectedRow.id,
+            );
+            if (idx > 0) {
+              setSelectedId(filteredItems[idx - 1].id);
+              setPanelOpen(true);
             }
           }}
           onNext={() => {
-            if (
-              selectedIndex >= 0 &&
-              selectedIndex < filteredItems.length - 1
-            ) {
-              setSelectedId(filteredItems[selectedIndex + 1].id);
+            const idx = filteredItems.findIndex(
+              (r) => r.id === selectedRow.id,
+            );
+            if (idx >= 0 && idx < filteredItems.length - 1) {
+              setSelectedId(filteredItems[idx + 1].id);
+              setPanelOpen(true);
             }
           }}
-          hasPrev={selectedIndex > 0}
-          hasNext={
-            selectedIndex >= 0 && selectedIndex < filteredItems.length - 1
+          hasPrev={
+            filteredItems.findIndex((r) => r.id === selectedRow.id) > 0
           }
+          hasNext={(() => {
+            const idx = filteredItems.findIndex(
+              (r) => r.id === selectedRow.id,
+            );
+            return idx >= 0 && idx < filteredItems.length - 1;
+          })()}
           onAddToWishlist={() =>
             toggleItem(wishlistItemFromTcg(rowToTcgCard(selectedRow)))
           }
