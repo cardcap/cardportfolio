@@ -11,7 +11,7 @@ import { SetCardDetailPanel } from "@/components/sets/set-card-detail-panel";
 import { CardImage } from "@/components/ui/card-image";
 import { SetLogo } from "@/components/ui/set-logo";
 import { getCardGlowColor } from "@/lib/card-colors";
-import { formatDateDE } from "@/lib/format";
+import { formatCurrency, formatDateDE } from "@/lib/format";
 import {
   getCardImageFallbacks,
   getCardImageUrl,
@@ -491,7 +491,7 @@ export function SetDetailView({
               Keine Karten für die gewählten Filter.
             </p>
           ) : view === "grid" ? (
-            <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
               {mainCards.map((card) => (
                 <CardTile
                   key={card.id}
@@ -544,7 +544,7 @@ export function SetDetailView({
                   Keine Secret Rares in den aktuellen Filtern.
                 </p>
               ) : view === "grid" ? (
-                <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
                   {secretCards.map((card) => (
                     <CardTile
                       key={card.id}
@@ -651,53 +651,70 @@ function CardTile({
     (num > 0
       ? `${String(num).padStart(3, "0")}/${String(official).padStart(3, "0")}`
       : card.number);
+  const price = getCardPrice(card);
+  const rarity = formatRarityEnglish(card.rarity);
   const glow = getCardGlowColor(card.types);
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      data-card-hover
-      className={`card-tile-hover group/card rounded-xl border text-left ${
-        selected
-          ? "border-[var(--accent)] ring-1 ring-[var(--accent)]"
-          : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)]"
-      }`}
-      style={{ ["--card-glow" as string]: glow }}
-    >
+    <div className="min-w-0">
       <div
-        className={`relative aspect-[5/7] overflow-visible bg-[var(--surface-elevated)] ${
-          missing && grayMissing ? "grayscale opacity-55" : ""
+        data-card-hover
+        className={`card-tile-hover group/card relative w-full rounded-xl border bg-[var(--surface)] ${
+          selected
+            ? "border-[var(--accent)] ring-1 ring-[var(--accent)]"
+            : "border-[var(--border)] hover:border-[var(--border-strong)]"
         }`}
+        style={{ ["--card-glow" as string]: glow }}
       >
-        <CardImage
-          src={getCardImageUrl(card)}
-          alt={card.name}
-          fallbacks={getCardImageFallbacks(card)}
-          types={card.types}
-          hoverGlow
-          size="lg"
-          className="!aspect-[5/7] !h-full !w-full !rounded-t-xl"
-        />
-        {!missing && (
-          <span className="absolute right-1 top-1 z-10 inline-flex min-w-[1.75rem] items-center justify-center rounded-lg bg-[var(--accent)] px-2 py-1 text-xs font-bold text-white shadow-lg ring-2 ring-black/40">
-            ×{qty}
-          </span>
-        )}
+        <button type="button" onClick={onClick} className="w-full text-left">
+          <div
+            className={`relative aspect-[5/7] overflow-visible bg-[var(--surface-elevated)] ${
+              missing && grayMissing ? "grayscale opacity-55" : ""
+            }`}
+          >
+            <CardImage
+              src={getCardImageUrl(card)}
+              alt={card.name}
+              fallbacks={getCardImageFallbacks(card)}
+              types={card.types}
+              hoverGlow
+              size="lg"
+              className="!aspect-[5/7] !h-full !w-full !rounded-t-xl"
+            />
+            {!missing && (
+              <span className="absolute left-1.5 top-1.5 z-10 rounded-md bg-[var(--accent)] px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                ×{qty}
+              </span>
+            )}
+          </div>
+          <div className="space-y-0.5 p-2.5">
+            <p
+              className={`truncate text-sm font-medium ${
+                missing ? "text-[var(--muted)]" : ""
+              }`}
+            >
+              {missing ? "Fehlt" : card.name}
+            </p>
+            <p className="truncate text-[11px] text-[var(--muted)]">
+              {label}
+              {rarity ? ` · ${rarity}` : ""}
+            </p>
+            <div className="flex items-end justify-between gap-1 pt-0.5">
+              <span className="tabular-nums text-sm font-semibold">
+                {price != null ? formatCurrency(price) : "—"}
+              </span>
+              {missing ? (
+                <span className="text-[11px] text-[var(--muted)]">fehlt</span>
+              ) : (
+                <span className="tabular-nums text-[11px] font-medium text-[var(--accent)]">
+                  ×{qty}
+                </span>
+              )}
+            </div>
+          </div>
+        </button>
       </div>
-      <div className="px-1.5 py-1.5">
-        <p className="truncate font-mono text-[10px] text-[var(--muted)]">
-          {label}
-        </p>
-        {missing ? (
-          <p className="truncate text-[11px] font-medium text-[var(--muted)]">
-            Fehlt
-          </p>
-        ) : (
-          <p className="truncate text-[11px] font-medium">{card.name}</p>
-        )}
-      </div>
-    </button>
+    </div>
   );
 }
 
