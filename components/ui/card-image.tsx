@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { getCardGlowColor } from "@/lib/card-colors";
 
 type CardImageProps = {
@@ -11,7 +11,10 @@ type CardImageProps = {
   fallbacks?: string[];
   /** Energy types (DE/EN) for subtle color-matched hover glow */
   types?: string[];
-  /** Enable soft hover lift + pulse (default true for md/lg) */
+  /**
+   * Soft hover lift + type-colored pulse.
+   * Default: on when types are set, or for md/lg sizes.
+   */
   hoverGlow?: boolean;
 };
 
@@ -27,31 +30,23 @@ export function CardImage({
   const sources = [...new Set([src, ...fallbacks].filter(Boolean))];
   const [sourceIndex, setSourceIndex] = useState(0);
   const [failed, setFailed] = useState(false);
-  const glowEnabled = hoverGlow ?? size !== "sm";
+
+  // Enable glow by default whenever we have type info, or for larger cards
+  const glowEnabled =
+    hoverGlow ?? (Boolean(types?.length) || size === "md" || size === "lg");
   const glow = getCardGlowColor(types);
 
   const glowClass = glowEnabled ? "card-type-glow" : "";
-  const glowStyle = glowEnabled
-    ? ({ ["--card-glow" as string]: glow } as React.CSSProperties)
+  const glowStyle: CSSProperties | undefined = glowEnabled
+    ? ({ ["--card-glow"]: glow } as CSSProperties)
     : undefined;
 
-  const placeholderClass = `flex items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] text-[var(--muted)] ${
+  const sizeClass =
     size === "sm"
-      ? "h-12 w-9 text-[8px]"
+      ? "h-12 w-9"
       : size === "lg"
-        ? "aspect-[5/7] w-full text-xs"
-        : "h-28 w-20 text-[10px]"
-  } ${className}`;
-
-  if (failed || sourceIndex >= sources.length) {
-    return (
-      <div className={`${placeholderClass} ${glowClass}`} style={glowStyle}>
-        {alt.slice(0, 2)}
-      </div>
-    );
-  }
-
-  const currentSrc = sources[sourceIndex];
+        ? "aspect-[5/7] w-full"
+        : "h-28 w-20";
 
   const handleError = () => {
     if (sourceIndex < sources.length - 1) {
@@ -61,39 +56,38 @@ export function CardImage({
     }
   };
 
-  if (size === "lg") {
+  // Outer: glow/shadow (no overflow clip). Inner: rounds + clips image.
+  if (failed || sourceIndex >= sources.length || !sources[sourceIndex]) {
     return (
       <div
-        className={`relative aspect-[5/7] overflow-hidden rounded-lg bg-[var(--surface-elevated)] shadow-sm ${glowClass} ${className}`}
+        className={`${sizeClass} ${glowClass} ${className}`}
         style={glowStyle}
       >
+        <div className="flex h-full w-full items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] text-[10px] text-[var(--muted)]">
+          {alt.slice(0, 2)}
+        </div>
+      </div>
+    );
+  }
+
+  const currentSrc = sources[sourceIndex];
+
+  return (
+    <div
+      className={`relative ${sizeClass} ${glowClass} ${className}`}
+      style={glowStyle}
+    >
+      <div className="h-full w-full overflow-hidden rounded-[inherit] rounded-lg bg-[var(--surface-elevated)] shadow-sm">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={currentSrc}
           alt={alt}
           loading="lazy"
+          decoding="async"
           onError={handleError}
           className="h-full w-full object-contain"
         />
       </div>
-    );
-  }
-
-  const dim = size === "sm" ? "h-12 w-9" : "h-28 w-20";
-
-  return (
-    <div
-      className={`relative overflow-hidden rounded-md bg-[var(--surface-elevated)] shadow-sm ${dim} ${glowClass} ${className}`}
-      style={glowStyle}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={currentSrc}
-        alt={alt}
-        loading="lazy"
-        onError={handleError}
-        className="h-full w-full object-contain"
-      />
     </div>
   );
 }

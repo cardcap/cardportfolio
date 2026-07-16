@@ -11,6 +11,7 @@ import { SetCardDetailPanel } from "@/components/sets/set-card-detail-panel";
 import { ThemeToggleButton } from "@/components/theme-toggle";
 import { CardImage } from "@/components/ui/card-image";
 import { SetLogo } from "@/components/ui/set-logo";
+import { getCardGlowColor } from "@/lib/card-colors";
 import { formatDateDE } from "@/lib/format";
 import {
   getCardImageFallbacks,
@@ -652,19 +653,22 @@ function CardTile({
     (num > 0
       ? `${String(num).padStart(3, "0")}/${String(official).padStart(3, "0")}`
       : card.number);
+  const glow = getCardGlowColor(card.types);
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`group overflow-hidden rounded-xl border text-left transition-all ${
+      data-card-hover
+      className={`card-tile-hover group/card rounded-xl border text-left ${
         selected
           ? "border-[var(--accent)] ring-1 ring-[var(--accent)]"
           : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)]"
       }`}
+      style={{ ["--card-glow" as string]: glow }}
     >
       <div
-        className={`relative aspect-[5/7] bg-[var(--surface-elevated)] ${
+        className={`relative aspect-[5/7] overflow-visible bg-[var(--surface-elevated)] ${
           missing && grayMissing ? "grayscale opacity-55" : ""
         }`}
       >
@@ -673,8 +677,9 @@ function CardTile({
           alt={card.name}
           fallbacks={getCardImageFallbacks(card)}
           types={card.types}
+          hoverGlow
           size="lg"
-          className="!aspect-[5/7] !h-full !w-full !rounded-none"
+          className="!aspect-[5/7] !h-full !w-full !rounded-t-xl"
         />
         {!missing && (
           <span className="absolute right-1 top-1 z-10 inline-flex min-w-[1.75rem] items-center justify-center rounded-lg bg-[var(--accent)] px-2 py-1 text-xs font-bold text-white shadow-lg ring-2 ring-black/40">

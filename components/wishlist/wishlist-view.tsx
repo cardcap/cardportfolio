@@ -565,9 +565,9 @@ function WishlistCard({
           .join(" · ");
 
   return (
-    <article className="flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
+    <article className="card-tile-hover flex flex-col rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
       <div className="flex gap-3 p-3.5">
-        <div className="relative h-[7.25rem] w-[5.25rem] shrink-0 overflow-hidden rounded-xl ring-1 ring-[var(--border)]">
+        <div className="relative h-[7.25rem] w-[5.25rem] shrink-0 overflow-visible rounded-xl ring-1 ring-[var(--border)]">
           {kind === "Sealed" ? (
             <SealedProductImage
               src={item.imageUrl}
@@ -584,11 +584,12 @@ function WishlistCard({
               src={item.imageUrl}
               fallbacks={item.imageFallbacks}
               alt={item.name}
+              hoverGlow
               size="sm"
-              className="!h-full !w-full !rounded-none object-cover"
+              className="!h-full !w-full !rounded-xl"
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center bg-[var(--surface-elevated)] text-[var(--muted)]">
+            <div className="flex h-full w-full items-center justify-center rounded-xl bg-[var(--surface-elevated)] text-[var(--muted)]">
               <span className="text-[10px]">{item.name.slice(0, 2)}</span>
             </div>
           )}

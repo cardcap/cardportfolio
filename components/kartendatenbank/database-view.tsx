@@ -10,7 +10,7 @@ import {
   loadDatabaseFilters,
   saveDatabaseFilters,
 } from "@/lib/database-filters";
-import { isAllColorsFilter } from "@/lib/card-colors";
+import { getCardGlowColor, isAllColorsFilter } from "@/lib/card-colors";
 import {
   formatRarityEnglish,
   isAllRaritiesFilter,
@@ -943,25 +943,31 @@ function FragmentCard({
   onOpen: () => void;
   triggerRef?: React.RefObject<HTMLDivElement | null>;
 }) {
+  const glow = getCardGlowColor(card.types);
   return (
     <div ref={triggerRef as React.RefObject<HTMLDivElement>} className="min-w-0">
-      <div className="group relative w-full overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] transition-all hover:border-[var(--border-strong)]">
+      <div
+        data-card-hover
+        className="card-tile-hover group/card relative w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)]"
+        style={{ ["--card-glow" as string]: glow }}
+      >
         <button
           type="button"
           onClick={onOpen}
           className="w-full text-left"
         >
-          <div className="relative aspect-[5/7] bg-[var(--surface-elevated)]">
+          <div className="relative aspect-[5/7] overflow-visible bg-[var(--surface-elevated)]">
             <CardImage
               src={getCardImageUrl(card)}
               alt={card.name}
               fallbacks={getCardImageFallbacks(card)}
               types={card.types}
+              hoverGlow
               size="lg"
-              className="!aspect-[5/7] !h-full !w-full !rounded-none"
+              className="!aspect-[5/7] !h-full !w-full !rounded-t-xl"
             />
             {owned && (
-              <span className="absolute left-1.5 top-1.5 rounded-md bg-[var(--accent)] px-1.5 py-0.5 text-[10px] font-semibold text-white">
+              <span className="absolute left-1.5 top-1.5 z-10 rounded-md bg-[var(--accent)] px-1.5 py-0.5 text-[10px] font-semibold text-white">
                 ×1
               </span>
             )}

@@ -188,6 +188,7 @@ export function SetCardDetailPanel({
                 alt={card.name}
                 fallbacks={getCardImageFallbacks(card)}
                 types={card.types}
+                hoverGlow
                 size="lg"
                 className="!w-full !rounded-xl shadow-lg ring-1 ring-white/10"
               />
