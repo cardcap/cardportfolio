@@ -60,7 +60,6 @@ type SortKey =
   | "set";
 
 type KartenUiState = {
-  search: string;
   setFilter: string;
   languageFilter: string;
   conditionFilter: string;
@@ -72,7 +71,6 @@ type KartenUiState = {
 };
 
 const DEFAULT_UI: KartenUiState = {
-  search: "",
   setFilter: "Alle Sets",
   languageFilter: "Alle Sprachen",
   conditionFilter: "Alle Zustände",
@@ -88,14 +86,16 @@ function loadKartenUi(): KartenUiState {
   try {
     const raw = localStorage.getItem(UI_STORAGE_KEY);
     if (!raw) return DEFAULT_UI;
-    const parsed = JSON.parse(raw) as Partial<KartenUiState>;
+    const parsed = JSON.parse(raw) as Partial<KartenUiState> & {
+      search?: string;
+    };
     const pageSize = PAGE_SIZES.includes(
       parsed.pageSize as (typeof PAGE_SIZES)[number],
     )
       ? (parsed.pageSize as (typeof PAGE_SIZES)[number])
       : DEFAULT_UI.pageSize;
     return {
-      search: typeof parsed.search === "string" ? parsed.search : DEFAULT_UI.search,
+      // search is intentionally never restored — always empty on visit
       setFilter:
         typeof parsed.setFilter === "string"
           ? parsed.setFilter
