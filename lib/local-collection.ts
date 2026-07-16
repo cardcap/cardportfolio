@@ -110,6 +110,63 @@ export function addToLocalCollection(
   return created;
 }
 
+export type LocalCollectionUpdate = {
+  quantity?: number;
+  condition?: string;
+  purchasePrice?: number | null;
+  purchaseDate?: string | null;
+};
+
+/** Update a local collection row by id. Recalculates marketValue/profit. */
+export function updateLocalCollectionItem(
+  id: string,
+  patch: LocalCollectionUpdate,
+): LocalCollectionItem | null {
+  const items = getLocalCollection();
+  const idx = items.findIndex((i) => i.id === id);
+  if (idx < 0) return null;
+
+  const item = { ...items[idx] };
+  if (patch.quantity !== undefined) {
+    item.quantity = Math.max(1, Math.floor(patch.quantity));
+  }
+  if (patch.condition !== undefined && patch.condition.trim()) {
+    item.condition = patch.condition.trim();
+  }
+  if (patch.purchasePrice !== undefined) {
+    item.purchasePrice = patch.purchasePrice;
+  }
+  if (patch.purchaseDate !== undefined) {
+    item.purchaseDate = patch.purchaseDate;
+  }
+
+  const unit = item.purchasePrice ?? item.marketValue / Math.max(1, item.quantity);
+  // Keep unit market from prior marketValue/qty if no purchase price
+  const unitMarket =
+    item.quantity > 0
+      ? (items[idx].marketValue || 0) / Math.max(1, items[idx].quantity)
+      : 0;
+  const marketUnit = unitMarket > 0 ? unitMarket : unit;
+  item.marketValue = Math.round(marketUnit * item.quantity * 100) / 100;
+  if (item.purchasePrice != null) {
+    item.profit =
+      Math.round((item.marketValue - item.purchasePrice * item.quantity) * 100) /
+      100;
+  }
+
+  items[idx] = item;
+  saveLocalCollection(items);
+  return item;
+}
+
+export function removeLocalCollectionItem(id: string): boolean {
+  const items = getLocalCollection();
+  const next = items.filter((i) => i.id !== id);
+  if (next.length === items.length) return false;
+  saveLocalCollection(next);
+  return true;
+}
+
 export function localCollectionMetrics(items: LocalCollectionItem[]) {
   const totalCards = items.reduce((s, i) => s + i.quantity, 0);
   const uniqueCards = new Set(items.map((i) => i.tcgCardId)).size;

@@ -17,12 +17,44 @@ import { ConditionBadge } from "@/components/ui/condition-badge";
 import { DetailPanel } from "@/components/ui/detail-panel";
 import { MetricCard } from "@/components/ui/metric-card";
 import { Price, formatMarketPrice } from "@/components/ui/price";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatDateDE } from "@/lib/format";
 import {
   getLocalCollection,
   localCollectionMetrics,
+  removeLocalCollectionItem,
+  updateLocalCollectionItem,
   type LocalCollectionItem,
 } from "@/lib/local-collection";
+import { RAW_CONDITIONS, PSA_CONDITIONS } from "@/lib/card-conditions";
+
+const EDIT_CONDITIONS = [...RAW_CONDITIONS, ...PSA_CONDITIONS] as const;
+
+function parseEuroInput(value: string): number | null {
+  const cleaned = value.replace(/[€\s]/g, "").replace(",", ".");
+  if (!cleaned.trim()) return null;
+  const n = Number.parseFloat(cleaned);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
+}
+
+/** Normalize stored dates (ISO or DE) to yyyy-mm-dd for <input type="date"> */
+function toDateInputValue(raw: string | null | undefined): string {
+  if (!raw || raw === "—") return "";
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  const de = raw.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (de) {
+    return `${de[3]}-${de[2].padStart(2, "0")}-${de[1].padStart(2, "0")}`;
+  }
+  const d = new Date(raw);
+  if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  return "";
+}
+
+function displayPurchaseDate(raw: string | null | undefined): string {
+  if (!raw || raw === "—") return "—";
+  // Already German (mock seed uses DD.MM.YYYY)
+  if (/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(raw)) return raw;
+  return formatDateDE(raw);
+}
 
 type CollectionItemDto = {
   id: string;
@@ -85,6 +117,12 @@ export function SammlungView() {
   const [search, setSearch] = useState("");
   const [colorFilter, setColorFilter] = useState("");
   const [conditionFilter, setConditionFilter] = useState("Alle Zustände");
+  const [editing, setEditing] = useState(false);
+  const [editQty, setEditQty] = useState(1);
+  const [editCondition, setEditCondition] = useState("Near Mint");
+  const [editPrice, setEditPrice] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [saving, setSaving] = useState(false);
   const colors = COLORS_BY_LANG[DEFAULT_LANGUAGE];
 
   const { requireAuth, AuthPromptModal } = useRequireAuth({
@@ -269,6 +307,118 @@ export function SammlungView() {
     filteredItems.find((row) => row.id === activeId) ??
     filteredItems[0] ??
     null;
+
+  const isLocalRow = (id: string) => id.startsWith("local-");
+
+  const startEdit = useCallback(() => {
+    if (!selectedRow) return;
+    setEditQty(selectedRow.quantity);
+    setEditCondition(selectedRow.condition);
+    setEditPrice(
+      selectedRow.purchasePrice != null
+        ? selectedRow.purchasePrice.toFixed(2).replace(".", ",")
+        : "",
+    );
+    setEditDate(toDateInputValue(selectedRow.purchaseDate));
+    setEditing(true);
+  }, [selectedRow]);
+
+  const cancelEdit = () => setEditing(false);
+
+  const saveEdit = useCallback(async () => {
+    if (!selectedRow) return;
+    setSaving(true);
+    try {
+      const purchasePrice = parseEuroInput(editPrice);
+      const purchaseDate = editDate.trim() || null;
+      const quantity = Math.max(1, Math.floor(editQty) || 1);
+      const condition = editCondition || "Near Mint";
+
+      if (isLocalRow(selectedRow.id) || !isAuthenticated) {
+        updateLocalCollectionItem(selectedRow.id, {
+          quantity,
+          condition,
+          purchasePrice,
+          purchaseDate,
+        });
+        loadLocal();
+        setEditing(false);
+        return;
+      }
+
+      const res = await fetch("/api/collection", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selectedRow.id,
+          quantity,
+          condition,
+          purchasePrice,
+          purchaseDate,
+        }),
+      });
+      if (!res.ok) {
+        // Fallback: try local if this was somehow only local
+        updateLocalCollectionItem(selectedRow.id, {
+          quantity,
+          condition,
+          purchasePrice,
+          purchaseDate,
+        });
+      }
+      await loadCollection();
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  }, [
+    selectedRow,
+    editPrice,
+    editDate,
+    editQty,
+    editCondition,
+    isAuthenticated,
+    loadLocal,
+    loadCollection,
+  ]);
+
+  const removeSelected = useCallback(async () => {
+    if (!selectedRow) return;
+    const ok = window.confirm(
+      `„${selectedRow.name}“ aus der Sammlung entfernen?`,
+    );
+    if (!ok) return;
+
+    setSaving(true);
+    try {
+      if (isLocalRow(selectedRow.id) || !isAuthenticated) {
+        removeLocalCollectionItem(selectedRow.id);
+        loadLocal();
+      } else {
+        const res = await fetch("/api/collection", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: selectedRow.id }),
+        });
+        if (!res.ok) {
+          removeLocalCollectionItem(selectedRow.id);
+          loadLocal();
+        } else {
+          await loadCollection();
+        }
+      }
+      setEditing(false);
+      setPanelOpen(false);
+      setSelectedId(null);
+    } finally {
+      setSaving(false);
+    }
+  }, [selectedRow, isAuthenticated, loadLocal, loadCollection]);
+
+  // Reset edit mode when switching cards
+  useEffect(() => {
+    setEditing(false);
+  }, [selectedRow?.id]);
 
   const openImport = () => {
     requireAuth(() => setImportOpen(true));
@@ -595,57 +745,134 @@ export function SammlungView() {
             )}
 
             <div className="mt-5 space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-[var(--muted)]">Anzahl in Sammlung</span>
-                <span className="font-medium">{selectedRow.quantity}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[var(--muted)]">Zustand</span>
-                <ConditionBadge condition={selectedRow.condition} />
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[var(--muted)]">EK pro Karte</span>
-                <span className="tabular-nums">
-                  {formatCurrency(selectedRow.purchasePrice)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[var(--muted)]">Kaufdatum</span>
-                <span>{selectedRow.purchaseDate}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[var(--muted)]">Marktwert</span>
-                <Price value={selectedRow.marketValue} className="font-medium" />
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[var(--muted)]">Gewinn / Verlust</span>
-                <span
-                  className={
-                    selectedRow.profit >= 0
-                      ? "text-[var(--positive)]"
-                      : "text-[var(--negative)]"
-                  }
-                >
-                  {selectedRow.profit >= 0 ? "+" : ""}
-                  <Price value={selectedRow.profit} />
-                </span>
-              </div>
+              {editing ? (
+                <>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[var(--muted)]">Anzahl</span>
+                    <input
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={editQty}
+                      onChange={(e) =>
+                        setEditQty(Number.parseInt(e.target.value, 10) || 1)
+                      }
+                      className="h-10 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 tabular-nums"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[var(--muted)]">Zustand</span>
+                    <select
+                      value={editCondition}
+                      onChange={(e) => setEditCondition(e.target.value)}
+                      className="h-10 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3"
+                    >
+                      {EDIT_CONDITIONS.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[var(--muted)]">EK pro Karte (€)</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={editPrice}
+                      onChange={(e) => setEditPrice(e.target.value)}
+                      placeholder="0,00"
+                      className="h-10 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 tabular-nums"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[var(--muted)]">Kaufdatum</span>
+                    <input
+                      type="date"
+                      value={editDate}
+                      onChange={(e) => setEditDate(e.target.value)}
+                      className="h-10 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3"
+                    />
+                  </label>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-[var(--muted)]">Anzahl in Sammlung</span>
+                    <span className="font-medium">{selectedRow.quantity}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[var(--muted)]">Zustand</span>
+                    <ConditionBadge condition={selectedRow.condition} />
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[var(--muted)]">EK pro Karte</span>
+                    <span className="tabular-nums">
+                      {formatCurrency(selectedRow.purchasePrice)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[var(--muted)]">Kaufdatum</span>
+                    <span>{displayPurchaseDate(selectedRow.purchaseDate)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[var(--muted)]">Marktwert</span>
+                    <Price
+                      value={selectedRow.marketValue}
+                      className="font-medium"
+                    />
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[var(--muted)]">Gewinn / Verlust</span>
+                    <span
+                      className={
+                        selectedRow.profit >= 0
+                          ? "text-[var(--positive)]"
+                          : "text-[var(--negative)]"
+                      }
+                    >
+                      {selectedRow.profit >= 0 ? "+" : ""}
+                      <Price value={selectedRow.profit} />
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="mt-6 space-y-2">
-              <Button
-                className="w-full"
-                onClick={() => requireAuth(() => {})}
-              >
-                Bearbeiten
-              </Button>
-              <Button
-                variant="danger"
-                className="w-full"
-                onClick={() => requireAuth(() => {})}
-              >
-                Aus Sammlung entfernen
-              </Button>
+              {editing ? (
+                <>
+                  <Button
+                    className="w-full"
+                    onClick={() => void saveEdit()}
+                    disabled={saving}
+                  >
+                    {saving ? "Speichern…" : "Speichern"}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="w-full"
+                    onClick={cancelEdit}
+                    disabled={saving}
+                  >
+                    Abbrechen
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button className="w-full" onClick={startEdit}>
+                    Bearbeiten
+                  </Button>
+                  <Button
+                    variant="danger"
+                    className="w-full"
+                    onClick={() => void removeSelected()}
+                    disabled={saving}
+                  >
+                    Aus Sammlung entfernen
+                  </Button>
+                </>
+              )}
             </div>
           </DetailPanel>
       )}

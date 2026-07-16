@@ -248,6 +248,126 @@ export async function addCardToCollection(
   return enrichItem(created, cachedCard, setName, lang);
 }
 
+export async function updateCollectionItem(
+  userId: string,
+  id: string,
+  patch: {
+    quantity?: number;
+    condition?: string;
+    purchasePrice?: number | null;
+    purchaseDate?: string | null;
+  },
+): Promise<CollectionItemDto | null> {
+  const existing = await prisma.collectionItem.findFirst({
+    where: { id, userId },
+  });
+  if (!existing) return null;
+
+  const nextCondition = patch.condition?.trim() || existing.condition;
+  const nextQuantity =
+    patch.quantity !== undefined
+      ? Math.max(1, Math.floor(patch.quantity))
+      : existing.quantity;
+
+  // Unique constraint on (userId, tcgCardId, condition) — avoid conflict
+  if (nextCondition !== existing.condition) {
+    const clash = await prisma.collectionItem.findUnique({
+      where: {
+        userId_tcgCardId_condition: {
+          userId,
+          tcgCardId: existing.tcgCardId,
+          condition: nextCondition,
+        },
+      },
+    });
+    if (clash && clash.id !== existing.id) {
+      // Merge into existing row with that condition
+      await prisma.collectionItem.update({
+        where: { id: clash.id },
+        data: {
+          quantity: clash.quantity + nextQuantity,
+          purchasePrice:
+            patch.purchasePrice !== undefined
+              ? patch.purchasePrice
+              : clash.purchasePrice,
+          purchaseDate:
+            patch.purchaseDate !== undefined
+              ? patch.purchaseDate
+              : clash.purchaseDate,
+        },
+      });
+      await prisma.collectionItem.delete({ where: { id: existing.id } });
+      const lang = (clash.language as CardLanguage) || DEFAULT_LANGUAGE;
+      const cachedCards = loadCachedCards(lang);
+      const cachedCard = findCachedCard(cachedCards, clash.tcgCardId);
+      if (!cachedCard) return null;
+      const merged = await prisma.collectionItem.findUnique({
+        where: { id: clash.id },
+      });
+      if (!merged) return null;
+      return enrichItem(merged, cachedCard, merged.setName, lang);
+    }
+  }
+
+  const updated = await prisma.collectionItem.update({
+    where: { id: existing.id },
+    data: {
+      quantity: nextQuantity,
+      condition: nextCondition,
+      purchasePrice:
+        patch.purchasePrice !== undefined
+          ? patch.purchasePrice
+          : existing.purchasePrice,
+      purchaseDate:
+        patch.purchaseDate !== undefined
+          ? patch.purchaseDate
+          : existing.purchaseDate,
+    },
+  });
+
+  const lang = (updated.language as CardLanguage) || DEFAULT_LANGUAGE;
+  const cachedCards = loadCachedCards(lang);
+  const cachedCard = findCachedCard(cachedCards, updated.tcgCardId);
+  if (!cachedCard) {
+    // Still return enriched with stored fields
+    return {
+      id: updated.id,
+      tcgCardId: updated.tcgCardId,
+      name: updated.name,
+      setId: updated.setId,
+      setName: updated.setName,
+      number: updated.number,
+      imageUrl: updated.imageUrl,
+      imageFallbacks: updated.imageFallbacks
+        ? (JSON.parse(updated.imageFallbacks) as string[])
+        : [],
+      rarity: updated.rarity,
+      colors: [],
+      types: [],
+      language: updated.language,
+      condition: updated.condition,
+      quantity: updated.quantity,
+      purchasePrice: updated.purchasePrice,
+      purchaseDate: updated.purchaseDate,
+      marketValue: 0,
+      profit: null,
+    };
+  }
+  return enrichItem(updated, cachedCard, updated.setName, lang);
+}
+
+export async function removeCollectionItem(
+  userId: string,
+  id: string,
+): Promise<boolean> {
+  const existing = await prisma.collectionItem.findFirst({
+    where: { id, userId },
+  });
+  if (!existing) return false;
+  await prisma.collectionItem.delete({ where: { id: existing.id } });
+  return true;
+}
+
 export async function importCollectionRows(
   userId: string,
   rows: ConfirmImportRow[],
