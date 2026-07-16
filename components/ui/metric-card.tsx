@@ -349,7 +349,8 @@ function MiniSparkline({
         opacity={0.55}
       />
 
-      {style === "area" && <path d={areaPath} fill={`url(#${gradId})`} />}
+      {/* Gradient fill under the line for both area + step charts */}
+      <path d={areaPath} fill={`url(#${gradId})`} />
 
       <path
         d={linePath}
@@ -360,22 +361,21 @@ function MiniSparkline({
         strokeLinejoin="round"
       />
 
-      {style === "step" &&
+      {style === "step" ? (
         coords.map((p, i) => (
           <circle
             key={i}
             cx={p.x}
             cy={p.y}
-            r={i === coords.length - 1 ? 4 : 2.75}
+            r={i === 0 ? 3.25 : i === coords.length - 1 ? 4.25 : 2.75}
             fill="var(--surface)"
             stroke={stroke}
-            strokeWidth={i === coords.length - 1 ? 2 : 1.5}
+            strokeWidth={i === coords.length - 1 ? 2.25 : 1.75}
           />
-        ))}
-
-      {style === "area" && (
+        ))
+      ) : (
         <>
-          {/* Start dot on the curve (no euro labels) */}
+          {/* Start + end dots (no euro labels) */}
           <circle
             cx={first.x}
             cy={first.y}
@@ -385,7 +385,6 @@ function MiniSparkline({
             strokeWidth="1.75"
             opacity={0.95}
           />
-          {/* End highlight — full circle, not clipped */}
           <circle
             cx={last.x}
             cy={last.y}
