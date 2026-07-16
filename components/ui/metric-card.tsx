@@ -119,7 +119,7 @@ export function MetricCard({
           {info && <InfoTip text={tip} />}
         </p>
         {(period || sparkline) && (
-          <span className="shrink-0 rounded-full border border-[var(--border)] bg-[var(--background)] px-2 py-0.5 text-[10px] font-medium tabular-nums text-[var(--muted)]">
+          <span className="shrink-0 rounded-full border border-[var(--border)] bg-[var(--background)] px-2.5 py-1 text-xs font-medium tabular-nums text-[var(--muted)]">
             {period}
           </span>
         )}
