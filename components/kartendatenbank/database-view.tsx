@@ -412,7 +412,7 @@ export function DatabaseView() {
     <>
       <div
         ref={scrollRef}
-        className="flex min-h-0 w-full flex-1 flex-col overflow-y-auto overscroll-contain pb-8"
+        className="flex min-h-0 w-full flex-1 flex-col overflow-y-auto overscroll-y-auto pb-8"
       >
         {/* Header */}
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
