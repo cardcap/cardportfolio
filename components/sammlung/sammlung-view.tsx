@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { CARD_CONDITIONS, RAW_CONDITIONS } from "@/lib/card-conditions";
 import {
   ASSETS_RARITY_FILTER_OPTIONS,
@@ -355,6 +362,18 @@ export function SammlungView() {
   const [editPrice, setEditPrice] = useState("");
   const [editDate, setEditDate] = useState("");
   const [saving, setSaving] = useState(false);
+  /** Expanded multi-copy rows in the table */
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  const toggleRowExpand = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const { requireAuth, AuthPromptModal } = useRequireAuth({
     title: "Sammlung verwalten",
@@ -1308,74 +1327,178 @@ export function SammlungView() {
                               formatRarityEnglish(row.rarity) ||
                               row.rarity ||
                               row.variant;
+                            const multi = row.quantity > 1;
+                            const expanded = expandedRows.has(row.id);
+                            const openRow = () => {
+                              setSelectedId(row.id);
+                              setPanelOpen(true);
+                            };
 
                             return (
-                              <tr
-                                key={row.id}
-                                onClick={() => {
-                                  setSelectedId(row.id);
-                                  setPanelOpen(true);
-                                }}
-                                className={`cursor-pointer border-b border-[var(--border)] transition-colors last:border-0 ${
-                                  isSelected
-                                    ? "bg-[var(--accent-soft)]"
-                                    : "hover:bg-[var(--surface-elevated)]"
-                                }`}
-                              >
-                                <td className="px-3 py-2.5">
-                                  <div className="flex items-center gap-2.5">
-                                    <CardImage
-                                      src={row.imageUrl}
-                                      fallbacks={row.imageFallbacks}
-                                      alt={row.name}
-                                      size="sm"
-                                    />
-                                    <span className="font-medium">
-                                      {row.name}
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="px-3 py-2.5 text-[var(--muted)]">
-                                  <div className="leading-snug">
-                                    <p className="text-[var(--foreground)]">
-                                      {row.setName || "—"}
-                                    </p>
-                                    {row.number && (
-                                      <p className="text-xs">{row.number}</p>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="px-3 py-2.5 text-sm text-[var(--muted)]">
-                                  {rarityLabel}
-                                </td>
-                                <td className="px-3 py-2.5 tabular-nums text-[var(--muted)]">
-                                  {languageShort(row.language)}
-                                </td>
-                                <td className="px-3 py-2.5">
-                                  <ConditionBadge condition={row.condition} />
-                                </td>
-                                <td className="px-3 py-2.5 text-right tabular-nums">
-                                  {row.quantity}
-                                </td>
-                                <td className="px-3 py-2.5 text-right tabular-nums text-[var(--muted)]">
-                                  {formatCurrency(row.purchasePrice)}
-                                </td>
-                                <td className="px-3 py-2.5 text-right tabular-nums">
-                                  <Price value={unitMarket} />
-                                </td>
-                                <td className="px-3 py-2.5 text-right tabular-nums font-medium">
-                                  <Price value={row.marketValue} />
-                                </td>
-                                <td
-                                  className={`px-3 py-2.5 text-right tabular-nums font-medium ${profitClass}`}
+                              <Fragment key={row.id}>
+                                <tr
+                                  onClick={openRow}
+                                  className={`cursor-pointer border-b border-[var(--border)] transition-colors ${
+                                    isSelected
+                                      ? "bg-[var(--accent-soft)]"
+                                      : "hover:bg-[var(--surface-elevated)]"
+                                  } ${expanded ? "border-b-0" : "last:border-0"}`}
                                 >
-                                  {row.profit > 0 ? "+" : ""}
-                                  <Price
-                                    value={row.profit}
-                                    className={profitClass}
-                                  />
-                                </td>
-                              </tr>
+                                  <td className="px-3 py-2.5">
+                                    <div className="flex items-center gap-2">
+                                      {multi ? (
+                                        <button
+                                          type="button"
+                                          aria-expanded={expanded}
+                                          aria-label={
+                                            expanded
+                                              ? "Exemplare einklappen"
+                                              : "Exemplare ausklappen"
+                                          }
+                                          onClick={(e) =>
+                                            toggleRowExpand(row.id, e)
+                                          }
+                                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)]"
+                                        >
+                                          <span
+                                            className={`inline-block text-xs transition-transform ${
+                                              expanded ? "rotate-90" : ""
+                                            }`}
+                                            aria-hidden
+                                          >
+                                            ›
+                                          </span>
+                                        </button>
+                                      ) : (
+                                        <span className="w-7 shrink-0" />
+                                      )}
+                                      <CardImage
+                                        src={row.imageUrl}
+                                        fallbacks={row.imageFallbacks}
+                                        alt={row.name}
+                                        size="sm"
+                                      />
+                                      <div className="min-w-0">
+                                        <span className="font-medium">
+                                          {row.name}
+                                        </span>
+                                        {multi && (
+                                          <p className="text-[11px] text-[var(--muted)]">
+                                            {row.quantity} Exemplare
+                                            {expanded ? " · ausgeklappt" : ""}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="px-3 py-2.5 text-[var(--muted)]">
+                                    <div className="leading-snug">
+                                      <p className="text-[var(--foreground)]">
+                                        {row.setName || "—"}
+                                      </p>
+                                      {row.number && (
+                                        <p className="text-xs">{row.number}</p>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-3 py-2.5 text-sm text-[var(--muted)]">
+                                    {rarityLabel}
+                                  </td>
+                                  <td className="px-3 py-2.5 tabular-nums text-[var(--muted)]">
+                                    {languageShort(row.language)}
+                                  </td>
+                                  <td className="px-3 py-2.5">
+                                    <ConditionBadge condition={row.condition} />
+                                  </td>
+                                  <td className="px-3 py-2.5 text-right tabular-nums">
+                                    {row.quantity}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-right tabular-nums text-[var(--muted)]">
+                                    {formatCurrency(row.purchasePrice)}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-right tabular-nums">
+                                    <Price value={unitMarket} />
+                                  </td>
+                                  <td className="px-3 py-2.5 text-right tabular-nums font-medium">
+                                    <Price value={row.marketValue} />
+                                  </td>
+                                  <td
+                                    className={`px-3 py-2.5 text-right tabular-nums font-medium ${profitClass}`}
+                                  >
+                                    {row.profit > 0 ? "+" : ""}
+                                    <Price
+                                      value={row.profit}
+                                      className={profitClass}
+                                    />
+                                  </td>
+                                </tr>
+                                {multi &&
+                                  expanded &&
+                                  Array.from(
+                                    { length: row.quantity },
+                                    (_, i) => {
+                                      const unitProfit =
+                                        row.quantity > 0
+                                          ? row.profit / row.quantity
+                                          : row.profit;
+                                      return (
+                                        <tr
+                                          key={`${row.id}-ex-${i}`}
+                                          onClick={openRow}
+                                          className={`cursor-pointer border-b border-[var(--border)] bg-[var(--background)]/80 text-sm last:border-0 hover:bg-[var(--surface-elevated)] ${
+                                            isSelected
+                                              ? "bg-[var(--accent-soft)]/50"
+                                              : ""
+                                          }`}
+                                        >
+                                          <td className="px-3 py-2 pl-12" colSpan={2}>
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-xs font-medium text-[var(--muted)]">
+                                                Exemplar {i + 1}
+                                              </span>
+                                              <ConditionBadge
+                                                condition={row.condition}
+                                                short
+                                              />
+                                            </div>
+                                          </td>
+                                          <td className="px-3 py-2 text-[var(--muted)]">
+                                            {rarityLabel}
+                                          </td>
+                                          <td className="px-3 py-2 text-[var(--muted)]">
+                                            {languageShort(row.language)}
+                                          </td>
+                                          <td className="px-3 py-2">
+                                            <ConditionBadge
+                                              condition={row.condition}
+                                            />
+                                          </td>
+                                          <td className="px-3 py-2 text-right tabular-nums text-[var(--muted)]">
+                                            1
+                                          </td>
+                                          <td className="px-3 py-2 text-right tabular-nums text-[var(--muted)]">
+                                            {formatCurrency(row.purchasePrice)}
+                                          </td>
+                                          <td className="px-3 py-2 text-right tabular-nums">
+                                            <Price value={unitMarket} />
+                                          </td>
+                                          <td className="px-3 py-2 text-right tabular-nums">
+                                            <Price value={unitMarket} />
+                                          </td>
+                                          <td
+                                            className={`px-3 py-2 text-right tabular-nums ${profitClass}`}
+                                          >
+                                            {unitProfit > 0 ? "+" : ""}
+                                            <Price
+                                              value={unitProfit}
+                                              className={profitClass}
+                                            />
+                                          </td>
+                                        </tr>
+                                      );
+                                    },
+                                  )}
+                              </Fragment>
                             );
                           })}
                         </tbody>

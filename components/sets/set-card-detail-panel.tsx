@@ -446,7 +446,10 @@ export function SetCardDetailPanel({
                     <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
                       Zustand
                     </p>
-                    <p className="mt-0.5 font-medium" title={collectionDetails?.condition}>
+                    <p
+                      className="mt-0.5 font-medium"
+                      title={collectionDetails?.condition}
+                    >
                       {conditionLabel}
                     </p>
                   </div>
@@ -476,6 +479,46 @@ export function SetCardDetailPanel({
                     </p>
                   </div>
                 </div>
+
+                {qty > 1 && (
+                  <details className="group mt-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] open:pb-1">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-sm font-medium marker:content-none [&::-webkit-details-marker]:hidden">
+                      <span>
+                        Deine Exemplare
+                        <span className="ml-1.5 font-normal text-[var(--muted)]">
+                          ({qty})
+                        </span>
+                      </span>
+                      <span
+                        className="text-[var(--muted)] transition-transform group-open:rotate-90"
+                        aria-hidden
+                      >
+                        ›
+                      </span>
+                    </summary>
+                    <ul className="space-y-1.5 px-2 pb-2">
+                      {Array.from({ length: qty }, (_, i) => (
+                        <li
+                          key={i}
+                          className="flex items-center justify-between gap-2 rounded-md bg-[var(--background)] px-2.5 py-2 text-sm"
+                        >
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="text-xs text-[var(--muted)]">
+                              Exemplar {i + 1}
+                            </span>
+                            <span className="rounded-md bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-[var(--border)]">
+                              {conditionLabel}
+                            </span>
+                          </div>
+                          <span className="tabular-nums text-xs text-[var(--muted)]">
+                            EK {formatCurrency(purchasePrice)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+
                 {!hideCollectionLink && (
                   <Link
                     href="/assets/karten"
