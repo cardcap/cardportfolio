@@ -558,50 +558,34 @@ export async function loadSeriesNames(
   return map;
 }
 
-export async function fetchSetsFromTcgdex(
-  lang: CardLanguage = DEFAULT_LANGUAGE,
-): Promise<{ data: TcgSet[]; totalCount: number }> {
-  const seriesNames = await loadSeriesNames(lang);
-  const cached = loadCachedSets(lang);
-  if (cached) {
-    const sorted = [...cached].sort((a, b) => {
-      const aTs = a.releaseDate ? Date.parse(a.releaseDate) : 0;
-      const bTs = b.releaseDate ? Date.parse(b.releaseDate) : 0;
-      return bTs - aTs;
-    });
+/**
+ * Local set catalogs (esp. DE) can miss older/EN-only expansions.
+ * Fill gaps from the English cache so Base Set 2, Gym Heroes, etc. still appear.
+ */
+function mergeSetCaches(
+  primary: TcgdexCachedSet[] | null,
+  fallback: TcgdexCachedSet[] | null,
+): TcgdexCachedSet[] | null {
+  if (!primary?.length) return fallback?.length ? fallback : primary;
+  if (!fallback?.length) return primary;
+  const have = new Set(primary.map((s) => s.id));
+  const extras = fallback.filter((s) => !have.has(s.id));
+  if (!extras.length) return primary;
+  return [...primary, ...extras];
+}
 
-    const data = sorted.map((set) => {
-      const seriesId = set.serieId ?? "";
-      const total = set.cardCount?.total ?? 0;
-      const official = set.cardCount?.official ?? total;
-
-      return {
-        id: set.id,
-        name: set.name,
-        series: seriesNames.get(seriesId) ?? seriesId,
-        seriesId,
-        total,
-        official,
-        secretRareCount: Math.max(0, total - official),
-        releaseDate: set.releaseDate ?? "",
-        images: resolveSetImageUrls(set, lang),
-      };
-    });
-    return { data, totalCount: data.length };
-  }
-
-  const res = await fetch(`${TCGDEX_API}/${lang}/sets`, {
-    headers: { Accept: "application/json" },
-    next: { revalidate: 86400 },
+function mapCachedSetsToTcg(
+  sets: TcgdexCachedSet[],
+  seriesNames: Map<string, string>,
+  lang: CardLanguage,
+): TcgSet[] {
+  const sorted = [...sets].sort((a, b) => {
+    const aTs = a.releaseDate ? Date.parse(a.releaseDate) : 0;
+    const bTs = b.releaseDate ? Date.parse(b.releaseDate) : 0;
+    return bTs - aTs;
   });
 
-  if (!res.ok) {
-    throw new Error(`TCGdex API error: ${res.status}`);
-  }
-
-  const json: TcgdexCachedSet[] = await res.json();
-
-  const data: TcgSet[] = json.map((set) => {
+  return sorted.map((set) => {
     const seriesId = set.serieId ?? "";
     const total = set.cardCount?.total ?? 0;
     const official = set.cardCount?.official ?? total;
@@ -618,7 +602,42 @@ export async function fetchSetsFromTcgdex(
       images: resolveSetImageUrls(set, lang),
     };
   });
+}
 
+export async function fetchSetsFromTcgdex(
+  lang: CardLanguage = DEFAULT_LANGUAGE,
+): Promise<{ data: TcgSet[]; totalCount: number }> {
+  const seriesNames = await loadSeriesNames(lang);
+  let seriesMerged = seriesNames;
+  if (lang !== "en") {
+    try {
+      const enSeries = await loadSeriesNames("en");
+      seriesMerged = new Map([...enSeries, ...seriesNames]);
+    } catch {
+      // keep primary-language series map
+    }
+  }
+
+  const primary = loadCachedSets(lang);
+  const enFallback = lang === "en" ? null : loadCachedSets("en");
+  const cached = mergeSetCaches(primary, enFallback);
+
+  if (cached?.length) {
+    const data = mapCachedSetsToTcg(cached, seriesMerged, lang);
+    return { data, totalCount: data.length };
+  }
+
+  const res = await fetch(`${TCGDEX_API}/${lang}/sets`, {
+    headers: { Accept: "application/json" },
+    next: { revalidate: 86400 },
+  });
+
+  if (!res.ok) {
+    throw new Error(`TCGdex API error: ${res.status}`);
+  }
+
+  const json: TcgdexCachedSet[] = await res.json();
+  const data = mapCachedSetsToTcg(json, seriesMerged, lang);
   return { data, totalCount: data.length };
 }
 

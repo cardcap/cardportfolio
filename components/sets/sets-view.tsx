@@ -103,9 +103,10 @@ export function SetsView() {
   const [error, setError] = useState<string | null>(null);
   const [language, setLanguage] = useState<CardLanguage>(DEFAULT_LANGUAGE);
   const [view, setView] = useState<ViewMode>("grid");
-  const [mineOnly, setMineOnly] = useState(true);
+  // Default: all sets (incl. classic Base Set / Grundset). "Meine Sets" is optional.
+  const [mineOnly, setMineOnly] = useState(false);
   const [seriesFilter, setSeriesFilter] = useState("Alle");
-  const [sort, setSort] = useState<SortKey>("progress-desc");
+  const [sort, setSort] = useState<SortKey>("date-desc");
   const [filterOpen, setFilterOpen] = useState(false);
   const [yearFrom, setYearFrom] = useState(1999);
   const [yearTo, setYearTo] = useState(2026);
@@ -285,7 +286,7 @@ export function SetsView() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Sets</h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            Entdecke Sets und verfolge deinen Sammelfortschritt
+            Alle Expansionen von Base Set bis aktuell – Fortschritt im Überblick
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -353,6 +354,11 @@ export function SetsView() {
         <button
           type="button"
           onClick={() => setMineOnly((v) => !v)}
+          title={
+            mineOnly
+              ? "Nur Sets mit Karten in der Sammlung"
+              : "Alle Sets anzeigen (Standard)"
+          }
           className={`inline-flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-medium transition-colors ${
             mineOnly
               ? "bg-[var(--accent)] text-white"
@@ -360,7 +366,7 @@ export function SetsView() {
           }`}
         >
           {mineOnly && <span aria-hidden>✓</span>}
-          Meine Sets
+          {mineOnly ? "Meine Sets" : "Alle Sets"}
         </button>
 
         <select
@@ -540,6 +546,15 @@ export function SetsView() {
 
       {error && (
         <p className="mb-4 text-sm text-[var(--negative)]">{error}</p>
+      )}
+
+      {!loading && filtered.length > 0 && (
+        <p className="mb-3 text-xs text-[var(--muted)]">
+          {filtered.length === enriched.length
+            ? `${filtered.length} Sets`
+            : `${filtered.length} von ${enriched.length} Sets`}
+          {mineOnly ? " · Filter: Meine Sets" : ""}
+        </p>
       )}
 
       {loading ? (
