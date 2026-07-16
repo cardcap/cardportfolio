@@ -8,15 +8,15 @@ import { InfoTip } from "@/components/ui/metric-card";
 import { formatCurrency } from "@/lib/format";
 import {
   getCard,
-  topLosersDetailed,
-  topLosersSummary,
+  topPerformersDetailed,
+  topPerformersSummary,
   type DetailedMover,
   type MoverKind,
 } from "@/lib/mock-data";
 
 type Scope = "gesamt" | "karten" | "sealed";
 type Range = "24h" | "7d" | "30d" | "1y";
-type SortKey = "loss-desc" | "loss-asc" | "name";
+type SortKey = "gain-desc" | "gain-asc" | "name";
 
 const scopes: { id: Scope; label: string }[] = [
   { id: "gesamt", label: "Gesamt" },
@@ -31,14 +31,14 @@ const ranges: { id: Range; label: string }[] = [
   { id: "1y", label: "1 Jahr" },
 ];
 
-export function TopLosersView() {
+export function TopPerformersView() {
   const [scope, setScope] = useState<Scope>("gesamt");
   const [range, setRange] = useState<Range>("7d");
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<SortKey>("loss-desc");
+  const [sort, setSort] = useState<SortKey>("gain-desc");
 
   const filtered = useMemo(() => {
-    let rows = [...topLosersDetailed];
+    let rows = [...topPerformersDetailed];
 
     if (scope === "karten") rows = rows.filter((r) => r.kind === "Karte");
     if (scope === "sealed") rows = rows.filter((r) => r.kind === "Sealed");
@@ -62,12 +62,8 @@ export function TopLosersView() {
         const bn = b.name ?? getCard(b.cardId).name;
         return an.localeCompare(bn, "de");
       }
-      if (sort === "loss-asc") {
-        // geringster Verlust zuerst (z. B. -3 % vor -11 %)
-        return b.changePct - a.changePct;
-      }
-      // loss-desc: höchster Verlust zuerst (am negativsten)
-      return a.changePct - b.changePct;
+      if (sort === "gain-asc") return a.changePct - b.changePct;
+      return b.changePct - a.changePct;
     });
 
     return rows.slice(0, 10);
@@ -75,11 +71,11 @@ export function TopLosersView() {
 
   const metrics = useMemo(() => {
     if (filtered.length === 0) {
-      return { biggest: 0, totalLoss: 0, count: 0 };
+      return { biggest: 0, totalGain: 0, count: 0 };
     }
-    const biggest = Math.min(...filtered.map((r) => r.changePct));
-    const totalLoss = filtered.reduce((s, r) => s + r.changeAbs, 0);
-    return { biggest, totalLoss, count: filtered.length };
+    const biggest = Math.max(...filtered.map((r) => r.changePct));
+    const totalGain = filtered.reduce((s, r) => s + r.changeAbs, 0);
+    return { biggest, totalGain, count: filtered.length };
   }, [filtered]);
 
   const periodLabel =
@@ -93,7 +89,6 @@ export function TopLosersView() {
 
   return (
     <div className="pb-4">
-      {/* Top bar: breadcrumb + filters */}
       <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <p className="text-xs text-[var(--muted)]">
@@ -105,34 +100,26 @@ export function TopLosersView() {
               Portfolio
             </Link>
             <span className="mx-1.5 opacity-50">/</span>
-            <span className="text-[var(--foreground)]">Top Verlierer</span>
+            <span className="text-[var(--foreground)]">Top Performer</span>
             <span className="mx-1.5 opacity-50">·</span>
             <Link
-              href="/portfolio/top-performer"
+              href="/portfolio/top-verlierer"
               className="hover:text-[var(--foreground)]"
             >
-              Top Performer
+              Top Verlierer
             </Link>
           </p>
           <h1 className="mt-1.5 text-2xl font-semibold tracking-tight">
-            Top Verlierer
+            Top Performer
           </h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            Die stärksten Wertverluste deiner Sammlung
+            Die stärksten Wertgewinne deiner Sammlung
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Segmented
-            options={scopes}
-            value={scope}
-            onChange={setScope}
-          />
-          <Segmented
-            options={ranges}
-            value={range}
-            onChange={setRange}
-          />
+          <Segmented options={scopes} value={scope} onChange={setScope} />
+          <Segmented options={ranges} value={range} onChange={setRange} />
           <ThemeToggleButton className="!h-9 !w-9" />
           <Link
             href="/wunschliste"
@@ -145,7 +132,6 @@ export function TopLosersView() {
         </div>
       </div>
 
-      {/* Toolbar */}
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <Link
           href="/dashboard"
@@ -174,31 +160,30 @@ export function TopLosersView() {
             onChange={(e) => setSort(e.target.value as SortKey)}
             className="h-9 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--accent)]"
           >
-            <option value="loss-desc">Verlust: höchster zuerst</option>
-            <option value="loss-asc">Verlust: niedrigster zuerst</option>
+            <option value="gain-desc">Gewinn: höchster zuerst</option>
+            <option value="gain-asc">Gewinn: niedrigster zuerst</option>
             <option value="name">Name A–Z</option>
           </select>
         </div>
       </div>
 
-      {/* Metric cards */}
       <div className="mb-5 grid gap-3 sm:grid-cols-3">
         <MetricTile
-          icon="drop"
-          label="Größter Rückgang"
-          value={`${metrics.biggest.toLocaleString("de-DE", {
+          icon="up"
+          label="Größter Anstieg"
+          value={`+${metrics.biggest.toLocaleString("de-DE", {
             maximumFractionDigits: 1,
             minimumFractionDigits: 1,
           })} %`}
-          negative
-          infoText="Stärkster prozentualer Wertverlust im gewählten Zeitraum unter den Top-Positionen."
+          positive
+          infoText="Höchste prozentuale Wertsteigerung im gewählten Zeitraum unter den Top-Positionen."
         />
         <MetricTile
           icon="card"
-          label="Wertverlust gesamt"
-          value={formatCurrency(metrics.totalLoss)}
-          negative
-          infoText="Summe der absoluten Kursverluste aller angezeigten Top-Verlierer."
+          label="Wertzuwachs gesamt"
+          value={`+${formatCurrency(metrics.totalGain)}`}
+          positive
+          infoText="Summe der absoluten Kursgewinne aller angezeigten Top-Performer."
         />
         <MetricTile
           icon="box"
@@ -208,16 +193,14 @@ export function TopLosersView() {
         />
       </div>
 
-      {/* Table panel */}
       <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]">
         <div className="border-b border-[var(--border)] px-4 py-4 sm:px-5">
-          <h2 className="text-sm font-medium">Top 10 Verlierer</h2>
+          <h2 className="text-sm font-medium">Top 10 Performer</h2>
           <p className="mt-0.5 text-xs text-[var(--muted)]">
             Vergleich zum Marktwert vor {periodLabel}
           </p>
         </div>
 
-        {/* Desktop header */}
         <div className="hidden border-b border-[var(--border)] px-4 py-2.5 text-[10px] uppercase tracking-wider text-[var(--muted)] xl:grid xl:grid-cols-[2.5rem_minmax(12rem,1.4fr)_4.5rem_minmax(7rem,1fr)_6.5rem_6.5rem_8rem_5rem_1.5rem] xl:gap-3 xl:px-5">
           <span>#</span>
           <span>Sammlerstück</span>
@@ -237,7 +220,7 @@ export function TopLosersView() {
             </li>
           )}
           {filtered.map((row, index) => (
-            <LoserRow key={row.id} row={row} rank={index + 1} />
+            <PerformerRow key={row.id} row={row} rank={index + 1} />
           ))}
         </ul>
 
@@ -245,7 +228,8 @@ export function TopLosersView() {
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <span className="inline-flex items-center gap-1.5">
               <span aria-hidden>⏱</span>
-              Preise zuletzt aktualisiert: {topLosersSummary.pricesUpdatedLabel}
+              Preise zuletzt aktualisiert:{" "}
+              {topPerformersSummary.pricesUpdatedLabel}
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span aria-hidden>🏷</span>
@@ -261,7 +245,7 @@ export function TopLosersView() {
   );
 }
 
-function LoserRow({ row, rank }: { row: DetailedMover; rank: number }) {
+function PerformerRow({ row, rank }: { row: DetailedMover; rank: number }) {
   const card = getCard(row.cardId);
   const name = row.name ?? card.name;
   const href = row.kind === "Sealed" ? "/assets/sealed" : "/assets/karten";
@@ -272,11 +256,10 @@ function LoserRow({ row, rank }: { row: DetailedMover; rank: number }) {
         href={href}
         className="block px-4 py-3 transition-colors hover:bg-[var(--surface-elevated)]/60 sm:px-5"
       >
-        {/* Mobile / tablet */}
         <div className="flex gap-3 xl:hidden">
           <span
             className={`tabular-nums w-5 shrink-0 pt-1 text-sm font-medium ${
-              rank === 1 ? "text-[var(--negative)]" : "text-[var(--muted)]"
+              rank === 1 ? "text-[var(--positive)]" : "text-[var(--muted)]"
             }`}
           >
             {rank}
@@ -286,21 +269,25 @@ function LoserRow({ row, rank }: { row: DetailedMover; rank: number }) {
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{name}</p>
-                <p className="truncate text-xs text-[var(--muted)]">{row.setName}</p>
+                <p className="truncate text-xs text-[var(--muted)]">
+                  {row.setName}
+                </p>
               </div>
               <KindBadge kind={row.kind} />
             </div>
             <div className="mt-2 flex flex-wrap items-end justify-between gap-2">
               <div className="text-xs text-[var(--muted)]">
-                <span className="tabular-nums">{formatCurrency(row.valueBefore)}</span>
+                <span className="tabular-nums">
+                  {formatCurrency(row.valueBefore)}
+                </span>
                 <span className="mx-1">→</span>
                 <span className="tabular-nums text-[var(--foreground)]">
                   {formatCurrency(row.currentValue)}
                 </span>
               </div>
               <div className="text-right">
-                <p className="tabular-nums text-sm font-medium text-[var(--negative)]">
-                  {formatCurrency(row.changeAbs)} ·{" "}
+                <p className="tabular-nums text-sm font-medium text-[var(--positive)]">
+                  +{formatCurrency(row.changeAbs)} · +
                   {row.changePct.toLocaleString("de-DE", {
                     maximumFractionDigits: 1,
                     minimumFractionDigits: 1,
@@ -316,11 +303,10 @@ function LoserRow({ row, rank }: { row: DetailedMover; rank: number }) {
           </div>
         </div>
 
-        {/* Desktop */}
         <div className="hidden items-center gap-3 xl:grid xl:grid-cols-[2.5rem_minmax(12rem,1.4fr)_4.5rem_minmax(7rem,1fr)_6.5rem_6.5rem_8rem_5rem_1.5rem]">
           <span
             className={`tabular-nums text-sm font-medium ${
-              rank === 1 ? "text-[var(--negative)]" : "text-[var(--muted)]"
+              rank === 1 ? "text-[var(--positive)]" : "text-[var(--muted)]"
             }`}
           >
             {rank}
@@ -337,9 +323,9 @@ function LoserRow({ row, rank }: { row: DetailedMover; rank: number }) {
           <p className="tabular-nums text-right text-sm">
             {formatCurrency(row.currentValue)}
           </p>
-          <p className="tabular-nums text-right text-sm font-medium text-[var(--negative)]">
-            {formatCurrency(row.changeAbs)}
-            <span className="mx-1 text-[var(--muted)]">·</span>
+          <p className="tabular-nums text-right text-sm font-medium text-[var(--positive)]">
+            +{formatCurrency(row.changeAbs)}
+            <span className="mx-1 text-[var(--muted)]">·</span>+
             {row.changePct.toLocaleString("de-DE", {
               maximumFractionDigits: 1,
               minimumFractionDigits: 1,
@@ -377,38 +363,66 @@ function MetricTile({
   icon,
   label,
   value,
-  negative,
+  positive,
   infoText,
 }: {
-  icon: "drop" | "card" | "box";
+  icon: "up" | "card" | "box";
   label: string;
   value: string;
-  negative?: boolean;
+  positive?: boolean;
   infoText?: string;
 }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
       <span
         className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${
-          negative
-            ? "bg-[var(--negative-soft)] text-[var(--negative)]"
+          positive
+            ? "bg-[var(--positive-soft)] text-[var(--positive)]"
             : "bg-[var(--surface-elevated)] text-[var(--muted)] ring-1 ring-[var(--border)]"
         }`}
       >
-        {icon === "drop" && (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-            <path d="M4 10l8 8 4-4 4 4" strokeLinecap="round" strokeLinejoin="round" />
+        {icon === "up" && (
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            aria-hidden
+          >
+            <path
+              d="M4 14l8-8 4 4 4-4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
             <path d="M16 6h4v4" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         )}
         {icon === "card" && (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            aria-hidden
+          >
             <rect x="5" y="4" width="10" height="14" rx="1.5" />
             <path d="M9 3.5h7.5A1.5 1.5 0 0 1 18 5v12" />
           </svg>
         )}
         {icon === "box" && (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            aria-hidden
+          >
             <path d="M12 3 4 7v10l8 4 8-4V7l-8-4Z" />
             <path d="M12 12 4 7M12 12l8-5M12 12v10" />
           </svg>
@@ -421,7 +435,7 @@ function MetricTile({
         </p>
         <p
           className={`tabular-nums mt-0.5 text-xl font-semibold tracking-tight ${
-            negative ? "text-[var(--negative)]" : ""
+            positive ? "text-[var(--positive)]" : ""
           }`}
         >
           {value}
@@ -447,11 +461,17 @@ function TrendSparkline({ values }: { values: number[] }) {
     .join(" ");
 
   return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden className="opacity-90">
+    <svg
+      width={w}
+      height={h}
+      viewBox={`0 0 ${w} ${h}`}
+      aria-hidden
+      className="opacity-90"
+    >
       <polyline
         points={pts}
         fill="none"
-        stroke="var(--negative)"
+        stroke="var(--positive)"
         strokeWidth="1.75"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -491,7 +511,15 @@ function Segmented<T extends string>({
 
 function SearchIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      aria-hidden
+    >
       <circle cx="11" cy="11" r="6.5" />
       <path d="M16 16l4 4" strokeLinecap="round" />
     </svg>
@@ -500,8 +528,19 @@ function SearchIcon() {
 
 function BellIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9" strokeLinecap="round" />
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      aria-hidden
+    >
+      <path
+        d="M6 8a6 6 0 0 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9"
+        strokeLinecap="round"
+      />
       <path d="M10 21a2 2 0 0 0 4 0" strokeLinecap="round" />
     </svg>
   );
@@ -509,7 +548,15 @@ function BellIcon() {
 
 function Chevron() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      aria-hidden
+    >
       <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );

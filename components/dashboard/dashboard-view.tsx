@@ -95,6 +95,7 @@ export function DashboardView() {
           hint={`+${portfolioMetrics.weeklyChange.toLocaleString("de-DE")} % (7 Tage)`}
           positive
           info
+          infoText="Aktueller Marktwert aller Karten und Sealed-Produkte in deiner Sammlung."
           sparkline={metricSparklines.totalValue}
         />
         <MetricCard
@@ -103,6 +104,7 @@ export function DashboardView() {
           hint={`+${portfolioMetrics.weeklyChangeInvested.toLocaleString("de-DE")} % (7 Tage)`}
           positive
           info
+          infoText="Summe aller Einkaufspreise (EK) deiner Positionen – was du tatsächlich ausgegeben hast."
           sparkline={metricSparklines.invested}
         />
         <MetricCard
@@ -111,6 +113,7 @@ export function DashboardView() {
           hint={`+${portfolioMetrics.weeklyChange.toLocaleString("de-DE")} % (7 Tage)`}
           positive
           info
+          infoText="Differenz aus Marktwert und investiertem Kapital (unrealisierter Gewinn in der Demo)."
         />
         <MetricCard
           label="Rendite"
@@ -118,6 +121,7 @@ export function DashboardView() {
           hint={`+${portfolioMetrics.weeklyChange.toLocaleString("de-DE")} % (7 Tage)`}
           positive
           info
+          infoText="Prozentuale Performance: (Marktwert − Investiert) ÷ Investiert × 100."
         />
       </div>
 
@@ -172,18 +176,46 @@ export function DashboardView() {
             actionHref="/portfolio"
             actionLabel="Portfolio öffnen →"
           >
-            <DonutChart segments={portfolioAllocation} size={132} />
-            <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 border-t border-[var(--border)] pt-3">
+            <DonutChart
+              segments={portfolioAllocation}
+              size={128}
+              centerLabel="Gesamt"
+              centerSub={formatCurrency(portfolioMetrics.totalValue)}
+            />
+            <div className="mt-4 space-y-2.5 border-t border-[var(--border)] pt-3">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-[var(--muted)]">
+                Nach Kategorie
+              </p>
               {portfolioAllocationBreakdown.map((item) => (
-                <div
-                  key={item.label}
-                  className="flex items-center gap-1.5 text-[10px] text-[var(--muted)]"
-                >
-                  <span
-                    className="h-1.5 w-1.5 rounded-full"
-                    style={{ backgroundColor: item.color }}
-                  />
-                  {item.label} {item.percent} %
+                <div key={item.label}>
+                  <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <span className="truncate text-[var(--muted)]">
+                        {item.label}
+                      </span>
+                    </span>
+                    <span className="tabular-nums shrink-0 font-medium">
+                      {item.percent} %
+                      {item.value != null && (
+                        <span className="ml-1.5 text-[var(--muted)]">
+                          {formatCurrency(item.value)}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-[var(--border)]">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${item.percent}%`,
+                        backgroundColor: item.color,
+                      }}
+                    />
+                  </div>
                 </div>
               ))}
             </div>

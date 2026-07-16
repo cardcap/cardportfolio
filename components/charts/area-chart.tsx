@@ -41,8 +41,8 @@ const seriesMeta: {
   dashed?: boolean;
 }[] = [
   { key: "value", label: "Gesamt", color: "var(--accent)" },
-  { key: "cards", label: "Karten", color: "#a1a1aa" },
-  { key: "sealed", label: "Sealed", color: "#71717a", dashed: true },
+  { key: "cards", label: "Karten", color: "#f472b6" },
+  { key: "sealed", label: "Sealed", color: "#a78bfa", dashed: true },
 ];
 
 function toPoints(dailyData?: HistoryPoint[], data?: LegacyPoint[]): HistoryPoint[] {
@@ -195,40 +195,60 @@ export function AreaChart({
       )}
 
       {showSeriesLegend && (
-        <div className="mb-3 flex flex-wrap items-center gap-4">
-          {seriesMeta.map((s) => {
-            const on = activeSeries[s.key];
-            return (
-              <button
-                key={s.key}
-                type="button"
-                onClick={() =>
-                  setActiveSeries((prev) => {
-                    const next = { ...prev, [s.key]: !prev[s.key] };
-                    // keep at least one active
-                    if (!next.value && !next.cards && !next.sealed) {
-                      return prev;
-                    }
-                    return next;
-                  })
-                }
-                className={`flex items-center gap-2 text-xs transition-opacity ${
-                  on ? "opacity-100" : "opacity-40"
-                }`}
-              >
-                <span
-                  className="h-2 w-2 rounded-full"
-                  style={{
-                    backgroundColor: on ? s.color : "var(--muted)",
-                    boxShadow: s.dashed ? "inset 0 0 0 1px currentColor" : undefined,
-                  }}
-                />
-                <span className={on ? "text-[var(--foreground)]" : "text-[var(--muted)]"}>
+        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-medium text-[var(--muted)]">
+              Anzeigen:
+            </span>
+            {seriesMeta.map((s) => {
+              const on = activeSeries[s.key];
+              return (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() =>
+                    setActiveSeries((prev) => {
+                      const next = { ...prev, [s.key]: !prev[s.key] };
+                      // keep at least one active
+                      if (!next.value && !next.cards && !next.sealed) {
+                        return prev;
+                      }
+                      return next;
+                    })
+                  }
+                  aria-pressed={on}
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
+                    on
+                      ? "border-transparent text-white shadow-sm"
+                      : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:border-[var(--border-strong)] hover:text-[var(--foreground)]"
+                  }`}
+                  style={
+                    on
+                      ? { backgroundColor: s.color }
+                      : undefined
+                  }
+                >
+                  <span
+                    className={`h-2 w-2 rounded-full ring-2 ring-white/30 ${
+                      on ? "bg-white" : ""
+                    }`}
+                    style={on ? undefined : { backgroundColor: s.color }}
+                  />
                   {s.label}
-                </span>
-              </button>
-            );
-          })}
+                  <span
+                    className={`text-[10px] ${
+                      on ? "text-white/80" : "text-[var(--muted)]"
+                    }`}
+                  >
+                    {on ? "an" : "aus"}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-[var(--muted)]">
+            Tippe auf Karten / Sealed, um die Kurven ein- oder auszublenden
+          </p>
         </div>
       )}
 
