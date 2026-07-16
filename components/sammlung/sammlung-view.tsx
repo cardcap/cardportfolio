@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CARD_CONDITIONS, RAW_CONDITIONS } from "@/lib/card-conditions";
-import { formatRarityEnglish } from "@/lib/rarity-labels";
+import {
+  ASSETS_RARITY_FILTER_OPTIONS,
+  formatRarityEnglish,
+  matchesAssetsRarityFilter,
+} from "@/lib/rarity-labels";
 import {
   CARD_LANGUAGES,
   DEFAULT_LANGUAGE,
@@ -463,18 +467,6 @@ export function SammlungView() {
     return names;
   }, [displayItems]);
 
-  const rarityOptions = useMemo(() => {
-    const names = [
-      ...new Set(
-        displayItems
-          .map((i) => formatRarityEnglish(i.rarity) || i.rarity || "")
-          .filter(Boolean),
-      ),
-    ];
-    names.sort((a, b) => a.localeCompare(b, "de"));
-    return names;
-  }, [displayItems]);
-
   const filteredItems = useMemo(() => {
     const term = search.trim().toLowerCase();
     let rows = displayItems.filter((row) => {
@@ -501,10 +493,7 @@ export function SammlungView() {
       ) {
         return false;
       }
-      if (rarityFilter !== "Alle Seltenheiten") {
-        const label = formatRarityEnglish(row.rarity) || row.rarity || "";
-        if (label !== rarityFilter && row.rarity !== rarityFilter) return false;
-      }
+      if (!matchesAssetsRarityFilter(row.rarity, rarityFilter)) return false;
       return true;
     });
 
@@ -986,7 +975,7 @@ export function SammlungView() {
               className="h-10 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--muted)] outline-none focus:border-[var(--accent)] focus:text-[var(--foreground)]"
             >
               <option value="Alle Seltenheiten">Alle Seltenheiten</option>
-              {rarityOptions.map((r) => (
+              {ASSETS_RARITY_FILTER_OPTIONS.map((r) => (
                 <option key={r} value={r}>
                   {r}
                 </option>

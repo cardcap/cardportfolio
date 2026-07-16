@@ -2,6 +2,69 @@ import type { CardLanguage } from "@/lib/tcgdex-constants";
 
 export const RARITY_FILTER_ALL = "All Rarities";
 
+/**
+ * Assets → Karten: Seltenheitsfilter best → worst (fixed order).
+ * Labels match TCGplayer / English catalog names from product UX.
+ */
+export const ASSETS_RARITY_FILTER_OPTIONS = [
+  "Secret Rare",
+  "Special Illustration Rare",
+  "Rainbow Rare",
+  "Shiny Ultra Rare",
+  "Ultra Rare",
+  "Character Super Rare",
+  "Illustration Rare",
+  "Character Rare",
+  "ACE Rare",
+  "Shiny Rare",
+  "Amazing Rare",
+  "Kagayaku",
+  "Triple Rare",
+  "Double Rare",
+  "Holo Rare",
+  "Rare",
+  "Uncommon",
+  "Common",
+  "Promo",
+  "Prize Pack Series",
+  "Fixed",
+  "World Championship Deck",
+  "Online Code Card",
+  "Oversized",
+  "Unknown",
+] as const;
+
+/** Normalize card rarity labels for Assets filter matching */
+function normalizeAssetsRarityLabel(value: string): string {
+  const v = value.trim();
+  const lower = v.toLowerCase();
+  if (lower === "ace spec rare" || lower === "ace-spec rare" || lower === "ass-klasse")
+    return "ACE Rare";
+  if (lower === "rare holo" || lower === "selten, holografisch") return "Holo Rare";
+  if (lower === "hyper rare" || lower === "hyperselten") return "Secret Rare";
+  if (lower === "rainbow rare" || lower === "full art") return "Rainbow Rare";
+  if (lower === "none" || lower === "keine" || v === "—") return "Unknown";
+  return formatRarityEnglish(v) === "—" ? v : formatRarityEnglish(v);
+}
+
+export function matchesAssetsRarityFilter(
+  rarity: string | null | undefined,
+  filter: string,
+): boolean {
+  if (!filter || filter === "Alle Seltenheiten" || isAllRaritiesFilter(filter)) {
+    return true;
+  }
+  if (!rarity) return filter === "Unknown";
+  const label = normalizeAssetsRarityLabel(rarity);
+  if (label === filter) return true;
+  // Loose: "Shiny Rare V" under "Shiny Rare", "Holo Rare VMAX" under "Holo Rare"
+  if (label.startsWith(filter)) return true;
+  if (filter === "Holo Rare" && /holo rare|rare holo/i.test(label)) return true;
+  if (filter === "Shiny Rare" && /^shiny rare/i.test(label)) return true;
+  if (filter === "ACE Rare" && /ace/i.test(label)) return true;
+  return false;
+}
+
 /** Englische Anzeige- und Filterwerte für Seltenheiten */
 export const RARITY_FILTER_OPTIONS = [
   RARITY_FILTER_ALL,
