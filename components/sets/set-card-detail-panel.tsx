@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CardImage } from "@/components/ui/card-image";
+import { useWishlist } from "@/components/wishlist-provider";
 import { formatCurrency, formatDateDE } from "@/lib/format";
 import {
   getCardImageFallbacks,
@@ -12,6 +13,7 @@ import {
 } from "@/lib/pokemon-tcg";
 import { formatRarityEnglish } from "@/lib/rarity-labels";
 import type { SetDetail } from "@/lib/set-stats";
+import { wishlistItemFromTcg } from "@/lib/wishlist";
 
 type PriceRange = "7T" | "30T" | "1J";
 
@@ -66,6 +68,8 @@ export function SetCardDetailPanel({
   onEditCollection,
 }: SetCardDetailPanelProps) {
   const [priceRange, setPriceRange] = useState<PriceRange>("30T");
+  const { isInWishlist, toggleItem } = useWishlist();
+  const onWishlist = isInWishlist(card.id);
   const price = getCardPrice(card) ?? 0;
   const hasPrice = getCardPrice(card) != null;
 
@@ -310,10 +314,28 @@ export function SetCardDetailPanel({
             </button>
             <button
               type="button"
-              onClick={onAddToWishlist}
-              className="flex h-11 w-full items-center justify-center rounded-full border border-[var(--accent)]/40 text-sm font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]"
+              onClick={() => {
+                if (onAddToWishlist) onAddToWishlist();
+                else toggleItem(wishlistItemFromTcg(card));
+              }}
+              aria-pressed={onWishlist}
+              className={`flex h-11 w-full items-center justify-center gap-1.5 rounded-full text-sm font-medium transition-all ${
+                onWishlist
+                  ? "bg-[var(--accent)] text-white shadow-sm ring-2 ring-[var(--accent)]/40 hover:brightness-110"
+                  : "border border-[var(--accent)]/40 text-[var(--accent)] hover:bg-[var(--accent-soft)]"
+              }`}
             >
-              Zur Wunschliste hinzufügen
+              {onWishlist ? (
+                <>
+                  <span aria-hidden>♥</span>
+                  Auf der Wunschliste
+                </>
+              ) : (
+                <>
+                  <span aria-hidden>♡</span>
+                  Zur Wunschliste hinzufügen
+                </>
+              )}
             </button>
             <Link
               href="/wunschliste"
