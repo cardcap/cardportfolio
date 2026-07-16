@@ -218,38 +218,74 @@ export function DashboardView() {
         <MetricCard
           label={scoped.valueLabel}
           value={formatMarketPrice(scoped.totalValue)}
-          hint={`+${scoped.weeklyChange.toLocaleString("de-DE")} % (7 Tage)`}
-          positive
+          changeAbs={
+            scoped.sparkTotal.length > 1
+              ? scoped.totalValue - scoped.sparkTotal[0]
+              : Math.round(scoped.totalValue * (scoped.weeklyChange / 100))
+          }
+          changePct={scoped.weeklyChange}
+          positive={scoped.weeklyChange >= 0}
+          negative={scoped.weeklyChange < 0}
           info
           infoText={scoped.valueInfo}
           sparkline={scoped.sparkTotal}
+          sparkStyle="area"
+          period="7T"
+          periodNote="letzte 7 Tage"
         />
         <MetricCard
           label="Investiert"
           value={formatCurrency(scoped.invested)}
-          hint={`+${scoped.weeklyChangeInvested.toLocaleString("de-DE")} % (7 Tage)`}
-          positive
+          changeAbs={
+            scoped.sparkInvested.length > 1
+              ? scoped.invested - scoped.sparkInvested[0]
+              : Math.round(
+                  scoped.invested * (scoped.weeklyChangeInvested / 100),
+                )
+          }
+          changePct={scoped.weeklyChangeInvested}
+          changeMeta="3 Käufe"
+          positive={scoped.weeklyChangeInvested >= 0}
+          negative={scoped.weeklyChangeInvested < 0}
           info
           infoText={scoped.investInfo}
           sparkline={scoped.sparkInvested}
+          sparkStyle="step"
+          period="7T"
+          periodNote="letzte 7 Tage"
         />
         <MetricCard
           label="Gewinn / Verlust"
           value={`${profitPositive ? "+ " : ""}${formatCurrency(scoped.profitLoss)}`}
-          hint={`${scoped.weeklyChange >= 0 ? "+" : ""}${scoped.weeklyChange.toLocaleString("de-DE")} % (7 Tage)`}
+          changePct={scoped.weeklyChange}
           positive={profitPositive}
           negative={!profitPositive}
           info
           infoText={scoped.profitInfo}
+          sparkline={scoped.sparkTotal.map(
+            (v, i, arr) =>
+              v -
+              (scoped.sparkInvested[
+                Math.min(i, scoped.sparkInvested.length - 1)
+              ] ?? arr[0] * 0.78),
+          )}
+          sparkStyle="area"
+          period="7T"
+          periodNote="letzte 7 Tage"
         />
         <MetricCard
           label="Rendite"
           value={formatPercent(scoped.returnRate)}
-          hint={`${scoped.weeklyChange >= 0 ? "+" : ""}${scoped.weeklyChange.toLocaleString("de-DE")} % (7 Tage)`}
+          changePct={scoped.weeklyChange}
+          changeAbsCurrency={false}
           positive={returnPositive}
           negative={!returnPositive}
           info
           infoText={scoped.returnInfo}
+          sparkline={metricSparklines.returnRate}
+          sparkStyle="area"
+          period="7T"
+          periodNote="letzte 7 Tage"
         />
       </div>
 
@@ -469,7 +505,7 @@ export function DashboardView() {
         <Panel
           title="Top Verlierer (7 Tage)"
           actionHref="/portfolio/top-verlierer"
-          actionLabel="Alle anzeigen →"
+          actionLabel="Top 10 anzeigen →"
         >
           <div className="space-y-1">
             {scoped.losers.slice(0, 3).map((item, index) => {
