@@ -728,17 +728,18 @@ function SetListRow({
 }
 
 function buildFallbacks(set: TcgSet, language: CardLanguage): string[] {
+  // Server already builds a solid chain via resolveSetImageUrls; keep extras ordered
+  // with EN + PokémonTCG first so classic DE sets avoid 404-first logos.
   const serie = set.seriesId ?? "";
   const list = [
     ...(set.images.fallbacks ?? []),
-    // Prefer EN/DE logos before symbol (classic sets often only have EN)
     `https://assets.tcgdex.net/en/${serie}/${set.id}/logo.webp`,
     `https://assets.tcgdex.net/en/${serie}/${set.id}/logo.png`,
+    `https://images.pokemontcg.io/${set.id}/logo.png`,
     `https://assets.tcgdex.net/${language}/${serie}/${set.id}/logo.webp`,
     `https://assets.tcgdex.net/de/${serie}/${set.id}/logo.webp`,
-    `https://images.pokemontcg.io/${set.id}/logo.png`,
     set.images.symbol,
-  ].filter(Boolean);
+  ].filter(Boolean) as string[];
   return [...new Set(list)].filter((u) => u !== set.images.logo);
 }
 

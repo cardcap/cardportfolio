@@ -59,10 +59,12 @@ export function SetLogo({
     <div className={containerClass}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
+        key={currentSrc}
         src={currentSrc}
         alt={alt}
         loading="lazy"
         decoding="async"
+        referrerPolicy="no-referrer"
         onError={handleError}
         className={`h-full w-full object-contain ${isBanner ? "p-4 sm:p-5" : "p-1.5"}`}
       />

@@ -297,12 +297,23 @@ export function loadCachedSets(lang: CardLanguage): TcgdexCachedSet[] | null {
   );
   if (!file?.sets?.length) return null;
 
-  const stamp = file.updatedAt;
+  // Include EN asset stamp so logo enrichment invalidates when EN updates
+  const enFile =
+    lang === "en"
+      ? null
+      : readJsonFile<SetsCacheFile>(path.join(DATA_DIR, "sets", "en.json"));
+  const stamp = `${file.updatedAt}|${enFile?.updatedAt ?? ""}|assets-v2`;
   const cached = cacheMem.sets.get(lang);
   if (cached && cached.stamp === stamp) return cached.data;
 
-  cacheMem.sets.set(lang, { stamp, data: file.sets });
-  return file.sets;
+  const enSets = enFile?.sets?.length ? enFile.sets : null;
+  const data =
+    lang === "en" || !enSets
+      ? file.sets
+      : enrichLocalizedSetsWithEnAssets(file.sets, enSets);
+
+  cacheMem.sets.set(lang, { stamp, data });
+  return data;
 }
 
 function buildSetMaps(sets: TcgdexCachedSet[] | null) {
@@ -559,19 +570,27 @@ export async function loadSeriesNames(
 }
 
 /**
- * Local set catalogs (esp. DE) can miss older/EN-only expansions.
- * Fill gaps from the English cache so Base Set 2, Gym Heroes, etc. still appear.
+ * Keep localized names (DE/FR/…) but borrow EN logo/symbol when the
+ * language catalog has none — DE classic sets often ship without logo fields.
+ * Do NOT append EN-only sets: their names would appear in English.
  */
-function mergeSetCaches(
-  primary: TcgdexCachedSet[] | null,
-  fallback: TcgdexCachedSet[] | null,
-): TcgdexCachedSet[] | null {
-  if (!primary?.length) return fallback?.length ? fallback : primary;
-  if (!fallback?.length) return primary;
-  const have = new Set(primary.map((s) => s.id));
-  const extras = fallback.filter((s) => !have.has(s.id));
-  if (!extras.length) return primary;
-  return [...primary, ...extras];
+export function enrichLocalizedSetsWithEnAssets(
+  primary: TcgdexCachedSet[],
+  en: TcgdexCachedSet[] | null,
+): TcgdexCachedSet[] {
+  if (!en?.length) return primary;
+  const enById = new Map(en.map((s) => [s.id, s]));
+  return primary.map((set) => {
+    const eng = enById.get(set.id);
+    if (!eng) return set;
+    return {
+      ...set,
+      // name / releaseDate / cardCount stay from localized catalog
+      logo: set.logo || eng.logo,
+      symbol: set.symbol || eng.symbol,
+      serieId: set.serieId || eng.serieId,
+    };
+  });
 }
 
 function mapCachedSetsToTcg(
@@ -607,23 +626,14 @@ function mapCachedSetsToTcg(
 export async function fetchSetsFromTcgdex(
   lang: CardLanguage = DEFAULT_LANGUAGE,
 ): Promise<{ data: TcgSet[]; totalCount: number }> {
+  // Series names only from active UI language (never fall back to EN labels)
   const seriesNames = await loadSeriesNames(lang);
-  let seriesMerged = seriesNames;
-  if (lang !== "en") {
-    try {
-      const enSeries = await loadSeriesNames("en");
-      seriesMerged = new Map([...enSeries, ...seriesNames]);
-    } catch {
-      // keep primary-language series map
-    }
-  }
 
-  const primary = loadCachedSets(lang);
-  const enFallback = lang === "en" ? null : loadCachedSets("en");
-  const cached = mergeSetCaches(primary, enFallback);
+  // loadCachedSets already enriches logos from EN while keeping DE names
+  const cached = loadCachedSets(lang);
 
   if (cached?.length) {
-    const data = mapCachedSetsToTcg(cached, seriesMerged, lang);
+    const data = mapCachedSetsToTcg(cached, seriesNames, lang);
     return { data, totalCount: data.length };
   }
 
@@ -637,7 +647,10 @@ export async function fetchSetsFromTcgdex(
   }
 
   const json: TcgdexCachedSet[] = await res.json();
-  const data = mapCachedSetsToTcg(json, seriesMerged, lang);
+  const enAssets = lang === "en" ? null : loadCachedSets("en");
+  const enriched =
+    lang === "en" ? json : enrichLocalizedSetsWithEnAssets(json, enAssets);
+  const data = mapCachedSetsToTcg(enriched, seriesNames, lang);
   return { data, totalCount: data.length };
 }
 

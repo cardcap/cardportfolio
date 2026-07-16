@@ -181,7 +181,9 @@ function tcgdexLogoUrls(serieId: string, setId: string, langs: string[]): string
 }
 
 /**
- * Build ordered logo candidates. Never pick symbol before trying EN/DE logos.
+ * Build ordered logo candidates.
+ * EN assets cover classic sets much better than DE (many DE /logo 404).
+ * Never put symbol before real logos.
  */
 export function resolveSetImageUrls(
   set: SetImageSource,
@@ -196,15 +198,24 @@ export function resolveSetImageUrls(
 
   const candidates: string[] = [];
 
-  // 1) Explicit logo from cache/API (language of request)
-  if (set.logo) candidates.push(normalizeAssetUrl(set.logo));
+  // 1) Explicit logo — prefer if already EN or non-DE path (fewer 404s)
+  if (set.logo) {
+    const explicit = normalizeAssetUrl(set.logo);
+    candidates.push(explicit);
+    // Mirror language variants of the same logo path
+    if (explicit.includes("/de/")) {
+      candidates.push(explicit.replace("/de/", "/en/"));
+    } else if (explicit.includes(`/${lang}/`) && lang !== "en") {
+      candidates.push(explicit.replace(`/${lang}/`, "/en/"));
+    }
+  }
 
-  // 2) TCGdex logos — EN often has better coverage for classic sets
-  const langs = [...new Set([lang, "en", "de", "fr", "es", "it"])];
-  candidates.push(...tcgdexLogoUrls(serieId, set.id, langs));
-
-  // 3) Pokémon TCG CDN (often higher pixel density)
+  // 2) Pokémon TCG CDN early (stable logos, high res)
   candidates.push(...ptcgLogo(set.id));
+
+  // 3) TCGdex logos — EN first (classic / TCG Pocket coverage), then UI lang
+  const langs = [...new Set(["en", lang, "de", "fr", "es", "it"])];
+  candidates.push(...tcgdexLogoUrls(serieId, set.id, langs));
 
   // 4) Symbol only as last branding fallback
   if (symbol) candidates.push(symbol);
