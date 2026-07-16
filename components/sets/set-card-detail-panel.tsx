@@ -202,19 +202,15 @@ export function SetCardDetailPanel({
 
   return (
     <>
-      {/* Mobile: full dimmer closes on tap. Desktop: no blocking overlay so page can scroll */}
+      {/* Click outside closes detail (mobile + desktop). Panel sits above (z-50). */}
       <button
         type="button"
         aria-label="Detailansicht schließen"
-        className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+        className="fixed inset-0 z-40 bg-black/40 lg:bg-black/25"
         onClick={onClose}
       />
-      <div
-        className="pointer-events-none fixed inset-0 z-40 hidden bg-black/15 lg:block"
-        aria-hidden
-      />
       <aside
-        className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-50 flex max-h-[min(88dvh,100%)] w-full flex-col overflow-hidden rounded-t-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl touch-pan-y lg:inset-x-auto lg:inset-y-4 lg:left-auto lg:right-4 lg:bottom-4 lg:top-4 lg:w-[min(100vw-2rem,26rem)] lg:max-h-none lg:rounded-2xl lg:pointer-events-auto"
+        className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-50 flex max-h-[min(88dvh,100%)] w-full flex-col overflow-hidden rounded-t-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl touch-pan-y lg:inset-x-auto lg:inset-y-4 lg:left-auto lg:right-4 lg:bottom-4 lg:top-4 lg:w-[min(100vw-2rem,26rem)] lg:max-h-none lg:rounded-2xl"
         onPointerDown={onSwipePointerDown}
         onPointerUp={onSwipePointerUp}
         onPointerCancel={onSwipePointerCancel}
