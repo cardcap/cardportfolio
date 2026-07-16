@@ -1416,15 +1416,33 @@ export function SammlungView() {
                               setPanelOpen(true);
                             };
 
+                            // Thin pink frame wraps main row + expanded exemplars
+                            const groupTop = expanded
+                              ? "border-x border-t border-[var(--accent)] rounded-t-xl bg-[var(--accent-soft)]/15"
+                              : "";
+                            const groupSide = expanded
+                              ? "border-x border-[var(--accent)] bg-[var(--accent-soft)]/20"
+                              : "";
+
                             return (
                               <Fragment key={row.id}>
                                 <tr
                                   onClick={openRow}
-                                  className={`cursor-pointer border-b border-[var(--border)] transition-colors ${
-                                    isSelected
-                                      ? "bg-[var(--accent-soft)]"
-                                      : "hover:bg-[var(--surface-elevated)]"
-                                  } ${expanded ? "border-b-0" : "last:border-0"}`}
+                                  className={`cursor-pointer transition-colors ${
+                                    expanded
+                                      ? groupTop
+                                      : `border-b border-[var(--border)] last:border-0 ${
+                                          isSelected
+                                            ? "bg-[var(--accent-soft)]"
+                                            : "hover:bg-[var(--surface-elevated)]"
+                                        }`
+                                  } ${
+                                    expanded && isSelected
+                                      ? "bg-[var(--accent-soft)]/40"
+                                      : expanded
+                                        ? "hover:bg-[var(--accent-soft)]/30"
+                                        : ""
+                                  }`}
                                 >
                                   <td className="px-3 py-2.5">
                                     <div className="flex items-center gap-3">
