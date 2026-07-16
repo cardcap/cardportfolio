@@ -69,14 +69,17 @@ export function MetricCard({
         : undefined);
   const inferredNegative =
     negative ??
-    (changePct != null
-      ? changePct < 0
-      : changeAbs != null
-        ? changeAbs < 0
-        : undefined);
+    // Explicit positive={false} with colorValue → treat as loss (red)
+    (positive === false && colorValue
+      ? true
+      : changePct != null
+        ? changePct < 0
+        : changeAbs != null
+          ? changeAbs < 0
+          : undefined);
 
-  const trendPositive = inferredPositive && !inferredNegative;
-  const trendNegative = inferredNegative && !inferredPositive;
+  const trendPositive = Boolean(inferredPositive) && !inferredNegative;
+  const trendNegative = Boolean(inferredNegative) && !inferredPositive;
 
   const valueColor = accent
     ? "text-[var(--accent)]"

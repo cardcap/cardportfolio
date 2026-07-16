@@ -747,13 +747,14 @@ export function SammlungView() {
               }
             />
             <MetricCard
-              label="Unrealisierter Gewinn"
-              value={`${displayMetrics.profitLoss >= 0 ? "+" : ""}${formatMarketPrice(displayMetrics.profitLoss)}`}
-              positive={displayMetrics.profitLoss >= 0}
+              label="Gewinn / Verlust"
+              value={`${displayMetrics.profitLoss > 0 ? "+" : ""}${formatMarketPrice(displayMetrics.profitLoss)}`}
+              positive={displayMetrics.profitLoss > 0}
+              negative={displayMetrics.profitLoss < 0}
               colorValue
               periodNote={
                 displayMetrics.invested > 0
-                  ? `${displayMetrics.profitLoss >= 0 ? "+" : ""}${((displayMetrics.profitLoss / displayMetrics.invested) * 100).toLocaleString("de-DE", { maximumFractionDigits: 1 })} % Rendite`
+                  ? `${displayMetrics.profitLoss > 0 ? "+" : ""}${((displayMetrics.profitLoss / displayMetrics.invested) * 100).toLocaleString("de-DE", { maximumFractionDigits: 1 })} % Rendite`
                   : undefined
               }
             />
@@ -971,7 +972,12 @@ export function SammlungView() {
                     <div className="space-y-3 lg:hidden">
                       {pageItems.map((row) => {
                         const isSelected = panelOpen && row.id === activeId;
-                        const profitPositive = row.profit >= 0;
+                        const profitClass =
+                          row.profit > 0
+                            ? "text-[var(--positive)]"
+                            : row.profit < 0
+                              ? "text-[var(--negative)]"
+                              : "text-[var(--muted)]";
                         return (
                           <button
                             key={row.id}
@@ -1004,15 +1010,9 @@ export function SammlungView() {
                                 <p className="tabular-nums text-sm font-medium">
                                   <Price value={row.marketValue} />
                                 </p>
-                                <p
-                                  className={`tabular-nums text-xs ${
-                                    profitPositive
-                                      ? "text-[var(--positive)]"
-                                      : "text-[var(--negative)]"
-                                  }`}
-                                >
-                                  {profitPositive ? "+" : ""}
-                                  <Price value={row.profit} />
+                                <p className={`tabular-nums text-xs font-medium ${profitClass}`}>
+                                  {row.profit > 0 ? "+" : ""}
+                                  <Price value={row.profit} className={profitClass} />
                                 </p>
                               </div>
                             </div>
@@ -1061,7 +1061,12 @@ export function SammlungView() {
                         <tbody>
                           {pageItems.map((row) => {
                             const isSelected = panelOpen && row.id === activeId;
-                            const profitPositive = row.profit >= 0;
+                            const profitClass =
+                              row.profit > 0
+                                ? "text-[var(--positive)]"
+                                : row.profit < 0
+                                  ? "text-[var(--negative)]"
+                                  : "text-[var(--muted)]";
                             const unitMarket =
                               row.quantity > 0
                                 ? row.marketValue / row.quantity
@@ -1133,14 +1138,13 @@ export function SammlungView() {
                                   <Price value={row.marketValue} />
                                 </td>
                                 <td
-                                  className={`px-3 py-2.5 text-right tabular-nums ${
-                                    profitPositive
-                                      ? "text-[var(--positive)]"
-                                      : "text-[var(--negative)]"
-                                  }`}
+                                  className={`px-3 py-2.5 text-right tabular-nums font-medium ${profitClass}`}
                                 >
-                                  {profitPositive ? "+" : ""}
-                                  <Price value={row.profit} />
+                                  {row.profit > 0 ? "+" : ""}
+                                  <Price
+                                    value={row.profit}
+                                    className={profitClass}
+                                  />
                                 </td>
                               </tr>
                             );
@@ -1351,13 +1355,24 @@ export function SammlungView() {
                     <span className="text-[var(--muted)]">Gewinn / Verlust</span>
                     <span
                       className={
-                        selectedRow.profit >= 0
-                          ? "text-[var(--positive)]"
-                          : "text-[var(--negative)]"
+                        selectedRow.profit > 0
+                          ? "font-medium text-[var(--positive)]"
+                          : selectedRow.profit < 0
+                            ? "font-medium text-[var(--negative)]"
+                            : "font-medium text-[var(--muted)]"
                       }
                     >
-                      {selectedRow.profit >= 0 ? "+" : ""}
-                      <Price value={selectedRow.profit} />
+                      {selectedRow.profit > 0 ? "+" : ""}
+                      <Price
+                        value={selectedRow.profit}
+                        className={
+                          selectedRow.profit > 0
+                            ? "text-[var(--positive)]"
+                            : selectedRow.profit < 0
+                              ? "text-[var(--negative)]"
+                              : "text-[var(--muted)]"
+                        }
+                      />
                     </span>
                   </div>
                 </>
