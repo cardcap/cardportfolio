@@ -3,12 +3,12 @@
  * Soft fill + saturated text, works on dark UI.
  */
 const styles: Record<string, string> = {
-  // Mint — teal
-  Mint: "bg-[#14b8a6]/18 text-[#2dd4bf] ring-1 ring-[#14b8a6]/35",
-  MT: "bg-[#14b8a6]/18 text-[#2dd4bf] ring-1 ring-[#14b8a6]/35",
-  // Near Mint — teal (same family as Cardmarket)
-  "Near Mint": "bg-[#0d9488]/18 text-[#2dd4bf] ring-1 ring-[#0d9488]/35",
-  NM: "bg-[#0d9488]/18 text-[#2dd4bf] ring-1 ring-[#0d9488]/35",
+  // Mint (MT) — cooler cyan (Cardmarket: lightest/best green-blue)
+  Mint: "bg-[#06b6d4]/20 text-[#22d3ee] ring-1 ring-[#06b6d4]/40",
+  MT: "bg-[#06b6d4]/20 text-[#22d3ee] ring-1 ring-[#06b6d4]/40",
+  // Near Mint (NM) — warmer teal-green (clearly distinct from Mint)
+  "Near Mint": "bg-[#0f766e]/22 text-[#2dd4bf] ring-1 ring-[#0f766e]/40",
+  NM: "bg-[#0f766e]/22 text-[#2dd4bf] ring-1 ring-[#0f766e]/40",
   // Excellent — olive
   Excellent: "bg-[#84994a]/22 text-[#b5c75a] ring-1 ring-[#84994a]/40",
   EX: "bg-[#84994a]/22 text-[#b5c75a] ring-1 ring-[#84994a]/40",
