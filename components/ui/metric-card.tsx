@@ -143,66 +143,68 @@ export function MetricCard({
         ) : null}
       </div>
 
-      {/* Body: text + sparkline; baseline of chart aligns with “letzte 7 Tage” */}
-      <div className="mt-2.5 flex min-h-0 flex-1 items-end justify-between gap-3">
-        <div className="flex min-h-[4.75rem] min-w-0 flex-1 flex-col justify-end">
+      {/* Body: value always at same height; footer band reserved for notes */}
+      <div className="mt-2.5 flex min-h-0 flex-1 items-start justify-between gap-3">
+        <div className="flex min-h-[4.25rem] min-w-0 flex-1 flex-col">
           <p
-            className={`tabular-nums text-xl font-semibold tracking-tight sm:text-[1.35rem] ${valueColor}`}
+            className={`tabular-nums text-xl font-semibold leading-7 tracking-tight sm:text-[1.35rem] sm:leading-8 ${valueColor}`}
           >
             {value}
           </p>
 
-          {hasDelta && (
-            <p
-              className={`mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-medium tabular-nums ${deltaColor}`}
-            >
-              {changeAbs != null && changeAbs !== 0 && (
-                <span aria-hidden className="text-[10px] leading-none">
-                  {trendPositive ? "▲" : trendNegative ? "▼" : "●"}
-                </span>
-              )}
-              {absText && <span>{absText}</span>}
-              {absText && pctText && (
-                <span className="text-[var(--muted)]">·</span>
-              )}
-              {pctText && <span>{pctText}</span>}
-              {metaWithDelta && changeMeta && (
-                <>
-                  <span className="text-[var(--muted)]">·</span>
-                  <span className="font-normal text-[var(--muted)]">
-                    {changeMeta}
+          {/* Fixed-height band so cards with/without subline stay aligned */}
+          <div className="mt-1.5 min-h-[2.25rem]">
+            {hasDelta && (
+              <p
+                className={`flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-medium tabular-nums leading-4 ${deltaColor}`}
+              >
+                {changeAbs != null && changeAbs !== 0 && (
+                  <span aria-hidden className="text-[10px] leading-none">
+                    {trendPositive ? "▲" : trendNegative ? "▼" : "●"}
                   </span>
-                </>
-              )}
-            </p>
-          )}
+                )}
+                {absText && <span>{absText}</span>}
+                {absText && pctText && (
+                  <span className="text-[var(--muted)]">·</span>
+                )}
+                {pctText && <span>{pctText}</span>}
+                {metaWithDelta && changeMeta && (
+                  <>
+                    <span className="text-[var(--muted)]">·</span>
+                    <span className="font-normal text-[var(--muted)]">
+                      {changeMeta}
+                    </span>
+                  </>
+                )}
+              </p>
+            )}
 
-          {!hasDelta && hint && (
-            <p
-              className={`mt-1.5 text-xs tabular-nums ${
-                trendPositive
-                  ? "text-[var(--positive)]"
-                  : trendNegative
-                    ? "text-[var(--negative)]"
-                    : "text-[var(--muted)]"
-              }`}
-            >
-              {hint}
-            </p>
-          )}
+            {!hasDelta && hint && (
+              <p
+                className={`text-xs leading-4 tabular-nums ${
+                  trendPositive
+                    ? "text-[var(--positive)]"
+                    : trendNegative
+                      ? "text-[var(--negative)]"
+                      : "text-[var(--muted)]"
+                }`}
+              >
+                {hint}
+              </p>
+            )}
 
-          {/* Footer line — same vertical band as sparkline baseline */}
-          {(note || (!metaWithDelta && changeMeta)) && (
-            <p className="mt-1 text-[11px] leading-4 text-[var(--muted)]">
-              {note}
-              {note && !metaWithDelta && changeMeta ? " · " : null}
-              {!metaWithDelta && changeMeta ? changeMeta : null}
-            </p>
-          )}
+            {(note || (!metaWithDelta && changeMeta)) && (
+              <p className="text-[11px] leading-4 text-[var(--muted)]">
+                {note}
+                {note && !metaWithDelta && changeMeta ? " · " : null}
+                {!metaWithDelta && changeMeta ? changeMeta : null}
+              </p>
+            )}
+          </div>
         </div>
 
         {sparkline && sparkline.length > 1 ? (
-          <div className="flex shrink-0 flex-col justify-end pb-0">
+          <div className="flex shrink-0 flex-col justify-end self-end pb-0">
             <MiniSparkline
               values={sparkline}
               positive={trendPositive}
