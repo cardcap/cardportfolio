@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ThemeToggleButton } from "@/components/theme-toggle";
 import { CardImage } from "@/components/ui/card-image";
 import { SealedProductImage } from "@/components/ui/sealed-product-image";
 import { useWishlist } from "@/components/wishlist-provider";
@@ -207,7 +206,6 @@ export function WishlistView() {
           >
             ?
           </button>
-          <ThemeToggleButton className="!h-9 !w-9" />
           <Link
             href="/kartendatenbank"
             className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 text-sm font-medium text-white hover:brightness-110"

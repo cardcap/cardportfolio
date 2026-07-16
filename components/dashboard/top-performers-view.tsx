@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ThemeToggleButton } from "@/components/theme-toggle";
 import { CardImage } from "@/components/ui/card-image";
 import { InfoTip } from "@/components/ui/metric-card";
 import { formatCurrency } from "@/lib/format";
@@ -120,7 +119,6 @@ export function TopPerformersView() {
         <div className="flex flex-wrap items-center gap-2">
           <Segmented options={scopes} value={scope} onChange={setScope} />
           <Segmented options={ranges} value={range} onChange={setRange} />
-          <ThemeToggleButton className="!h-9 !w-9" />
           <Link
             href="/wunschliste"
             className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"

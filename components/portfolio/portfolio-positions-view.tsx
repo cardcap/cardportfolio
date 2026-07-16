@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ThemeToggleButton } from "@/components/theme-toggle";
 import { CardImage } from "@/components/ui/card-image";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import {
@@ -250,7 +249,6 @@ export function PortfolioPositionsView() {
           >
             <BellIcon />
           </button>
-          <ThemeToggleButton className="!h-9 !w-9" />
         </div>
       </div>
 

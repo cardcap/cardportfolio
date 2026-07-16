@@ -6,7 +6,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { DonutChart } from "@/components/charts/donut-chart";
 import { PortfolioAnalyse } from "@/components/portfolio/portfolio-analyse";
 import { PortfolioTransactions } from "@/components/portfolio/portfolio-transactions";
-import { ThemeToggleButton } from "@/components/theme-toggle";
 import { CardImage } from "@/components/ui/card-image";
 import { InfoTip } from "@/components/ui/metric-card";
 import { formatCurrency, formatPercent } from "@/lib/format";
@@ -113,7 +112,6 @@ export function PortfolioView() {
           >
             <BellIcon />
           </button>
-          <ThemeToggleButton className="!h-9 !w-9" />
         </div>
       </div>
 

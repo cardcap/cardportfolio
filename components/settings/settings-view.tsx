@@ -80,7 +80,6 @@ export function SettingsView() {
               Gespeichert
             </span>
           )}
-          <ThemeToggleButton className="!h-9 !w-9" />
         </div>
       </div>
 

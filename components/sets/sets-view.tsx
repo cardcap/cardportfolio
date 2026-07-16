@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ThemeToggleButton } from "@/components/theme-toggle";
 import { SetLogo } from "@/components/ui/set-logo";
 import { formatDateDE } from "@/lib/format";
 import { setDetailPath } from "@/lib/set-path";
@@ -302,7 +301,6 @@ export function SetsView() {
           >
             Meine Karten →
           </Link>
-          <ThemeToggleButton className="!h-9 !w-9" />
           <button
             type="button"
             className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--muted)]"

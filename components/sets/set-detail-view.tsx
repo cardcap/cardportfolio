@@ -8,7 +8,6 @@ import {
   type CollectionCopy,
 } from "@/components/sets/collection-edit-panel";
 import { SetCardDetailPanel } from "@/components/sets/set-card-detail-panel";
-import { ThemeToggleButton } from "@/components/theme-toggle";
 import { CardImage } from "@/components/ui/card-image";
 import { SetLogo } from "@/components/ui/set-logo";
 import { getCardGlowColor } from "@/lib/card-colors";
@@ -301,7 +300,6 @@ export function SetDetailView({
                 <GridIcon />
               </button>
             </div>
-            <ThemeToggleButton className="!h-9 !w-9" />
             <button
               type="button"
               className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--muted)]"

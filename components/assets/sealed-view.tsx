@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { SealedOpenDialog } from "@/components/assets/sealed-open-dialog";
-import { ThemeToggleButton } from "@/components/theme-toggle";
 import { SealedProductImage } from "@/components/ui/sealed-product-image";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import {
@@ -156,7 +155,6 @@ export function SealedView() {
             <ImportIcon />
             Excel-Import
           </button>
-          <ThemeToggleButton className="!h-9 !w-9" />
           <button
             type="button"
             className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--muted)]"

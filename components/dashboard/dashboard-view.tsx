@@ -5,7 +5,6 @@ import { useState } from "react";
 import { AreaChart } from "@/components/charts/area-chart";
 import { DonutChart } from "@/components/charts/donut-chart";
 import { PageHeader } from "@/components/layout/page-header";
-import { ThemeToggleButton } from "@/components/theme-toggle";
 import { CardImage } from "@/components/ui/card-image";
 import { MetricCard } from "@/components/ui/metric-card";
 import { Panel } from "@/components/ui/panel";
@@ -70,8 +69,6 @@ export function DashboardView() {
             <span className="text-base leading-none">+</span>
             Hinzufügen
           </Link>
-
-          <ThemeToggleButton className="!h-9 !w-9" />
 
           <Link
             href="/wunschliste"

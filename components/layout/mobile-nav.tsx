@@ -75,8 +75,9 @@ export function MobileNav() {
             Card<span className="text-[var(--accent)]">Cap</span>
           </span>
         </Link>
-        <div className="flex items-center gap-1">
-          <ThemeToggleButton className="relative top-0 right-0" />
+        <div className="flex items-center gap-1.5">
+          {/* Same role as desktop AppShell toggle: always top-right in chrome */}
+          <ThemeToggleButton className="!h-9 !w-9" />
           <button
             type="button"
             aria-label="Menü öffnen"
