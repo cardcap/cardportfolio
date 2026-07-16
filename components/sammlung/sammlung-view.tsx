@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CARD_CONDITIONS, RAW_CONDITIONS, PSA_CONDITIONS } from "@/lib/card-conditions";
 import { formatRarityEnglish } from "@/lib/rarity-labels";
 import {
@@ -34,6 +34,7 @@ import { useWishlist } from "@/components/wishlist-provider";
 
 const EDIT_CONDITIONS = [...RAW_CONDITIONS, ...PSA_CONDITIONS] as const;
 const PAGE_SIZES = [25, 50, 100] as const;
+const UI_STORAGE_KEY = "cardcap-assets-karten-ui";
 
 type ViewMode = "list" | "grid";
 type SortKey =
@@ -43,6 +44,80 @@ type SortKey =
   | "value-asc"
   | "profit-desc"
   | "set";
+
+type KartenUiState = {
+  search: string;
+  setFilter: string;
+  languageFilter: string;
+  conditionFilter: string;
+  rarityFilter: string;
+  sort: SortKey;
+  view: ViewMode;
+  page: number;
+  pageSize: (typeof PAGE_SIZES)[number];
+};
+
+const DEFAULT_UI: KartenUiState = {
+  search: "",
+  setFilter: "Alle Sets",
+  languageFilter: "Alle Sprachen",
+  conditionFilter: "Alle Zustände",
+  rarityFilter: "Alle Seltenheiten",
+  sort: "recent",
+  view: "list",
+  page: 1,
+  pageSize: 25,
+};
+
+function loadKartenUi(): KartenUiState {
+  if (typeof window === "undefined") return DEFAULT_UI;
+  try {
+    const raw = localStorage.getItem(UI_STORAGE_KEY);
+    if (!raw) return DEFAULT_UI;
+    const parsed = JSON.parse(raw) as Partial<KartenUiState>;
+    const pageSize = PAGE_SIZES.includes(
+      parsed.pageSize as (typeof PAGE_SIZES)[number],
+    )
+      ? (parsed.pageSize as (typeof PAGE_SIZES)[number])
+      : DEFAULT_UI.pageSize;
+    return {
+      search: typeof parsed.search === "string" ? parsed.search : DEFAULT_UI.search,
+      setFilter:
+        typeof parsed.setFilter === "string"
+          ? parsed.setFilter
+          : DEFAULT_UI.setFilter,
+      languageFilter:
+        typeof parsed.languageFilter === "string"
+          ? parsed.languageFilter
+          : DEFAULT_UI.languageFilter,
+      conditionFilter:
+        typeof parsed.conditionFilter === "string"
+          ? parsed.conditionFilter
+          : DEFAULT_UI.conditionFilter,
+      rarityFilter:
+        typeof parsed.rarityFilter === "string"
+          ? parsed.rarityFilter
+          : DEFAULT_UI.rarityFilter,
+      sort:
+        parsed.sort === "name" ||
+        parsed.sort === "value-desc" ||
+        parsed.sort === "value-asc" ||
+        parsed.sort === "profit-desc" ||
+        parsed.sort === "set" ||
+        parsed.sort === "recent"
+          ? parsed.sort
+          : DEFAULT_UI.sort,
+      view: parsed.view === "grid" ? "grid" : "list",
+      page:
+        typeof parsed.page === "number" && parsed.page >= 1
+          ? Math.floor(parsed.page)
+          : 1,
+      pageSize,
+    };
+  } catch {
+    return DEFAULT_UI;
+  }
+}
 
 type DisplayRow = {
   id: string;
@@ -258,15 +333,20 @@ export function SammlungView() {
   const [localItems, setLocalItems] = useState<LocalCollectionItem[]>([]);
   const [metrics, setMetrics] = useState<CollectionMetrics | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [setFilter, setSetFilter] = useState("Alle Sets");
-  const [languageFilter, setLanguageFilter] = useState("Alle Sprachen");
-  const [conditionFilter, setConditionFilter] = useState("Alle Zustände");
-  const [rarityFilter, setRarityFilter] = useState("Alle Seltenheiten");
-  const [sort, setSort] = useState<SortKey>("recent");
-  const [view, setView] = useState<ViewMode>("list");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(25);
+  const [uiReady, setUiReady] = useState(false);
+  const [search, setSearch] = useState(DEFAULT_UI.search);
+  const [setFilter, setSetFilter] = useState(DEFAULT_UI.setFilter);
+  const [languageFilter, setLanguageFilter] = useState(DEFAULT_UI.languageFilter);
+  const [conditionFilter, setConditionFilter] = useState(
+    DEFAULT_UI.conditionFilter,
+  );
+  const [rarityFilter, setRarityFilter] = useState(DEFAULT_UI.rarityFilter);
+  const [sort, setSort] = useState<SortKey>(DEFAULT_UI.sort);
+  const [view, setView] = useState<ViewMode>(DEFAULT_UI.view);
+  const [page, setPage] = useState(DEFAULT_UI.page);
+  const [pageSize, setPageSize] =
+    useState<(typeof PAGE_SIZES)[number]>(DEFAULT_UI.pageSize);
+  const skipPageResetRef = useRef(true);
   const [editing, setEditing] = useState(false);
   const [editQty, setEditQty] = useState(1);
   const [editCondition, setEditCondition] = useState("Near Mint");
@@ -312,6 +392,55 @@ export function SammlungView() {
       window.removeEventListener("storage", onLocal);
     };
   }, [loadCollection, loadLocal]);
+
+  // Restore filters / page size after mount (SSR-safe)
+  useEffect(() => {
+    const saved = loadKartenUi();
+    setSearch(saved.search);
+    setSetFilter(saved.setFilter);
+    setLanguageFilter(saved.languageFilter);
+    setConditionFilter(saved.conditionFilter);
+    setRarityFilter(saved.rarityFilter);
+    setSort(saved.sort);
+    setView(saved.view);
+    setPage(saved.page);
+    setPageSize(saved.pageSize);
+    setUiReady(true);
+    // Next filter change may reset page; ignore the restore itself
+    skipPageResetRef.current = true;
+  }, []);
+
+  // Persist filters so they survive pagination and leaving/re-entering the page
+  useEffect(() => {
+    if (!uiReady || typeof window === "undefined") return;
+    const payload: KartenUiState = {
+      search,
+      setFilter,
+      languageFilter,
+      conditionFilter,
+      rarityFilter,
+      sort,
+      view,
+      page,
+      pageSize,
+    };
+    try {
+      localStorage.setItem(UI_STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      /* ignore quota */
+    }
+  }, [
+    uiReady,
+    search,
+    setFilter,
+    languageFilter,
+    conditionFilter,
+    rarityFilter,
+    sort,
+    view,
+    page,
+    pageSize,
+  ]);
 
   const usingDemo = isDemo || !isAuthenticated;
 
@@ -411,8 +540,12 @@ export function SammlungView() {
     sort,
   ]);
 
-  // Reset page when filters change
+  // Reset page when filters/pageSize change — but not on initial restore
   useEffect(() => {
+    if (skipPageResetRef.current) {
+      skipPageResetRef.current = false;
+      return;
+    }
     setPage(1);
   }, [
     search,
@@ -425,7 +558,17 @@ export function SammlungView() {
   ]);
 
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
-  const safePage = Math.min(page, totalPages);
+  // Prefer stored page; only clamp when we actually have rows (avoid wipe during load)
+  const safePage =
+    filteredItems.length === 0
+      ? 1
+      : Math.min(Math.max(1, page), totalPages);
+
+  useEffect(() => {
+    if (filteredItems.length === 0) return;
+    if (page > totalPages) setPage(totalPages);
+  }, [filteredItems.length, page, totalPages]);
+
   const pageItems = useMemo(() => {
     const start = (safePage - 1) * pageSize;
     return filteredItems.slice(start, start + pageSize);
@@ -484,6 +627,7 @@ export function SammlungView() {
     setLanguageFilter("Alle Sprachen");
     setConditionFilter("Alle Zustände");
     setRarityFilter("Alle Seltenheiten");
+    setPage(1);
   };
 
   const displayMetrics = useMemo(() => {
