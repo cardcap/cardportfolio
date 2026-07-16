@@ -140,7 +140,7 @@ export function MetricCard({
         ) : null}
       </div>
 
-      {/* Body: text + sparkline bottom-aligned across cards */}
+      {/* Body: text + sparkline; baseline of chart aligns with “letzte 7 Tage” */}
       <div className="mt-2.5 flex min-h-0 flex-1 items-end justify-between gap-3">
         <div className="flex min-h-[4.75rem] min-w-0 flex-1 flex-col justify-end">
           <p
@@ -188,9 +188,9 @@ export function MetricCard({
             </p>
           )}
 
-          {/* Fixed footer slot: period + meta on one line when both exist */}
+          {/* Footer line — same vertical band as sparkline baseline */}
           {(note || (!metaWithDelta && changeMeta)) && (
-            <p className="mt-1 text-[11px] text-[var(--muted)]">
+            <p className="mt-1 text-[11px] leading-4 text-[var(--muted)]">
               {note}
               {note && !metaWithDelta && changeMeta ? " · " : null}
               {!metaWithDelta && changeMeta ? changeMeta : null}
@@ -199,7 +199,7 @@ export function MetricCard({
         </div>
 
         {sparkline && sparkline.length > 1 ? (
-          <div className="flex h-[3.25rem] shrink-0 items-end">
+          <div className="flex shrink-0 flex-col justify-end pb-0">
             <MiniSparkline
               values={sparkline}
               positive={trendPositive}
@@ -248,10 +248,17 @@ function MiniSparkline({
   accent?: boolean;
   style?: "area" | "step";
 }) {
-  const w = 108;
-  const h = 52;
-  const padY = 4;
-  const padX = 2;
+  // Extra padding so end-dot (r≈4) is never clipped
+  const w = 112;
+  const h = 56;
+  const padX = 7;
+  const padTop = 7;
+  const padBottom = 10; // room for dashed baseline + label alignment
+  const baselineY = h - 5;
+  const plotBottom = baselineY - 2;
+  const plotTop = padTop;
+  const plotH = Math.max(1, plotBottom - plotTop);
+
   const min = Math.min(...values);
   const max = Math.max(...values);
   const span = Math.max(max - min, 1);
@@ -266,13 +273,12 @@ function MiniSparkline({
 
   const coords = values.map((v, i) => {
     const x = padX + (i / (values.length - 1)) * (w - padX * 2);
-    const y = padY + (1 - (v - min) / span) * (h - padY * 2);
+    const y = plotTop + (1 - (v - min) / span) * plotH;
     return { x, y };
   });
 
   let linePath: string;
   if (style === "step") {
-    // Horizontal-then-vertical steps (like investment purchases)
     const parts: string[] = [];
     coords.forEach((p, i) => {
       if (i === 0) parts.push(`M ${p.x} ${p.y}`);
@@ -284,7 +290,6 @@ function MiniSparkline({
     });
     linePath = parts.join(" ");
   } else {
-    // Smooth-ish polyline
     linePath = coords
       .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`)
       .join(" ");
@@ -292,7 +297,8 @@ function MiniSparkline({
 
   const last = coords[coords.length - 1];
   const first = coords[0];
-  const areaPath = `${linePath} L ${last.x} ${h} L ${first.x} ${h} Z`;
+  // Fill down to the dashed baseline (not SVG bottom)
+  const areaPath = `${linePath} L ${last.x} ${baselineY} L ${first.x} ${baselineY} Z`;
 
   const gradId = `spark-${style}-${positive ? "p" : negative ? "n" : "a"}`;
 
@@ -301,7 +307,7 @@ function MiniSparkline({
       width={w}
       height={h}
       viewBox={`0 0 ${w} ${h}`}
-      className="mb-0.5 shrink-0"
+      className="shrink-0 overflow-visible"
       aria-hidden
     >
       <defs>
@@ -310,9 +316,21 @@ function MiniSparkline({
           <stop offset="100%" stopColor={stroke} stopOpacity="0.02" />
         </linearGradient>
       </defs>
-      {style === "area" && (
-        <path d={areaPath} fill={`url(#${gradId})`} />
-      )}
+
+      {/* Koordinaten-Grundlinie, bündig mit „letzte 7 Tage“ */}
+      <line
+        x1={padX - 1}
+        y1={baselineY}
+        x2={w - padX + 1}
+        y2={baselineY}
+        stroke="var(--border-strong)"
+        strokeWidth="1"
+        strokeDasharray="3 2.5"
+        strokeLinecap="round"
+        opacity={0.9}
+      />
+
+      {style === "area" && <path d={areaPath} fill={`url(#${gradId})`} />}
       <path
         d={linePath}
         fill="none"
@@ -321,18 +339,9 @@ function MiniSparkline({
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      {/* End marker only — no value labels on mini charts */}
-      <circle
-        cx={last.x}
-        cy={last.y}
-        r="3.5"
-        fill="var(--surface)"
-        stroke={stroke}
-        strokeWidth="2"
-      />
       {style === "step" &&
         coords.map((p, i) =>
-          i === 0 || i === coords.length - 1 ? null : (
+          i === coords.length - 1 ? null : (
             <circle
               key={i}
               cx={p.x}
@@ -341,10 +350,19 @@ function MiniSparkline({
               fill="var(--surface)"
               stroke={stroke}
               strokeWidth="1.5"
-              opacity={0.85}
+              opacity={0.9}
             />
           ),
         )}
+      {/* End marker — fully inside viewBox thanks to padX/padTop */}
+      <circle
+        cx={last.x}
+        cy={last.y}
+        r="4"
+        fill="var(--surface)"
+        stroke={stroke}
+        strokeWidth="2"
+      />
     </svg>
   );
 }
