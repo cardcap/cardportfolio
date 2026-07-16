@@ -143,9 +143,9 @@ export function DashboardView() {
           href="/wunschliste"
           className="col-span-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3.5 transition-colors hover:border-[var(--accent)]/40 lg:col-span-1"
         >
-          <div className="flex items-center gap-3">
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)]">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+          <div className="flex items-center gap-3.5">
+            <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
                 <path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2 4 4 0 0 1 7 2c0 5.5-7 10-7 10z" />
               </svg>
             </span>
@@ -153,7 +153,7 @@ export function DashboardView() {
               <p className="text-[11px] uppercase tracking-wider text-[var(--muted)]">
                 Wunschliste
               </p>
-              <p className="tabular-nums text-lg font-medium">
+              <p className="tabular-nums text-xl font-semibold">
                 {portfolioMetrics.wishlistCount}
               </p>
             </div>
@@ -176,12 +176,38 @@ export function DashboardView() {
             actionHref="/portfolio"
             actionLabel="Portfolio öffnen →"
           >
-            <DonutChart
-              segments={portfolioAllocation}
-              size={128}
-              centerLabel="Gesamt"
-              centerSub={formatCurrency(portfolioMetrics.totalValue)}
-            />
+            <div className="flex justify-center py-2">
+              <DonutChart
+                segments={portfolioAllocation}
+                size={168}
+                ringWidth={26}
+                hideLegend
+                centerLabel="Gesamt"
+                centerSub={formatCurrency(portfolioMetrics.totalValue)}
+              />
+            </div>
+            <div className="mt-2 space-y-2 border-t border-[var(--border)] pt-3">
+              {portfolioAllocation.map((item) => (
+                <div
+                  key={item.label}
+                  className="flex items-center justify-between gap-2 text-sm"
+                >
+                  <span className="flex items-center gap-2">
+                    <span
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    {item.label}
+                  </span>
+                  <span className="tabular-nums font-medium">
+                    {item.percent} %
+                    <span className="ml-2 text-[var(--muted)]">
+                      {formatCurrency(item.value)}
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
             <div className="mt-4 space-y-2.5 border-t border-[var(--border)] pt-3">
               <p className="text-[10px] font-medium uppercase tracking-wider text-[var(--muted)]">
                 Nach Kategorie
@@ -403,15 +429,15 @@ function CountCard({
       href={href}
       className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3.5 transition-colors hover:border-[var(--accent)]/40"
     >
-      <div className="flex items-center gap-3">
-        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--surface-elevated)] text-[var(--muted)] ring-1 ring-[var(--border)]">
+      <div className="flex items-center gap-3.5">
+        <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--surface-elevated)] text-[var(--foreground)] ring-1 ring-[var(--border)]">
           {icon === "cards" ? (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
               <rect x="5" y="4" width="10" height="14" rx="1.5" />
               <path d="M9 3.5h7.5A1.5 1.5 0 0 1 18 5v12" />
             </svg>
           ) : (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
               <path d="M12 3 4 7v10l8 4 8-4V7l-8-4Z" />
               <path d="M12 12 4 7M12 12l8-5M12 12v10" />
             </svg>
@@ -421,7 +447,7 @@ function CountCard({
           <p className="text-[11px] uppercase tracking-wider text-[var(--muted)]">
             {label}
           </p>
-          <p className="tabular-nums text-lg font-medium">{value}</p>
+          <p className="tabular-nums text-xl font-semibold">{value}</p>
         </div>
       </div>
     </Link>

@@ -217,16 +217,17 @@ export function TopLosersView() {
           </p>
         </div>
 
-        {/* Desktop header */}
-        <div className="hidden border-b border-[var(--border)] px-4 py-2.5 text-[10px] uppercase tracking-wider text-[var(--muted)] xl:grid xl:grid-cols-[2.5rem_minmax(12rem,1.4fr)_4.5rem_minmax(7rem,1fr)_6.5rem_6.5rem_8rem_5rem_1.5rem] xl:gap-3 xl:px-5">
+        {/* Desktop header — compact cols, change on one line */}
+        <div className="hidden border-b border-[var(--border)] px-4 py-2.5 text-[10px] uppercase tracking-wider text-[var(--muted)] xl:grid xl:grid-cols-[2rem_minmax(11rem,1.3fr)_minmax(6.5rem,0.9fr)_3.25rem_3rem_5.5rem_5.5rem_7.5rem_4.5rem_1.25rem] xl:gap-2 xl:px-5">
           <span>#</span>
           <span>Sammlerstück</span>
-          <span>Typ</span>
           <span>Set / Produkt</span>
-          <span className="text-right">Wert vor 7 Tagen</span>
-          <span className="text-right">Aktueller Wert</span>
-          <span className="text-right">Veränderung</span>
-          <span className="text-right">7-Tage-Trend</span>
+          <span>Typ</span>
+          <span>Spr.</span>
+          <span>Zustand</span>
+          <span className="text-right">Vor 7 T.</span>
+          <span className="text-right">Aktuell · Δ</span>
+          <span className="text-right">Trend</span>
           <span />
         </div>
 
@@ -265,6 +266,12 @@ function LoserRow({ row, rank }: { row: DetailedMover; rank: number }) {
   const card = getCard(row.cardId);
   const name = row.name ?? card.name;
   const href = row.kind === "Sealed" ? "/assets/sealed" : "/assets/karten";
+  const lang = row.language ?? "DE";
+  const condition = row.condition ?? "NM";
+  const delta = `${formatCurrency(row.changeAbs)} · ${row.changePct.toLocaleString("de-DE", {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: 1,
+  })} %`;
 
   return (
     <li>
@@ -286,7 +293,9 @@ function LoserRow({ row, rank }: { row: DetailedMover; rank: number }) {
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{name}</p>
-                <p className="truncate text-xs text-[var(--muted)]">{row.setName}</p>
+                <p className="truncate text-xs text-[var(--muted)]">
+                  {row.setName} · {lang} · {condition}
+                </p>
               </div>
               <KindBadge kind={row.kind} />
             </div>
@@ -298,16 +307,9 @@ function LoserRow({ row, rank }: { row: DetailedMover; rank: number }) {
                   {formatCurrency(row.currentValue)}
                 </span>
               </div>
-              <div className="text-right">
-                <p className="tabular-nums text-sm font-medium text-[var(--negative)]">
-                  {formatCurrency(row.changeAbs)} ·{" "}
-                  {row.changePct.toLocaleString("de-DE", {
-                    maximumFractionDigits: 1,
-                    minimumFractionDigits: 1,
-                  })}{" "}
-                  %
-                </p>
-              </div>
+              <p className="tabular-nums text-sm font-medium text-[var(--negative)]">
+                {delta}
+              </p>
             </div>
             <div className="mt-2 flex items-center justify-between">
               <TrendSparkline values={row.trend} />
@@ -316,8 +318,8 @@ function LoserRow({ row, rank }: { row: DetailedMover; rank: number }) {
           </div>
         </div>
 
-        {/* Desktop */}
-        <div className="hidden items-center gap-3 xl:grid xl:grid-cols-[2.5rem_minmax(12rem,1.4fr)_4.5rem_minmax(7rem,1fr)_6.5rem_6.5rem_8rem_5rem_1.5rem]">
+        {/* Desktop — tight layout, change on one line with current value */}
+        <div className="hidden items-center gap-2 xl:grid xl:grid-cols-[2rem_minmax(11rem,1.3fr)_minmax(6.5rem,0.9fr)_3.25rem_3rem_5.5rem_5.5rem_7.5rem_4.5rem_1.25rem]">
           <span
             className={`tabular-nums text-sm font-medium ${
               rank === 1 ? "text-[var(--negative)]" : "text-[var(--muted)]"
@@ -325,27 +327,25 @@ function LoserRow({ row, rank }: { row: DetailedMover; rank: number }) {
           >
             {rank}
           </span>
-          <div className="flex min-w-0 items-center gap-3">
+          <div className="flex min-w-0 items-center gap-2.5">
             <CardImage src={card.imageUrl} alt={name} size="sm" />
             <p className="truncate text-sm font-medium">{name}</p>
           </div>
-          <KindBadge kind={row.kind} />
           <p className="truncate text-sm text-[var(--muted)]">{row.setName}</p>
+          <KindBadge kind={row.kind} />
+          <span className="text-xs font-medium text-[var(--muted)]">{lang}</span>
+          <span className="truncate text-xs text-[var(--muted)]">{condition}</span>
           <p className="tabular-nums text-right text-sm text-[var(--muted)]">
             {formatCurrency(row.valueBefore)}
           </p>
-          <p className="tabular-nums text-right text-sm">
-            {formatCurrency(row.currentValue)}
-          </p>
-          <p className="tabular-nums text-right text-sm font-medium text-[var(--negative)]">
-            {formatCurrency(row.changeAbs)}
-            <span className="mx-1 text-[var(--muted)]">·</span>
-            {row.changePct.toLocaleString("de-DE", {
-              maximumFractionDigits: 1,
-              minimumFractionDigits: 1,
-            })}{" "}
-            %
-          </p>
+          <div className="text-right">
+            <p className="tabular-nums text-sm font-medium">
+              {formatCurrency(row.currentValue)}
+            </p>
+            <p className="tabular-nums whitespace-nowrap text-xs font-medium text-[var(--negative)]">
+              {delta}
+            </p>
+          </div>
           <div className="flex justify-end">
             <TrendSparkline values={row.trend} />
           </div>

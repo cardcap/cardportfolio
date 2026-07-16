@@ -684,6 +684,8 @@ export type DetailedMover = {
   name?: string;
   kind: MoverKind;
   setName: string;
+  language?: string;
+  condition?: string;
   valueBefore: number;
   currentValue: number;
   changeAbs: number;
@@ -703,7 +705,7 @@ function decliningTrend(start: number, end: number, n = 8): number[] {
   return pts.map((v) => Math.round(v * 100) / 100);
 }
 
-export const topLosersDetailed: DetailedMover[] = [
+const topLosersDetailedRaw: DetailedMover[] = [
   {
     id: "l1",
     cardId: "koraidon-ex",
@@ -826,6 +828,24 @@ export const topLosersDetailed: DetailedMover[] = [
   },
 ];
 
+function withMoverMeta(rows: DetailedMover[]): DetailedMover[] {
+  return rows.map((row, i) => {
+    const langs = ["DE", "DE", "EN", "DE", "JP", "EN", "DE", "DE", "EN", "DE"];
+    const conditions =
+      row.kind === "Sealed"
+        ? ["OVP", "OVP", "OVP – leichte Mängel", "OVP"]
+        : ["NM", "NM", "EX", "M", "NM", "GD", "NM", "EX", "NM", "NM"];
+    return {
+      ...row,
+      language: row.language ?? langs[i % langs.length],
+      condition: row.condition ?? conditions[i % conditions.length],
+    };
+  });
+}
+
+export const topLosersDetailed: DetailedMover[] =
+  withMoverMeta(topLosersDetailedRaw);
+
 /** @deprecated use topLosersDetailed — kept for simple lists */
 export const topLosersAll: RankedMover[] = topLosersDetailed.map((m) => ({
   cardId: m.cardId,
@@ -841,7 +861,7 @@ export const topLosersSummary = {
 };
 
 /** Detailed rows for Top Performer page (mirrors Top Verlierer) */
-export const topPerformersDetailed: DetailedMover[] = [
+const topPerformersDetailedRaw: DetailedMover[] = [
   {
     id: "w1",
     cardId: "charizard-ex",
@@ -963,6 +983,10 @@ export const topPerformersDetailed: DetailedMover[] = [
     trend: decliningTrend(59.4, 65),
   },
 ];
+
+export const topPerformersDetailed: DetailedMover[] = withMoverMeta(
+  topPerformersDetailedRaw,
+);
 
 export const topPerformersSummary = {
   biggestGainPct: 22.4,
