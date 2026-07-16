@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { useAuthMode } from "@/components/auth/use-auth-mode";
 import { BrandMark } from "@/components/landing/icons";
 import { NavIcon } from "@/components/layout/nav-icon";
+import { ThemeToggleButton } from "@/components/theme-toggle";
 import { mainNav, type NavEntry, type NavGroup } from "@/lib/nav-config";
 
 function isActive(pathname: string, href: string): boolean {
@@ -44,15 +45,19 @@ export function Sidebar() {
 
   return (
     <aside className="hidden h-full w-[220px] shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface)] lg:flex">
-      <Link
-        href="/dashboard"
-        className="flex items-center gap-2.5 border-b border-[var(--border)] px-5 py-4 transition-opacity hover:opacity-80"
-      >
-        <BrandMark className="h-8 w-8" />
-        <span className="text-sm font-semibold tracking-tight">
-          Card<span className="text-[var(--accent)]">Cap</span>
-        </span>
-      </Link>
+      {/* Brand + theme: fixed chrome, never overlaps page header icons */}
+      <div className="flex items-center gap-2 border-b border-[var(--border)] px-3 py-3.5">
+        <Link
+          href="/dashboard"
+          className="flex min-w-0 flex-1 items-center gap-2.5 px-2 transition-opacity hover:opacity-80"
+        >
+          <BrandMark className="h-8 w-8 shrink-0" />
+          <span className="truncate text-sm font-semibold tracking-tight">
+            Card<span className="text-[var(--accent)]">Cap</span>
+          </span>
+        </Link>
+        <ThemeToggleButton className="!h-9 !w-9 shrink-0" />
+      </div>
 
       {isDemo && (
         <div className="mx-3 mt-3 rounded-lg border border-dashed border-[var(--accent)]/40 bg-[var(--accent-soft)] px-3 py-2">
