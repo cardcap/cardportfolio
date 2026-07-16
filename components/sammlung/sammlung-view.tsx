@@ -45,9 +45,11 @@ type ViewMode = "list" | "grid";
 type SortKey =
   | "recent"
   | "name"
+  | "name-desc"
   | "value-desc"
   | "value-asc"
   | "profit-desc"
+  | "profit-asc"
   | "set";
 
 type KartenUiState = {
