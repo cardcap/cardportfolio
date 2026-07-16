@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CardImage } from "@/components/ui/card-image";
+import { InfoTip } from "@/components/ui/metric-card";
 import { useWishlist } from "@/components/wishlist-provider";
 import { formatCurrency, formatDateDE } from "@/lib/format";
+import { MARKET_PRICE_DISCLAIMER } from "@/components/ui/price";
 import {
   getCardImageFallbacks,
   getCardImageUrl,
@@ -225,9 +227,9 @@ export function SetCardDetailPanel({
               <div className="mt-4">
                 <p className="flex items-center gap-1 text-[11px] uppercase tracking-wider text-[var(--muted)]">
                   Aktueller Marktwert
-                  <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-[var(--border-strong)] text-[9px]">
-                    i
-                  </span>
+                  <InfoTip
+                    text={`Durchschnittspreis (Cardmarket-Trend). ${MARKET_PRICE_DISCLAIMER} — Richtwert, kein Verkaufsgarantie. Kann je nach Zustand, Sprache und Angebot abweichen.`}
+                  />
                 </p>
                 <p className="tabular-nums mt-0.5 text-2xl font-semibold tracking-tight">
                   {hasPrice ? formatCurrency(price) : "—"}
