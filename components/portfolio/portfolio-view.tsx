@@ -8,6 +8,7 @@ import { PortfolioAnalyse } from "@/components/portfolio/portfolio-analyse";
 import { PortfolioTransactions } from "@/components/portfolio/portfolio-transactions";
 import { ThemeToggleButton } from "@/components/theme-toggle";
 import { CardImage } from "@/components/ui/card-image";
+import { InfoTip } from "@/components/ui/metric-card";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import {
   getCard,
@@ -150,23 +151,27 @@ export function PortfolioView() {
               value={formatCurrency(metrics.totalValue)}
               hint={`+${a.weeklyChange.toLocaleString("de-DE")} % (7 Tage)`}
               positive
+              infoText="Aktueller Marktwert aller Karten und Sealed-Produkte im gewählten Scope."
             />
             <PrimaryMetric
               icon="coins"
               label="Investiert"
               value={formatCurrency(metrics.invested)}
+              infoText="Summe der Einkaufspreise (EK) deiner Positionen."
             />
             <PrimaryMetric
               icon="trend"
               label="Unrealisierter Gewinn"
               value={`+${formatCurrency(metrics.unrealized)}`}
               positive
+              infoText="Marktwert minus Einkaufspreis bei noch gehaltenen Assets."
             />
             <PrimaryMetric
               icon="pct"
               label="Gesamtrendite"
               value={formatPercent(metrics.returnRate)}
               positive
+              infoText="Prozentuale Performance: (Marktwert − Investiert) ÷ Investiert."
             />
           </div>
 
@@ -177,21 +182,25 @@ export function PortfolioView() {
               label="Realisierter Gewinn"
               value={`+${formatCurrency(a.realizedProfit)}`}
               positive
+              infoText="Gewinn aus bereits verkauften Positionen."
             />
             <SecondaryMetric
               icon="price"
               label="Ø Kaufpreis"
               value={formatCurrency(a.avgPurchasePrice)}
+              infoText="Durchschnittlicher Einkaufspreis pro Asset."
             />
             <SecondaryMetric
               icon="clock"
               label="Haltedauer"
               value={`${a.holdDays} Tage`}
+              infoText="Durchschnittliche Besitzdauer deiner Assets."
             />
             <SecondaryMetric
               icon="bars"
               label="Top-5-Anteil"
               value={`${a.top5Share} %`}
+              infoText="Anteil der fünf wertvollsten Positionen am Gesamtwert."
             />
           </div>
 
@@ -281,12 +290,40 @@ export function PortfolioView() {
                     ))}
                   </div>
                 </div>
-                <DonutChart
-                  segments={portfolioAllocationBy[allocDim]}
-                  size={128}
-                  centerLabel={formatCurrency(metrics.totalValue)}
-                  centerSub="Gesamtwert"
-                />
+                <div className="flex flex-col items-center gap-4">
+                  <DonutChart
+                    segments={portfolioAllocationBy[allocDim]}
+                    size={172}
+                    ringWidth={28}
+                    hideLegend
+                    centerLabel="Gesamtwert"
+                    centerSub={formatCurrency(metrics.totalValue)}
+                  />
+                  <div className="w-full space-y-2">
+                    {portfolioAllocationBy[allocDim].map((s) => (
+                      <div
+                        key={s.label}
+                        className="flex items-center justify-between gap-2 text-sm"
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span
+                            className="h-2.5 w-2.5 shrink-0 rounded-full"
+                            style={{ backgroundColor: s.color }}
+                          />
+                          <span className="truncate">{s.label}</span>
+                        </span>
+                        <span className="tabular-nums shrink-0 font-medium">
+                          {s.percent} %
+                          {s.value != null && (
+                            <span className="ml-2 text-[var(--muted)]">
+                              {formatCurrency(s.value)}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
@@ -799,24 +836,37 @@ function CashflowChart({
 }: {
   data: { label: string; buys: number; sells: number }[];
 }) {
-  const max = Math.max(...data.flatMap((d) => [d.buys, d.sells])) * 1.15;
+  const [hover, setHover] = useState<number | null>(null);
+  const max = Math.max(...data.flatMap((d) => [d.buys, d.sells]), 1) * 1.15;
   const h = 160;
 
   return (
-    <div>
+    <div className="relative">
       <div className="flex h-44 items-end gap-1.5 sm:gap-2">
-        {data.map((d) => (
-          <div key={d.label} className="flex flex-1 flex-col items-center gap-1">
-            <div className="flex w-full items-end justify-center gap-0.5" style={{ height: h }}>
+        {data.map((d, i) => (
+          <div
+            key={d.label}
+            className="flex flex-1 flex-col items-center gap-1"
+            onMouseEnter={() => setHover(i)}
+            onMouseLeave={() => setHover(null)}
+          >
+            <div
+              className="flex w-full items-end justify-center gap-0.5"
+              style={{ height: h }}
+            >
               <div
-                className="w-[45%] rounded-t-sm bg-pink-400/80"
-                style={{ height: `${(d.buys / max) * h}px` }}
-                title={`Käufe ${d.buys}`}
+                className="w-[45%] rounded-t-sm bg-pink-400/80 transition-opacity hover:opacity-100"
+                style={{
+                  height: `${Math.max(4, (d.buys / max) * h)}px`,
+                  opacity: hover == null || hover === i ? 1 : 0.45,
+                }}
               />
               <div
-                className="w-[45%] rounded-t-sm bg-emerald-400/75"
-                style={{ height: `${(d.sells / max) * h}px` }}
-                title={`Verkäufe ${d.sells}`}
+                className="w-[45%] rounded-t-sm bg-emerald-400/75 transition-opacity"
+                style={{
+                  height: `${Math.max(4, (d.sells / max) * h)}px`,
+                  opacity: hover == null || hover === i ? 1 : 0.45,
+                }}
               />
             </div>
             <span className="text-[9px] text-[var(--muted)] sm:text-[10px]">
@@ -825,11 +875,45 @@ function CashflowChart({
           </div>
         ))}
       </div>
-      <div className="mt-2 flex justify-between text-[10px] text-[var(--muted)]">
-        <span>−2.500 €</span>
-        <span>0 €</span>
-        <span>2.500 €</span>
-      </div>
+
+      {hover != null && data[hover] && (
+        <div className="pointer-events-none absolute left-1/2 top-0 z-10 min-w-[10rem] -translate-x-1/2 rounded-lg border border-[var(--border-strong)] bg-[var(--surface-elevated)] px-3 py-2 text-xs shadow-lg">
+          <p className="font-medium">{data[hover].label}</p>
+          <div className="mt-1.5 space-y-1">
+            <div className="flex justify-between gap-4">
+              <span className="inline-flex items-center gap-1.5 text-pink-300">
+                <span className="h-2 w-2 rounded-sm bg-pink-400" />
+                Käufe
+              </span>
+              <span className="tabular-nums font-medium">
+                −{formatCurrency(data[hover].buys)}
+              </span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="inline-flex items-center gap-1.5 text-emerald-300">
+                <span className="h-2 w-2 rounded-sm bg-emerald-400" />
+                Verkäufe
+              </span>
+              <span className="tabular-nums font-medium">
+                {formatCurrency(data[hover].sells)}
+              </span>
+            </div>
+            <div className="flex justify-between gap-4 border-t border-[var(--border)] pt-1">
+              <span className="text-[var(--muted)]">Netto</span>
+              <span
+                className={`tabular-nums font-medium ${
+                  data[hover].sells - data[hover].buys >= 0
+                    ? "text-[var(--positive)]"
+                    : "text-[var(--negative)]"
+                }`}
+              >
+                {data[hover].sells - data[hover].buys >= 0 ? "+" : "−"}
+                {formatCurrency(Math.abs(data[hover].sells - data[hover].buys))}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -865,22 +949,24 @@ function PrimaryMetric({
   value,
   hint,
   positive,
+  infoText,
 }: {
   icon: string;
   label: string;
   value: string;
   hint?: string;
   positive?: boolean;
+  infoText?: string;
 }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
-      <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">
+      <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">
         <MetricIcon type={icon} />
       </span>
       <div className="min-w-0">
-        <p className="flex items-center gap-1 text-[11px] uppercase tracking-wider text-[var(--muted)]">
+        <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-[var(--muted)]">
           {label}
-          <InfoDot />
+          {infoText && <InfoTip text={infoText} />}
         </p>
         <p
           className={`tabular-nums mt-0.5 text-lg font-semibold tracking-tight ${
@@ -908,21 +994,23 @@ function SecondaryMetric({
   label,
   value,
   positive,
+  infoText,
 }: {
   icon: string;
   label: string;
   value: string;
   positive?: boolean;
+  infoText?: string;
 }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--surface-elevated)] text-[var(--muted)] ring-1 ring-[var(--border)]">
+      <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--surface-elevated)] text-[var(--muted)] ring-1 ring-[var(--border)]">
         <MetricIcon type={icon} />
       </span>
       <div>
-        <p className="flex items-center gap-1 text-[11px] uppercase tracking-wider text-[var(--muted)]">
+        <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-[var(--muted)]">
           {label}
-          <InfoDot />
+          {infoText && <InfoTip text={infoText} />}
         </p>
         <p
           className={`tabular-nums text-base font-semibold ${
@@ -1010,21 +1098,10 @@ function Segmented<T extends string>({
   );
 }
 
-function InfoDot() {
-  return (
-    <span
-      className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-[var(--border-strong)] text-[9px] text-[var(--muted)]"
-      aria-hidden
-    >
-      i
-    </span>
-  );
-}
-
 function MetricIcon({ type }: { type: string }) {
   const p = {
-    width: 16,
-    height: 16,
+    width: 20,
+    height: 20,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",

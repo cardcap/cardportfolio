@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
+import { InfoTip } from "@/components/ui/metric-card";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import {
   portfolioAnalyseByAttribute,
@@ -77,18 +78,21 @@ export function PortfolioAnalyse() {
           label="Rendite (1 Jahr)"
           value={formatPercent(m.return1y)}
           positive
+          infoText="Gesamtrendite des Portfolios über die letzten 12 Monate."
         />
         <AnalyseMetric
           icon="pie"
           label="Gewinnerquote"
           value={`${m.winRate} %`}
           hint={`${m.winnersCount} von ${m.totalAssets} Assets`}
+          infoText="Anteil der Assets mit positivem Kursverlauf im Zeitraum."
         />
         <AnalyseMetric
           icon="wave"
           label="Wertschwankung"
           value={`${m.volatility.toLocaleString("de-DE")} %`}
           warn
+          infoText="Wie stark der Portfoliowert im Zeitraum schwankt (Volatilität)."
         />
         <AnalyseMetric
           icon="drop"
@@ -96,6 +100,7 @@ export function PortfolioAnalyse() {
           value={`${m.maxDrawdown.toLocaleString("de-DE")} %`}
           hint="innerhalb von 1 Jahr"
           negative
+          infoText="Maximaler Verlust vom Höchst- zum Tiefststand im Zeitraum."
         />
       </div>
 
@@ -415,6 +420,7 @@ function AnalyseMetric({
   positive,
   negative,
   warn,
+  infoText,
 }: {
   icon: string;
   label: string;
@@ -423,6 +429,7 @@ function AnalyseMetric({
   positive?: boolean;
   negative?: boolean;
   warn?: boolean;
+  infoText?: string;
 }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
@@ -438,11 +445,9 @@ function AnalyseMetric({
         <AIcon type={icon} />
       </span>
       <div className="min-w-0">
-        <p className="flex items-center gap-1 text-[11px] uppercase tracking-wider text-[var(--muted)]">
+        <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-[var(--muted)]">
           {label}
-          <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-[var(--border-strong)] text-[9px]" aria-hidden>
-            i
-          </span>
+          {infoText && <InfoTip text={infoText} />}
         </p>
         <p
           className={`tabular-nums mt-0.5 text-lg font-semibold tracking-tight ${
@@ -661,14 +666,15 @@ function WinLossDonut({
   flat: number;
   minus: number;
 }) {
-  const size = 140;
+  const size = 168;
   const c = size / 2;
-  const r = 48;
-  const inner = 32;
+  const r = 58;
+  const inner = 36;
+  // Plus = green, Unverändert = grey, Minus = red
   const segs = [
-    { pct: plus, color: "#f472b6" },
-    { pct: flat, color: "#52525b" },
-    { pct: minus, color: "#f87171" },
+    { pct: plus, color: "#4ade80", label: "Im Plus" },
+    { pct: flat, color: "#71717a", label: "Unverändert" },
+    { pct: minus, color: "#f87171", label: "Im Minus" },
   ];
   let cum = 0;
   const arcs = segs.map((s) => {
@@ -695,15 +701,33 @@ function WinLossDonut({
   });
 
   return (
-    <div className="relative shrink-0">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {arcs.map((a, i) => (
-          <path key={i} d={a.d} fill={a.color} />
+    <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center">
+      <div className="relative shrink-0" style={{ width: size, height: size }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          {arcs.map((a, i) => (
+            <path key={i} d={a.d} fill={a.color} />
+          ))}
+        </svg>
+        <div className="pointer-events-none absolute left-1/2 top-1/2 flex w-[5.5rem] -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center text-center">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted)]">
+            Im Plus
+          </p>
+          <p className="tabular-nums text-xl font-bold text-[var(--positive)]">
+            {plus} %
+          </p>
+        </div>
+      </div>
+      <div className="space-y-2 text-sm">
+        {segs.map((s) => (
+          <div key={s.label} className="flex items-center gap-2">
+            <span
+              className="h-3 w-3 shrink-0 rounded-full"
+              style={{ backgroundColor: s.color }}
+            />
+            <span className="text-[var(--muted)]">{s.label}</span>
+            <span className="tabular-nums font-semibold">{s.pct} %</span>
+          </div>
         ))}
-      </svg>
-      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-        <p className="text-[10px] text-[var(--muted)]">Im Plus</p>
-        <p className="text-lg font-semibold text-pink-300">{plus} %</p>
       </div>
     </div>
   );
