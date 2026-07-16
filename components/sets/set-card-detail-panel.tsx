@@ -342,9 +342,11 @@ export function SetCardDetailPanel({
             <button
               type="button"
               onClick={onEditCollection}
-              className="flex h-11 w-full items-center justify-center rounded-full bg-[var(--accent)] text-sm font-medium text-white hover:brightness-110"
+              className="flex h-11 w-full items-center justify-center rounded-full bg-[var(--accent)] text-sm font-medium text-white hover:brightness-110 disabled:opacity-60"
             >
-              {qty > 0 ? "Sammlung bearbeiten" : "Zur Sammlung hinzufügen"}
+              {qty > 0
+                ? `In Sammlung (×${qty}) · +1 hinzufügen`
+                : "Zur Sammlung hinzufügen"}
             </button>
             <button
               type="button"

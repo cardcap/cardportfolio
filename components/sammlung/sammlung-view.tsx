@@ -19,12 +19,10 @@ import { MetricCard } from "@/components/ui/metric-card";
 import { Price, formatMarketPrice } from "@/components/ui/price";
 import { formatCurrency } from "@/lib/format";
 import {
-  collection as demoCollection,
-  getCard,
-  getProfit,
-  getProfitPercent,
-  portfolioMetrics as demoMetrics,
-} from "@/lib/mock-data";
+  getLocalCollection,
+  localCollectionMetrics,
+  type LocalCollectionItem,
+} from "@/lib/local-collection";
 
 type CollectionItemDto = {
   id: string;
@@ -55,12 +53,33 @@ type CollectionMetrics = {
   profitLoss: number;
 };
 
+function mapLocalItem(item: LocalCollectionItem) {
+  return {
+    id: item.id,
+    name: item.name,
+    setName: item.setName,
+    imageUrl: item.imageUrl,
+    imageFallbacks: item.imageFallbacks,
+    condition: item.condition,
+    quantity: item.quantity,
+    purchasePrice: item.purchasePrice ?? 0,
+    purchaseDate: item.purchaseDate ?? "—",
+    marketValue: item.marketValue,
+    profit: item.profit ?? 0,
+    colors: item.types,
+    types: item.types,
+    category: item.category,
+    rarity: item.rarity,
+  };
+}
+
 export function SammlungView() {
   const { isAuthenticated, isDemo } = useAuthMode();
   const [importOpen, setImportOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<CollectionItemDto[]>([]);
+  const [localItems, setLocalItems] = useState<LocalCollectionItem[]>([]);
   const [metrics, setMetrics] = useState<CollectionMetrics | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -71,10 +90,15 @@ export function SammlungView() {
   const { requireAuth, AuthPromptModal } = useRequireAuth({
     title: "Sammlung verwalten",
     description:
-      "Im Demo-Modus siehst du eine Beispielsammlung. Zum Importieren und Bearbeiten eigener Karten erstelle ein kostenloses Konto.",
+      "Karten aus der Datenbank landen in deiner Sammlung. Mit Konto werden sie serverseitig gespeichert.",
   });
 
+  const loadLocal = useCallback(() => {
+    setLocalItems(getLocalCollection());
+  }, []);
+
   const loadCollection = useCallback(async () => {
+    loadLocal();
     if (!isAuthenticated) return;
 
     setLoading(true);
@@ -89,16 +113,22 @@ export function SammlungView() {
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, loadLocal]);
 
   useEffect(() => {
     void loadCollection();
-  }, [loadCollection]);
+    const onLocal = () => loadLocal();
+    window.addEventListener("cardcap-collection-changed", onLocal);
+    window.addEventListener("storage", onLocal);
+    return () => {
+      window.removeEventListener("cardcap-collection-changed", onLocal);
+      window.removeEventListener("storage", onLocal);
+    };
+  }, [loadCollection, loadLocal]);
 
   const usingDemo = isDemo || !isAuthenticated;
-  const demoSelected = demoCollection[0];
-  const demoSelectedId = demoSelected.cardId;
 
+  // Prefer cards the user actually added (local and/or API) over static demo seed
   const displayItems: Array<{
     id: string;
     name: string;
@@ -115,44 +145,43 @@ export function SammlungView() {
     types?: string[];
     category?: string;
     rarity?: string | null;
-  }> = usingDemo
-    ? demoCollection.map((row) => {
-        const card = getCard(row.cardId);
-        const types = card.type ? [card.type] : [];
-        return {
-          id: row.cardId,
-          name: card.name,
-          setName: card.setName,
-          imageUrl: card.imageUrl,
-          condition: row.condition,
-          quantity: row.quantity,
-          purchasePrice: row.purchasePrice,
-          purchaseDate: row.purchaseDate,
-          marketValue: row.marketValue,
-          profit: getProfit(row),
-          rarity: card.rarity,
-          colors: types,
-          types,
-          category: types.length > 0 ? "Pokémon" : undefined,
-        };
-      })
-    : items.map((item) => ({
-        id: item.id,
-        name: item.name,
-        setName: item.setName,
-        imageUrl: item.imageUrl,
-        imageFallbacks: item.imageFallbacks,
-        condition: item.condition,
-        quantity: item.quantity,
-        purchasePrice: item.purchasePrice ?? 0,
-        purchaseDate: item.purchaseDate ?? "—",
-        marketValue: item.marketValue,
-        profit: item.profit ?? 0,
-        colors: item.colors,
-        types: item.types,
-        category: item.category,
-        rarity: item.rarity,
-      }));
+  }> = useMemo(() => {
+    const fromApi = items.map((item) => ({
+      id: item.id,
+      name: item.name,
+      setName: item.setName,
+      imageUrl: item.imageUrl,
+      imageFallbacks: item.imageFallbacks,
+      condition: item.condition,
+      quantity: item.quantity,
+      purchasePrice: item.purchasePrice ?? 0,
+      purchaseDate: item.purchaseDate ?? "—",
+      marketValue: item.marketValue,
+      profit: item.profit ?? 0,
+      colors: item.colors,
+      types: item.types,
+      category: item.category,
+      rarity: item.rarity,
+    }));
+    const fromLocal = localItems.map(mapLocalItem);
+
+    if (isAuthenticated) {
+      // Merge: API first, then local-only ids
+      const apiIds = new Set(fromApi.map((i) => i.id));
+      const apiTcg = new Set(items.map((i) => i.tcgCardId));
+      const extraLocal = fromLocal.filter(
+        (i) => !apiIds.has(i.id) && !apiTcg.has(i.id.replace(/^local-/, "")),
+      );
+      // Better: match by tcgCardId from local items
+      const extra = localItems
+        .filter((l) => !apiTcg.has(l.tcgCardId))
+        .map(mapLocalItem);
+      return [...fromApi, ...extra];
+    }
+
+    // Demo: only user-added local cards (not the static mock seed)
+    return fromLocal;
+  }, [items, localItems, isAuthenticated]);
 
   const filteredItems = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -191,11 +220,15 @@ export function SammlungView() {
 
       return true;
     });
-  }, [displayItems, search, colorFilter, colors, conditionFilter, usingDemo]);
+  }, [displayItems, search, colorFilter, conditionFilter]);
 
-  const displayMetrics = usingDemo
-    ? demoMetrics
-    : metrics ?? {
+  const displayMetrics = useMemo(() => {
+    if (isAuthenticated && metrics && items.length > 0) {
+      // Recompute if we merged local extras
+      if (displayItems.length === items.length) return metrics;
+    }
+    if (displayItems.length === 0) {
+      return {
         totalCards: 0,
         uniqueCards: 0,
         duplicates: 0,
@@ -203,10 +236,39 @@ export function SammlungView() {
         invested: 0,
         profitLoss: 0,
       };
+    }
+    if (!isAuthenticated || items.length === 0) {
+      return localCollectionMetrics(localItems);
+    }
+    // Merged list metrics
+    const totalCards = displayItems.reduce((s, i) => s + i.quantity, 0);
+    const uniqueCards = new Set(displayItems.map((i) => i.name)).size;
+    const totalValue = displayItems.reduce((s, i) => s + i.marketValue, 0);
+    const invested = displayItems.reduce(
+      (s, i) => s + i.purchasePrice * i.quantity,
+      0,
+    );
+    return {
+      totalCards,
+      uniqueCards,
+      duplicates: Math.max(0, totalCards - uniqueCards),
+      totalValue: Math.round(totalValue * 100) / 100,
+      invested: Math.round(invested * 100) / 100,
+      profitLoss: Math.round((totalValue - invested) * 100) / 100,
+    };
+  }, [
+    isAuthenticated,
+    metrics,
+    items.length,
+    displayItems,
+    localItems,
+  ]);
 
-  const activeId = usingDemo ? demoSelectedId : selectedId;
+  const activeId = selectedId ?? displayItems[0]?.id ?? null;
   const selectedRow =
-    filteredItems.find((row) => row.id === activeId) ?? null;
+    filteredItems.find((row) => row.id === activeId) ??
+    filteredItems[0] ??
+    null;
 
   const openImport = () => {
     requireAuth(() => setImportOpen(true));
@@ -253,23 +315,34 @@ export function SammlungView() {
             </div>
           </PageHeader>
 
-          {usingDemo && (
+          {usingDemo && displayItems.length > 0 && (
             <p className="mb-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--muted)]">
-              Demo-Sammlung — mit Konto kannst du per Excel/CSV oder
-              Google-Sheets-Link importieren.
+              Demo-Modus: Karten werden lokal im Browser gespeichert. Mit Konto
+              werden sie dauerhaft in deinem Account abgelegt.
             </p>
           )}
 
-          {!usingDemo && items.length === 0 && !loading && (
+          {displayItems.length === 0 && !loading && (
             <div className="mb-4 rounded-lg border border-dashed border-[var(--border)] px-4 py-8 text-center">
               <p className="font-medium">Deine Sammlung ist noch leer</p>
               <p className="mt-1 text-sm text-[var(--muted)]">
-                Importiere eine Excel- oder CSV-Datei oder verbinde ein
-                öffentliches Google Sheet.
+                Füge Karten in der{" "}
+                <Link href="/kartendatenbank" className="text-[var(--accent)]">
+                  Datenbank
+                </Link>{" "}
+                über „Zur Sammlung hinzufügen“ hinzu — oder importiere Excel/CSV.
               </p>
-              <Button className="mt-4" onClick={() => setImportOpen(true)}>
-                Sammlung importieren
-              </Button>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                <Link
+                  href="/kartendatenbank"
+                  className="inline-flex h-10 items-center rounded-full bg-[var(--accent)] px-4 text-sm font-medium text-white"
+                >
+                  Zur Datenbank
+                </Link>
+                <Button variant="secondary" onClick={() => setImportOpen(true)}>
+                  Sammlung importieren
+                </Button>
+              </div>
             </div>
           )}
 
@@ -556,16 +629,6 @@ export function SammlungView() {
                 >
                   {selectedRow.profit >= 0 ? "+" : ""}
                   <Price value={selectedRow.profit} />
-                  {usingDemo && selectedRow.id === demoSelectedId && (
-                    <>
-                      {" "}
-                      (
-                      {getProfitPercent(demoSelected).toLocaleString("de-DE", {
-                        maximumFractionDigits: 1,
-                      })}
-                      %)
-                    </>
-                  )}
                 </span>
               </div>
             </div>

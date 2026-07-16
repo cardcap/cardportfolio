@@ -96,8 +96,10 @@ export function DatabaseView() {
   const [sealedPageSize, setSealedPageSize] = useState(24);
 
   const colors = COLORS_BY_LANG[language];
-  const { ownedIds } = useCollectionIds();
+  const { ownedIds, addCard, refresh: refreshOwned } = useCollectionIds();
   const { isInWishlist, toggleItem } = useWishlist();
+  const [collectionBusy, setCollectionBusy] = useState(false);
+  const [collectionMsg, setCollectionMsg] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const loadTriggerRef = useRef<HTMLDivElement>(null);
@@ -920,9 +922,27 @@ export function DatabaseView() {
           }}
           onAddToWishlist={() => toggleItem(wishlistItemFromTcg(selected))}
           onEditCollection={() => {
-            window.location.href = "/assets/karten";
+            if (!selected || collectionBusy) return;
+            setCollectionBusy(true);
+            setCollectionMsg(null);
+            void (async () => {
+              const result = await addCard(selected, language);
+              setCollectionBusy(false);
+              if (result.ok) {
+                await refreshOwned();
+                setCollectionMsg("Zur Sammlung hinzugefügt");
+                // Stay on panel with updated qty; optional: go to assets
+              } else {
+                setCollectionMsg(result.error ?? "Konnte nicht speichern");
+              }
+            })();
           }}
         />
+      )}
+      {collectionMsg && (
+        <div className="pointer-events-none fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-2 text-sm shadow-lg lg:bottom-8">
+          {collectionMsg}
+        </div>
       )}
     </>
   );
