@@ -412,10 +412,11 @@ export const collection: CollectionRow[] = [
   },
 ];
 
+/** ids = TCGdex set ids (must match /sets/[id] + data/sets/*.json) */
 export const sets: SetInfo[] = [
   {
-    id: "151",
-    name: "Pokémon 151",
+    id: "sv03.5",
+    name: "151",
     series: "Karmesin & Purpur",
     totalCards: 207,
     ownedCards: 192,
@@ -425,8 +426,8 @@ export const sets: SetInfo[] = [
     accent: "#ef4444",
   },
   {
-    id: "paldean-fates",
-    name: "Paldean Fates",
+    id: "sv04.5",
+    name: "Paldeas Schicksale",
     series: "Karmesin & Purpur",
     totalCards: 225,
     ownedCards: 162,
@@ -436,8 +437,8 @@ export const sets: SetInfo[] = [
     accent: "#8b5cf6",
   },
   {
-    id: "obsidian-flames",
-    name: "Obsidian Flames",
+    id: "sv03",
+    name: "Obsidianflammen",
     series: "Karmesin & Purpur",
     totalCards: 197,
     ownedCards: 98,
@@ -447,8 +448,8 @@ export const sets: SetInfo[] = [
     accent: "#f97316",
   },
   {
-    id: "paradox-rift",
-    name: "Paradox Rift",
+    id: "sv04",
+    name: "Paradoxrift",
     series: "Karmesin & Purpur",
     totalCards: 160,
     ownedCards: 102,
@@ -458,8 +459,8 @@ export const sets: SetInfo[] = [
     accent: "#06b6d4",
   },
   {
-    id: "stellar-crown",
-    name: "Stellar Crown",
+    id: "sv07",
+    name: "Stellarkrone",
     series: "Karmesin & Purpur",
     totalCards: 120,
     ownedCards: 86,
@@ -469,8 +470,8 @@ export const sets: SetInfo[] = [
     accent: "#eab308",
   },
   {
-    id: "temporal-forces",
-    name: "Temporal Forces",
+    id: "sv05",
+    name: "Gewalten der Zeit",
     series: "Karmesin & Purpur",
     totalCards: 167,
     ownedCards: 84,
@@ -480,8 +481,8 @@ export const sets: SetInfo[] = [
     accent: "#3b82f6",
   },
   {
-    id: "twilight-masquerade",
-    name: "Twilight Masquerade",
+    id: "sv06",
+    name: "Maskerade im Zwielicht",
     series: "Karmesin & Purpur",
     totalCards: 167,
     ownedCards: 86,
@@ -491,8 +492,8 @@ export const sets: SetInfo[] = [
     accent: "#a855f7",
   },
   {
-    id: "shrouded-fable",
-    name: "Shrouded Fable",
+    id: "sv06.5",
+    name: "Nebel der Sagen",
     series: "Karmesin & Purpur",
     totalCards: 95,
     ownedCards: 64,
@@ -502,7 +503,7 @@ export const sets: SetInfo[] = [
     accent: "#64748b",
   },
   {
-    id: "sword-shield",
+    id: "swsh1",
     name: "Schwert & Schild",
     series: "Schwert & Schild",
     totalCards: 128,
@@ -651,9 +652,9 @@ export const portfolioAllocationBreakdown = [
 ];
 
 export const setProgress = [
-  { setId: "151", owned: 192, total: 207 },
-  { setId: "paldean-fates", owned: 162, total: 225 },
-  { setId: "temporal-forces", owned: 84, total: 167 },
+  { setId: "sv03.5", owned: 192, total: 207 },
+  { setId: "sv04.5", owned: 162, total: 225 },
+  { setId: "sv05", owned: 84, total: 167 },
 ];
 
 export type RankedMover = {
