@@ -394,12 +394,20 @@ export function DatabaseView() {
 
   const selectedSetDetail = useMemo(() => {
     if (!selected) return null;
-    const set = sets.find((s) => s.id === selected.set.id);
+    const setId = selected.set?.id ?? "";
+    const setName = selected.set?.name ?? "";
+    const set =
+      sets.find((s) => s.id === setId) ??
+      sets.find(
+        (s) =>
+          setName && s.name.toLowerCase() === setName.toLowerCase(),
+      );
     return {
-      id: selected.set.id,
-      name: selected.set.name,
+      id: set?.id ?? setId,
+      name: set?.name ?? setName,
       seriesId: set?.seriesId ?? "",
       seriesName: set?.series ?? "",
+      // Always set release date from catalog set
       releaseDate: set?.releaseDate ?? "",
       totalCards: set?.total ?? 0,
       officialCards: set?.official ?? set?.total ?? 0,

@@ -415,6 +415,7 @@ export function SetCardDetailPanel({
               <DataRow
                 label="Erscheinungsdatum"
                 value={
+                  // Always the set’s release date (never purchase date)
                   setDetail.releaseDate
                     ? formatDateDE(setDetail.releaseDate)
                     : "—"
@@ -424,18 +425,17 @@ export function SetCardDetailPanel({
                 label="Kategorie"
                 value={card.category ?? typeLabel ?? "Pokémon"}
               />
-              {collectionDetails?.purchaseDate && (
-                <DataRow
-                  label="Kaufdatum"
-                  value={
-                    /^\d{4}-\d{2}-\d{2}/.test(collectionDetails.purchaseDate)
-                      ? formatDateDE(collectionDetails.purchaseDate)
-                      : collectionDetails.purchaseDate === "—"
-                        ? "—"
+              {collectionDetails?.purchaseDate &&
+                collectionDetails.purchaseDate !== "—" && (
+                  <DataRow
+                    label="Kaufdatum"
+                    value={
+                      /^\d{4}-\d{2}-\d{2}/.test(collectionDetails.purchaseDate)
+                        ? formatDateDE(collectionDetails.purchaseDate)
                         : collectionDetails.purchaseDate
-                  }
-                />
-              )}
+                    }
+                  />
+                )}
             </dl>
           </div>
 

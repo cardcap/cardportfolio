@@ -184,13 +184,31 @@ function rowToTcgCard(row: DisplayRow): TcgCard {
   };
 }
 
-function rowToSetDetail(row: DisplayRow): SetDetail {
+function resolveSetId(row: DisplayRow): string {
+  if (row.setId?.trim()) return row.setId.trim();
+  // tcgCardId is often "{setId}-{localId}"
+  const id = row.tcgCardId || "";
+  const i = id.lastIndexOf("-");
+  return i > 0 ? id.slice(0, i) : "";
+}
+
+function rowToSetDetail(
+  row: DisplayRow,
+  setReleaseById: Record<string, string> = {},
+): SetDetail {
+  const setId = resolveSetId(row);
+  const releaseDate =
+    (setId && setReleaseById[setId]) ||
+    (row.setName
+      ? setReleaseById[row.setName.toLowerCase()]
+      : undefined) ||
+    "";
   return {
-    id: row.setId || "unknown",
+    id: setId || "unknown",
     name: row.setName || "Unbekanntes Set",
     seriesId: "",
     seriesName: "",
-    releaseDate: "",
+    releaseDate,
     totalCards: 0,
     officialCards: 0,
     secretRareCount: 0,
@@ -364,6 +382,39 @@ export function SammlungView() {
   const [saving, setSaving] = useState(false);
   /** Expanded multi-copy rows in the table */
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  /** setId → ISO release date from catalog (for Erscheinungsdatum) */
+  const [setReleaseById, setSetReleaseById] = useState<Record<string, string>>(
+    {},
+  );
+
+  // Load set release dates once (used in card detail)
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/sets?lang=${DEFAULT_LANGUAGE}`);
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          data?: Array<{ id?: string; releaseDate?: string; name?: string }>;
+        };
+        const byId: Record<string, string> = {};
+        const byName: Record<string, string> = {};
+        for (const s of data.data ?? []) {
+          if (!s.releaseDate) continue;
+          if (s.id) byId[s.id] = s.releaseDate;
+          if (s.name) byName[s.name.toLowerCase()] = s.releaseDate;
+        }
+        if (!cancelled) {
+          setSetReleaseById({ ...byName, ...byId });
+        }
+      } catch {
+        /* ignore — detail shows — */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const toggleRowExpand = (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -1609,7 +1660,7 @@ export function SammlungView() {
       {selectedRow && panelOpen && !editing && (
         <SetCardDetailPanel
           card={rowToTcgCard(selectedRow)}
-          setDetail={rowToSetDetail(selectedRow)}
+          setDetail={rowToSetDetail(selectedRow, setReleaseById)}
           official={1}
           qty={selectedRow.quantity}
           positionLabel={
