@@ -64,16 +64,16 @@ export function DonutChart({
         </svg>
         {(centerLabel || centerSub) && (
           <div
-            className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center px-2 text-center"
+            className="pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center gap-0.5 px-2.5 text-center"
             style={{ width: hole, maxWidth: hole }}
           >
             {centerLabel && (
-              <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted)]">
+              <p className="text-[9px] font-medium uppercase tracking-wider text-[var(--muted)] sm:text-[10px]">
                 {centerLabel}
               </p>
             )}
             {centerSub && (
-              <p className="mt-0.5 break-words text-sm font-semibold leading-tight tracking-tight tabular-nums sm:text-base">
+              <p className="break-words text-[11px] font-semibold leading-snug tracking-tight tabular-nums sm:text-xs">
                 {centerSub}
               </p>
             )}
