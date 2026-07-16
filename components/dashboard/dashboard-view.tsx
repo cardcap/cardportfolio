@@ -424,7 +424,7 @@ export function DashboardView() {
         <Panel
           title="Top Performer (7 Tage)"
           actionHref="/portfolio/top-performer"
-          actionLabel="Alle anzeigen →"
+          actionLabel="Top 10 anzeigen →"
         >
           <div className="space-y-1">
             {(scope === "sealed" ? [] : topPerformers).map((item, index) => {
