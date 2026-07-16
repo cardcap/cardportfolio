@@ -223,15 +223,6 @@ function detectVariant(rarity?: string | null, category?: string): string {
   return "Normal";
 }
 
-function rarityBadgeClass(rarity?: string | null): string {
-  const r = (rarity ?? "").toLowerCase();
-  if (r.includes("illustration") || r.includes("special") || r.includes("hyper"))
-    return "bg-purple-500/15 text-purple-300";
-  if (r.includes("holo") || r.includes("ultra") || r.includes("rare"))
-    return "bg-sky-500/15 text-sky-300";
-  return "bg-[var(--surface-elevated)] text-[var(--muted)]";
-}
-
 function parseEuroInput(value: string): number | null {
   const cleaned = value.replace(/[€\s]/g, "").replace(",", ".");
   if (!cleaned.trim()) return null;
