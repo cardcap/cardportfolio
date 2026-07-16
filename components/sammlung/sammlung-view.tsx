@@ -12,14 +12,14 @@ import {
 import { useRequireAuth } from "@/components/auth/use-require-auth";
 import { useAuthMode } from "@/components/auth/use-auth-mode";
 import { CollectionImportDialog } from "@/components/sammlung/collection-import-dialog";
+import { SetCardDetailPanel } from "@/components/sets/set-card-detail-panel";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { CardImage } from "@/components/ui/card-image";
 import { ConditionBadge } from "@/components/ui/condition-badge";
-import { DetailPanel } from "@/components/ui/detail-panel";
 import { MetricCard } from "@/components/ui/metric-card";
 import { Price, formatMarketPrice } from "@/components/ui/price";
-import { formatCurrency, formatDateDE } from "@/lib/format";
+import { formatCurrency } from "@/lib/format";
 import {
   getLocalCollection,
   localCollectionMetrics,
@@ -27,6 +27,10 @@ import {
   updateLocalCollectionItem,
   type LocalCollectionItem,
 } from "@/lib/local-collection";
+import type { TcgCard } from "@/lib/pokemon-tcg";
+import type { SetDetail } from "@/lib/set-stats";
+import { wishlistItemFromTcg } from "@/lib/wishlist";
+import { useWishlist } from "@/components/wishlist-provider";
 
 const EDIT_CONDITIONS = [...RAW_CONDITIONS, ...PSA_CONDITIONS] as const;
 const PAGE_SIZES = [25, 50, 100] as const;
@@ -42,6 +46,8 @@ type SortKey =
 
 type DisplayRow = {
   id: string;
+  tcgCardId: string;
+  setId: string;
   name: string;
   setName: string;
   number: string;
@@ -60,6 +66,48 @@ type DisplayRow = {
   language: string;
   variant: string;
 };
+
+function rowToTcgCard(row: DisplayRow): TcgCard {
+  const unit =
+    row.quantity > 0 ? row.marketValue / row.quantity : row.marketValue;
+  return {
+    id: row.tcgCardId || row.id,
+    name: row.name,
+    number: row.number,
+    rarity: row.rarity ?? undefined,
+    types: row.types,
+    category: row.category,
+    set: { id: row.setId || "unknown", name: row.setName },
+    collectorId: row.number || undefined,
+    images: {
+      small: row.imageUrl,
+      large: row.imageUrl,
+    },
+    imageFallbacks: row.imageFallbacks,
+    cardmarket: {
+      prices: {
+        trendPrice: unit || undefined,
+        averageSellPrice: unit || undefined,
+      },
+    },
+  };
+}
+
+function rowToSetDetail(row: DisplayRow): SetDetail {
+  return {
+    id: row.setId || "unknown",
+    name: row.setName || "Unbekanntes Set",
+    seriesId: "",
+    seriesName: "",
+    releaseDate: "",
+    totalCards: 0,
+    officialCards: 0,
+    secretRareCount: 0,
+    logoUrl: "",
+    symbolUrl: "",
+    topCards: [],
+  };
+}
 
 function languageLabel(code: string): string {
   const found = CARD_LANGUAGES.find((l) => l.code === code.toLowerCase());
@@ -120,13 +168,6 @@ function toDateInputValue(raw: string | null | undefined): string {
   return "";
 }
 
-function displayPurchaseDate(raw: string | null | undefined): string {
-  if (!raw || raw === "—") return "—";
-  // Already German (mock seed uses DD.MM.YYYY)
-  if (/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(raw)) return raw;
-  return formatDateDE(raw);
-}
-
 type CollectionItemDto = {
   id: string;
   tcgCardId: string;
@@ -160,6 +201,8 @@ type CollectionMetrics = {
 function mapLocalItem(item: LocalCollectionItem): DisplayRow {
   return {
     id: item.id,
+    tcgCardId: item.tcgCardId,
+    setId: item.setId,
     name: item.name,
     setName: item.setName,
     number: item.number,
@@ -183,6 +226,8 @@ function mapLocalItem(item: LocalCollectionItem): DisplayRow {
 function mapApiItem(item: CollectionItemDto): DisplayRow {
   return {
     id: item.id,
+    tcgCardId: item.tcgCardId,
+    setId: "",
     name: item.name,
     setName: item.setName,
     number: item.number,
@@ -205,6 +250,7 @@ function mapApiItem(item: CollectionItemDto): DisplayRow {
 
 export function SammlungView() {
   const { isAuthenticated, isDemo } = useAuthMode();
+  const { toggleItem } = useWishlist();
   const [importOpen, setImportOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -300,12 +346,6 @@ export function SammlungView() {
     return names;
   }, [displayItems]);
 
-  const variantOptions = useMemo(() => {
-    const names = [...new Set(displayItems.map((i) => i.variant).filter(Boolean))];
-    names.sort((a, b) => a.localeCompare(b, "de"));
-    return names;
-  }, [displayItems]);
-
   const filteredItems = useMemo(() => {
     const term = search.trim().toLowerCase();
     let rows = displayItems.filter((row) => {
@@ -335,9 +375,6 @@ export function SammlungView() {
       if (rarityFilter !== "Alle Seltenheiten") {
         const label = formatRarityEnglish(row.rarity) || row.rarity || "";
         if (label !== rarityFilter && row.rarity !== rarityFilter) return false;
-      }
-      if (variantFilter !== "Alle Varianten" && row.variant !== variantFilter) {
-        return false;
       }
       return true;
     });
@@ -371,7 +408,6 @@ export function SammlungView() {
     languageFilter,
     conditionFilter,
     rarityFilter,
-    variantFilter,
     sort,
   ]);
 
@@ -384,7 +420,6 @@ export function SammlungView() {
     languageFilter,
     conditionFilter,
     rarityFilter,
-    variantFilter,
     sort,
     pageSize,
   ]);
@@ -419,13 +454,6 @@ export function SammlungView() {
         clear: () => setLanguageFilter("Alle Sprachen"),
       });
     }
-    if (variantFilter !== "Alle Varianten") {
-      chips.push({
-        key: "variant",
-        label: variantFilter,
-        clear: () => setVariantFilter("Alle Varianten"),
-      });
-    }
     if (setFilter !== "Alle Sets") {
       chips.push({
         key: "set",
@@ -448,14 +476,7 @@ export function SammlungView() {
       });
     }
     return chips;
-  }, [
-    conditionFilter,
-    languageFilter,
-    variantFilter,
-    setFilter,
-    rarityFilter,
-    search,
-  ]);
+  }, [conditionFilter, languageFilter, setFilter, rarityFilter, search]);
 
   const resetFilters = () => {
     setSearch("");
@@ -463,7 +484,6 @@ export function SammlungView() {
     setLanguageFilter("Alle Sprachen");
     setConditionFilter("Alle Zustände");
     setRarityFilter("Alle Seltenheiten");
-    setVariantFilter("Alle Varianten");
   };
 
   const displayMetrics = useMemo(() => {
@@ -513,6 +533,10 @@ export function SammlungView() {
     filteredItems.find((row) => row.id === activeId) ??
     filteredItems[0] ??
     null;
+
+  const selectedIndex = selectedRow
+    ? filteredItems.findIndex((r) => r.id === selectedRow.id)
+    : -1;
 
   const isLocalRow = (id: string) => id.startsWith("local-");
 
@@ -821,19 +845,6 @@ export function SammlungView() {
               {rarityOptions.map((r) => (
                 <option key={r} value={r}>
                   {r}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={variantFilter}
-              onChange={(e) => setVariantFilter(e.target.value)}
-              className="h-10 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--muted)] outline-none focus:border-[var(--accent)] focus:text-[var(--foreground)]"
-            >
-              <option value="Alle Varianten">Alle Varianten</option>
-              {variantOptions.map((v) => (
-                <option key={v} value={v}>
-                  {v}
                 </option>
               ))}
             </select>
@@ -1253,167 +1264,170 @@ export function SammlungView() {
           ) : null}
       </div>
 
-      {selectedRow && panelOpen && (
-          <DetailPanel onClose={() => setPanelOpen(false)}>
-            <CardImage
-              src={selectedRow.imageUrl}
-              fallbacks={selectedRow.imageFallbacks}
-              alt={selectedRow.name}
-              size="lg"
-              className="detail-panel-sticky-preview mb-4"
-            />
-            <h2 className="text-lg font-semibold">{selectedRow.name}</h2>
-            <p className="mt-1 text-sm text-[var(--muted)]">
-              {selectedRow.setName}
-            </p>
-            {selectedRow.rarity && (
-              <p className="mt-1 text-sm text-[var(--muted)]">
-                {formatRarityEnglish(selectedRow.rarity)}
-              </p>
-            )}
+      {selectedRow && panelOpen && !editing && (
+        <SetCardDetailPanel
+          card={rowToTcgCard(selectedRow)}
+          setDetail={rowToSetDetail(selectedRow)}
+          official={1}
+          qty={selectedRow.quantity}
+          positionLabel={
+            selectedRow.number ||
+            `${selectedIndex + 1}/${filteredItems.length}`
+          }
+          onClose={() => {
+            setPanelOpen(false);
+            setEditing(false);
+          }}
+          onPrev={() => {
+            if (selectedIndex > 0) {
+              setSelectedId(filteredItems[selectedIndex - 1].id);
+            }
+          }}
+          onNext={() => {
+            if (
+              selectedIndex >= 0 &&
+              selectedIndex < filteredItems.length - 1
+            ) {
+              setSelectedId(filteredItems[selectedIndex + 1].id);
+            }
+          }}
+          hasPrev={selectedIndex > 0}
+          hasNext={
+            selectedIndex >= 0 && selectedIndex < filteredItems.length - 1
+          }
+          onAddToWishlist={() =>
+            toggleItem(wishlistItemFromTcg(rowToTcgCard(selectedRow)))
+          }
+          onEditCollection={startEdit}
+          collectionButtonLabel="Bearbeiten"
+          onRemoveFromCollection={() => void removeSelected()}
+          hideCollectionLink
+          languageLabel={languageShort(selectedRow.language)}
+          collectionDetails={{
+            condition: selectedRow.condition,
+            purchasePrice: selectedRow.purchasePrice,
+            profit: selectedRow.profit,
+            purchaseDate: selectedRow.purchaseDate,
+            marketValue: selectedRow.marketValue,
+          }}
+        />
+      )}
 
-            <div className="mt-5 space-y-3 text-sm">
-              {editing ? (
-                <>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-[var(--muted)]">Anzahl</span>
-                    <input
-                      type="number"
-                      min={1}
-                      step={1}
-                      value={editQty}
-                      onChange={(e) =>
-                        setEditQty(Number.parseInt(e.target.value, 10) || 1)
-                      }
-                      className="h-10 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 tabular-nums"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-[var(--muted)]">Zustand</span>
-                    <select
-                      value={editCondition}
-                      onChange={(e) => setEditCondition(e.target.value)}
-                      className="h-10 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3"
-                    >
-                      {EDIT_CONDITIONS.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-[var(--muted)]">EK pro Karte (€)</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={editPrice}
-                      onChange={(e) => setEditPrice(e.target.value)}
-                      placeholder="0,00"
-                      className="h-10 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 tabular-nums"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-[var(--muted)]">Kaufdatum</span>
-                    <input
-                      type="date"
-                      value={editDate}
-                      onChange={(e) => setEditDate(e.target.value)}
-                      className="h-10 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3"
-                    />
-                  </label>
-                </>
-              ) : (
-                <>
-                  <div className="flex justify-between">
-                    <span className="text-[var(--muted)]">Anzahl in Sammlung</span>
-                    <span className="font-medium">{selectedRow.quantity}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[var(--muted)]">Zustand</span>
-                    <ConditionBadge condition={selectedRow.condition} />
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[var(--muted)]">EK pro Karte</span>
-                    <span className="tabular-nums">
-                      {formatCurrency(selectedRow.purchasePrice)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[var(--muted)]">Kaufdatum</span>
-                    <span>{displayPurchaseDate(selectedRow.purchaseDate)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[var(--muted)]">Marktwert</span>
-                    <Price
-                      value={selectedRow.marketValue}
-                      className="font-medium"
-                    />
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[var(--muted)]">Gewinn / Verlust</span>
-                    <span
-                      className={
-                        selectedRow.profit > 0
-                          ? "font-medium text-[var(--positive)]"
-                          : selectedRow.profit < 0
-                            ? "font-medium text-[var(--negative)]"
-                            : "font-medium text-[var(--muted)]"
-                      }
-                    >
-                      {selectedRow.profit > 0 ? "+" : ""}
-                      <Price
-                        value={selectedRow.profit}
-                        className={
-                          selectedRow.profit > 0
-                            ? "text-[var(--positive)]"
-                            : selectedRow.profit < 0
-                              ? "text-[var(--negative)]"
-                              : "text-[var(--muted)]"
-                        }
-                      />
-                    </span>
-                  </div>
-                </>
-              )}
+      {/* Edit mode — same shell style as database detail panel */}
+      {selectedRow && panelOpen && editing && (
+        <>
+          <button
+            type="button"
+            aria-label="Detailansicht schließen"
+            className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+            onClick={() => {
+              setEditing(false);
+              setPanelOpen(false);
+            }}
+          />
+          <aside className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-50 flex max-h-[min(88dvh,100%)] w-full flex-col overflow-hidden rounded-t-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl lg:inset-x-auto lg:inset-y-4 lg:left-auto lg:right-4 lg:bottom-4 lg:top-4 lg:w-[min(100vw-2rem,26rem)] lg:max-h-none lg:rounded-2xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-[var(--border)] px-3 py-2.5">
+              <p className="text-sm font-medium">Bearbeiten</p>
+              <button
+                type="button"
+                onClick={cancelEdit}
+                aria-label="Schließen"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-elevated)]"
+              >
+                ×
+              </button>
             </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+              <div className="flex gap-3">
+                <CardImage
+                  src={selectedRow.imageUrl}
+                  fallbacks={selectedRow.imageFallbacks}
+                  alt={selectedRow.name}
+                  size="md"
+                  className="shrink-0"
+                />
+                <div className="min-w-0">
+                  <h2 className="text-lg font-semibold leading-tight">
+                    {selectedRow.name}
+                  </h2>
+                  <p className="mt-1 text-xs text-[var(--muted)]">
+                    {selectedRow.setName}
+                    {selectedRow.number ? ` · ${selectedRow.number}` : ""}
+                  </p>
+                </div>
+              </div>
 
-            <div className="mt-6 space-y-2">
-              {editing ? (
-                <>
-                  <Button
-                    className="w-full"
-                    onClick={() => void saveEdit()}
-                    disabled={saving}
+              <div className="mt-5 space-y-3 text-sm">
+                <label className="flex flex-col gap-1">
+                  <span className="text-[var(--muted)]">Anzahl</span>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={editQty}
+                    onChange={(e) =>
+                      setEditQty(Number.parseInt(e.target.value, 10) || 1)
+                    }
+                    className="h-10 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 tabular-nums"
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[var(--muted)]">Zustand</span>
+                  <select
+                    value={editCondition}
+                    onChange={(e) => setEditCondition(e.target.value)}
+                    className="h-10 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3"
                   >
-                    {saving ? "Speichern…" : "Speichern"}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    className="w-full"
-                    onClick={cancelEdit}
-                    disabled={saving}
-                  >
-                    Abbrechen
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button className="w-full" onClick={startEdit}>
-                    Bearbeiten
-                  </Button>
-                  <Button
-                    variant="danger"
-                    className="w-full"
-                    onClick={() => void removeSelected()}
-                    disabled={saving}
-                  >
-                    Aus Sammlung entfernen
-                  </Button>
-                </>
-              )}
+                    {EDIT_CONDITIONS.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[var(--muted)]">EK pro Karte (€)</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={editPrice}
+                    onChange={(e) => setEditPrice(e.target.value)}
+                    placeholder="0,00"
+                    className="h-10 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 tabular-nums"
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[var(--muted)]">Kaufdatum</span>
+                  <input
+                    type="date"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    className="h-10 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-6 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => void saveEdit()}
+                  disabled={saving}
+                  className="flex h-11 w-full items-center justify-center rounded-full bg-[var(--accent)] text-sm font-medium text-white hover:brightness-110 disabled:opacity-60"
+                >
+                  {saving ? "Speichern…" : "Speichern"}
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelEdit}
+                  disabled={saving}
+                  className="flex h-11 w-full items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-sm font-medium text-[var(--foreground)]"
+                >
+                  Abbrechen
+                </button>
+              </div>
             </div>
-          </DetailPanel>
+          </aside>
+        </>
       )}
     </>
   );

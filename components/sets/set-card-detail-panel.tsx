@@ -17,6 +17,15 @@ import { wishlistItemFromTcg } from "@/lib/wishlist";
 
 type PriceRange = "7T" | "30T" | "1J";
 
+/** Real collection snapshot (Assets) — overrides demo EK/Gewinn/Zustand */
+export type CollectionDetails = {
+  condition: string;
+  purchasePrice: number;
+  profit: number;
+  purchaseDate?: string | null;
+  marketValue?: number;
+};
+
 type SetCardDetailPanelProps = {
   card: TcgCard;
   setDetail: SetDetail;
@@ -30,6 +39,15 @@ type SetCardDetailPanelProps = {
   hasNext?: boolean;
   onAddToWishlist?: () => void;
   onEditCollection?: () => void;
+  /** Real collection values instead of demo estimates */
+  collectionDetails?: CollectionDetails | null;
+  /** Override primary collection button label */
+  collectionButtonLabel?: string;
+  onRemoveFromCollection?: () => void;
+  /** Hide “Sammlungsdetails ansehen” (e.g. already on Assets) */
+  hideCollectionLink?: boolean;
+  /** Language badge override (default DE) */
+  languageLabel?: string;
 };
 
 function buildPriceHistory(current: number, range: PriceRange): { label: string; value: number }[] {
@@ -53,6 +71,18 @@ function buildPriceHistory(current: number, range: PriceRange): { label: string;
   return out;
 }
 
+function shortConditionLabel(condition: string): string {
+  if (condition === "Mint") return "M";
+  if (condition === "Near Mint") return "NM";
+  if (condition === "Excellent") return "EX";
+  if (condition === "Good") return "GD";
+  if (condition === "Light Played") return "LP";
+  if (condition === "Played") return "PL";
+  if (condition === "Poor") return "PO";
+  if (condition.startsWith("PSA")) return condition.replace("PSA ", "PSA");
+  return condition.slice(0, 3).toUpperCase();
+}
+
 export function SetCardDetailPanel({
   card,
   setDetail,
@@ -66,17 +96,41 @@ export function SetCardDetailPanel({
   hasNext,
   onAddToWishlist,
   onEditCollection,
+  collectionDetails,
+  collectionButtonLabel,
+  onRemoveFromCollection,
+  hideCollectionLink = false,
+  languageLabel = "DE",
 }: SetCardDetailPanelProps) {
   const [priceRange, setPriceRange] = useState<PriceRange>("30T");
   const { isInWishlist, toggleItem } = useWishlist();
   const onWishlist = isInWishlist(card.id);
-  const price = getCardPrice(card) ?? 0;
-  const hasPrice = getCardPrice(card) != null;
+  const price =
+    collectionDetails?.marketValue != null && qty > 0
+      ? collectionDetails.marketValue / Math.max(1, qty)
+      : (getCardPrice(card) ?? 0);
+  const hasPrice =
+    collectionDetails?.marketValue != null
+      ? collectionDetails.marketValue > 0 || price > 0
+      : getCardPrice(card) != null;
 
-  // Demo cost basis when owned
-  const purchasePrice = qty > 0 ? Math.round(price * 0.73 * 100) / 100 : 0;
-  const profit = qty > 0 && hasPrice ? Math.round((price - purchasePrice) * 100) / 100 : 0;
-  const change30 = hasPrice ? 5.3 : 0;
+  // Real collection values when provided; otherwise demo cost basis when owned
+  const purchasePrice =
+    collectionDetails != null
+      ? collectionDetails.purchasePrice
+      : qty > 0
+        ? Math.round(price * 0.73 * 100) / 100
+        : 0;
+  const profit =
+    collectionDetails != null
+      ? collectionDetails.profit
+      : qty > 0 && hasPrice
+        ? Math.round((price - purchasePrice) * 100) / 100
+        : 0;
+  const conditionLabel = collectionDetails?.condition
+    ? shortConditionLabel(collectionDetails.condition)
+    : "NM";
+  const change30 = hasPrice && collectionDetails == null ? 5.3 : hasPrice ? 0 : 0;
 
   const history = useMemo(
     () => (hasPrice ? buildPriceHistory(price, priceRange) : []),
@@ -160,9 +214,12 @@ export function SetCardDetailPanel({
                 {collectorLabel}
               </p>
               <div className="mt-2 flex flex-wrap gap-1">
-                <Badge>DE</Badge>
+                <Badge>{languageLabel}</Badge>
                 {typeLabel && <Badge>{typeLabel}</Badge>}
                 {rarityLabel && <Badge>{rarityLabel}</Badge>}
+                {collectionDetails?.condition && (
+                  <Badge>{collectionDetails.condition}</Badge>
+                )}
               </div>
 
               <div className="mt-4">
@@ -175,7 +232,7 @@ export function SetCardDetailPanel({
                 <p className="tabular-nums mt-0.5 text-2xl font-semibold tracking-tight">
                   {hasPrice ? formatCurrency(price) : "—"}
                 </p>
-                {hasPrice && (
+                {hasPrice && change30 !== 0 && (
                   <p className="tabular-nums text-xs text-[var(--positive)]">
                     +{change30.toLocaleString("de-DE")} % (30 Tage)
                   </p>
@@ -184,9 +241,13 @@ export function SetCardDetailPanel({
             </div>
             <div className="mx-auto w-[min(100%,11.5rem)] shrink-0 order-1 sm:order-2 sm:mx-0 sm:w-[48%]">
               <CardImage
-                src={getCardImageUrl(card)}
+                src={getCardImageUrl(card) || card.images?.large || card.images?.small}
                 alt={card.name}
-                fallbacks={getCardImageFallbacks(card)}
+                fallbacks={
+                  card.imageFallbacks?.length
+                    ? card.imageFallbacks
+                    : getCardImageFallbacks(card)
+                }
                 types={card.types}
                 hoverGlow
                 size="lg"
@@ -230,7 +291,16 @@ export function SetCardDetailPanel({
             </h3>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm">
               <DataRow label="Sammelnummer" value={collectorLabel} />
-              <DataRow label="Sprache" value="Deutsch" />
+              <DataRow
+                label="Sprache"
+                value={
+                  languageLabel === "DE"
+                    ? "Deutsch"
+                    : languageLabel === "EN"
+                      ? "Englisch"
+                      : languageLabel
+                }
+              />
               <DataRow label="Seltenheit" value={rarityLabel ?? "—"} />
               <DataRow
                 label="Erscheinungsdatum"
@@ -244,6 +314,18 @@ export function SetCardDetailPanel({
                 label="Kategorie"
                 value={card.category ?? typeLabel ?? "Pokémon"}
               />
+              {collectionDetails?.purchaseDate && (
+                <DataRow
+                  label="Kaufdatum"
+                  value={
+                    /^\d{4}-\d{2}-\d{2}/.test(collectionDetails.purchaseDate)
+                      ? formatDateDE(collectionDetails.purchaseDate)
+                      : collectionDetails.purchaseDate === "—"
+                        ? "—"
+                        : collectionDetails.purchaseDate
+                  }
+                />
+              )}
             </dl>
           </div>
 
@@ -270,7 +352,9 @@ export function SetCardDetailPanel({
                     <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
                       Zustand
                     </p>
-                    <p className="mt-0.5 font-medium">NM</p>
+                    <p className="mt-0.5 font-medium" title={collectionDetails?.condition}>
+                      {conditionLabel}
+                    </p>
                   </div>
                   <div className="rounded-lg bg-[var(--surface)] px-2 py-2">
                     <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
@@ -286,22 +370,26 @@ export function SetCardDetailPanel({
                     </p>
                     <p
                       className={`tabular-nums mt-0.5 font-medium ${
-                        profit >= 0
+                        profit > 0
                           ? "text-[var(--positive)]"
-                          : "text-[var(--negative)]"
+                          : profit < 0
+                            ? "text-[var(--negative)]"
+                            : "text-[var(--muted)]"
                       }`}
                     >
-                      {profit >= 0 ? "+" : ""}
+                      {profit > 0 ? "+" : ""}
                       {formatCurrency(profit)}
                     </p>
                   </div>
                 </div>
-                <Link
-                  href="/assets/karten"
-                  className="mt-3 inline-block text-xs font-medium text-[var(--accent)] hover:opacity-80"
-                >
-                  Sammlungsdetails ansehen →
-                </Link>
+                {!hideCollectionLink && (
+                  <Link
+                    href="/assets/karten"
+                    className="mt-3 inline-block text-xs font-medium text-[var(--accent)] hover:opacity-80"
+                  >
+                    Sammlungsdetails ansehen →
+                  </Link>
+                )}
               </>
             ) : (
               <p className="text-xs text-[var(--muted)]">
@@ -344,10 +432,20 @@ export function SetCardDetailPanel({
               onClick={onEditCollection}
               className="flex h-11 w-full items-center justify-center rounded-full bg-[var(--accent)] text-sm font-medium text-white hover:brightness-110 disabled:opacity-60"
             >
-              {qty > 0
-                ? `In Sammlung (×${qty}) · +1 hinzufügen`
-                : "Zur Sammlung hinzufügen"}
+              {collectionButtonLabel ??
+                (qty > 0
+                  ? `In Sammlung (×${qty}) · +1 hinzufügen`
+                  : "Zur Sammlung hinzufügen")}
             </button>
+            {onRemoveFromCollection && qty > 0 && (
+              <button
+                type="button"
+                onClick={onRemoveFromCollection}
+                className="flex h-11 w-full items-center justify-center rounded-full border border-[var(--negative)]/40 bg-[var(--negative-soft)] text-sm font-medium text-[var(--negative)] hover:brightness-110"
+              >
+                Aus Sammlung entfernen
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
