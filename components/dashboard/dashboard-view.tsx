@@ -243,7 +243,6 @@ export function DashboardView() {
                   scoped.invested * (scoped.weeklyChangeInvested / 100),
                 )
           }
-          changePct={scoped.weeklyChangeInvested}
           changeMeta="3 Käufe"
           positive={scoped.weeklyChangeInvested >= 0}
           negative={scoped.weeklyChangeInvested < 0}

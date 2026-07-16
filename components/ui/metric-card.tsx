@@ -18,8 +18,14 @@ type MetricCardProps = {
   changeAbsCurrency?: boolean;
   /** Percent change, e.g. 3.2 */
   changePct?: number;
-  /** Extra note next to change, e.g. "3 Käufe" */
+  /**
+   * Extra note, e.g. "3 Käufe".
+   * Default: below periodNote (so „letzte 7 Tage“ stays aligned across cards).
+   * Set metaWithDelta to show it on the change line instead.
+   */
   changeMeta?: string;
+  /** Put changeMeta on the €/Δ line instead of under periodNote */
+  metaWithDelta?: boolean;
   /** Period chip, default "7T" */
   period?: string;
   /** Subline under change, default "letzte 7 Tage" when period set */
@@ -44,6 +50,7 @@ export function MetricCard({
   changeAbsCurrency = true,
   changePct,
   changeMeta,
+  metaWithDelta = false,
   period = "7T",
   periodNote,
   info,
@@ -148,7 +155,7 @@ export function MetricCard({
                 <span className="text-[var(--muted)]">·</span>
               )}
               {pctText && <span>{pctText}</span>}
-              {changeMeta && (
+              {metaWithDelta && changeMeta && (
                 <>
                   <span className="text-[var(--muted)]">·</span>
                   <span className="font-normal text-[var(--muted)]">
@@ -174,8 +181,13 @@ export function MetricCard({
             </p>
           )}
 
+          {/* Always same slot for period so cards align (“letzte 7 Tage”) */}
           {note && (
             <p className="mt-1 text-[11px] text-[var(--muted)]">{note}</p>
+          )}
+          {/* Meta below period (e.g. “3 Käufe”) — keeps 7-Tage line level across cards */}
+          {!metaWithDelta && changeMeta && (
+            <p className="mt-0.5 text-[11px] text-[var(--muted)]">{changeMeta}</p>
           )}
         </div>
 
