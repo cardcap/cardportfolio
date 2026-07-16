@@ -28,6 +28,7 @@ import {
   getLocalCollection,
   localCollectionMetrics,
   removeLocalCollectionItem,
+  replaceLocalCollectionByConditions,
   updateLocalCollectionItem,
   type LocalCollectionItem,
 } from "@/lib/local-collection";
@@ -354,6 +355,8 @@ export function SammlungView() {
   const [editing, setEditing] = useState(false);
   const [editQty, setEditQty] = useState(1);
   const [editCondition, setEditCondition] = useState("Near Mint");
+  /** One condition per exemplar when qty > 1 */
+  const [editConditions, setEditConditions] = useState<string[]>(["Near Mint"]);
   const [editPrice, setEditPrice] = useState("");
   const [editDate, setEditDate] = useState("");
   const [saving, setSaving] = useState(false);
@@ -675,8 +678,12 @@ export function SammlungView() {
 
   const startEdit = useCallback(() => {
     if (!selectedRow) return;
-    setEditQty(selectedRow.quantity);
+    const qty = Math.max(1, selectedRow.quantity);
+    setEditQty(qty);
     setEditCondition(selectedRow.condition);
+    setEditConditions(
+      Array.from({ length: qty }, () => selectedRow.condition || "Near Mint"),
+    );
     setEditPrice(
       selectedRow.purchasePrice != null
         ? selectedRow.purchasePrice.toFixed(2).replace(".", ",")
@@ -688,6 +695,27 @@ export function SammlungView() {
 
   const cancelEdit = () => setEditing(false);
 
+  const changeEditQty = (raw: number) => {
+    const qty = Math.max(1, Math.floor(raw) || 1);
+    setEditQty(qty);
+    setEditConditions((prev) => {
+      if (qty === prev.length) return prev;
+      if (qty < prev.length) return prev.slice(0, qty);
+      const fill = prev[prev.length - 1] || editCondition || "Near Mint";
+      return [...prev, ...Array.from({ length: qty - prev.length }, () => fill)];
+    });
+  };
+
+  const setExemplarCondition = (index: number, condition: string) => {
+    setEditConditions((prev) => {
+      const next = [...prev];
+      next[index] = condition;
+      return next;
+    });
+    // Keep single-select in sync when only one copy
+    if (editQty === 1) setEditCondition(condition);
+  };
+
   const saveEdit = useCallback(async () => {
     if (!selectedRow) return;
     setSaving(true);
@@ -695,20 +723,86 @@ export function SammlungView() {
       const purchasePrice = parseEuroInput(editPrice);
       const purchaseDate = editDate.trim() || null;
       const quantity = Math.max(1, Math.floor(editQty) || 1);
-      const condition = editCondition || "Near Mint";
+      const perCopy =
+        editConditions.length === quantity
+          ? editConditions.map((c) => c || "Near Mint")
+          : Array.from(
+              { length: quantity },
+              (_, i) =>
+                editConditions[i] || editCondition || "Near Mint",
+            );
+      const uniqueConditions = new Set(perCopy);
+      const multiCondition = uniqueConditions.size > 1;
 
       if (isLocalRow(selectedRow.id) || !isAuthenticated) {
-        updateLocalCollectionItem(selectedRow.id, {
-          quantity,
-          condition,
-          purchasePrice,
-          purchaseDate,
-        });
+        if (multiCondition) {
+          replaceLocalCollectionByConditions(selectedRow.id, perCopy, {
+            purchasePrice,
+            purchaseDate,
+          });
+        } else {
+          updateLocalCollectionItem(selectedRow.id, {
+            quantity,
+            condition: perCopy[0] || "Near Mint",
+            purchasePrice,
+            purchaseDate,
+          });
+        }
         loadLocal();
         setEditing(false);
         return;
       }
 
+      if (multiCondition) {
+        // Split: remove original, re-add per condition group
+        await fetch("/api/collection", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: selectedRow.id }),
+        });
+        const counts = new Map<string, number>();
+        for (const c of perCopy) {
+          counts.set(c, (counts.get(c) ?? 0) + 1);
+        }
+        for (const [condition, qty] of counts) {
+          const addRes = await fetch("/api/collection", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              tcgCardId: selectedRow.tcgCardId,
+              condition,
+              quantity: qty,
+              language: selectedRow.language,
+            }),
+          });
+          if (addRes.ok) {
+            const body = (await addRes.json()) as {
+              data?: { id?: string };
+            };
+            if (body.data?.id) {
+              await fetch("/api/collection", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  id: body.data.id,
+                  purchasePrice,
+                  purchaseDate,
+                }),
+              });
+            }
+          }
+        }
+        // Also keep local mirror in sync for demo merge
+        replaceLocalCollectionByConditions(selectedRow.id, perCopy, {
+          purchasePrice,
+          purchaseDate,
+        });
+        await loadCollection();
+        setEditing(false);
+        return;
+      }
+
+      const condition = perCopy[0] || "Near Mint";
       const res = await fetch("/api/collection", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -721,7 +815,6 @@ export function SammlungView() {
         }),
       });
       if (!res.ok) {
-        // Fallback: try local if this was somehow only local
         updateLocalCollectionItem(selectedRow.id, {
           quantity,
           condition,
@@ -740,6 +833,7 @@ export function SammlungView() {
     editDate,
     editQty,
     editCondition,
+    editConditions,
     isAuthenticated,
     loadLocal,
     loadCollection,
@@ -1499,25 +1593,83 @@ export function SammlungView() {
                     step={1}
                     value={editQty}
                     onChange={(e) =>
-                      setEditQty(Number.parseInt(e.target.value, 10) || 1)
+                      changeEditQty(Number.parseInt(e.target.value, 10) || 1)
                     }
                     className="h-10 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 tabular-nums"
                   />
                 </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-[var(--muted)]">Zustand</span>
-                  <select
-                    value={editCondition}
-                    onChange={(e) => setEditCondition(e.target.value)}
-                    className="h-10 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3"
-                  >
-                    {EDIT_CONDITIONS.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+
+                {editQty <= 1 ? (
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[var(--muted)]">Zustand</span>
+                    <select
+                      value={editConditions[0] || editCondition}
+                      onChange={(e) => {
+                        setEditCondition(e.target.value);
+                        setEditConditions([e.target.value]);
+                      }}
+                      className="h-10 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3"
+                    >
+                      {EDIT_CONDITIONS.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[var(--muted)]">
+                        Zustand pro Exemplar
+                      </span>
+                      <button
+                        type="button"
+                        className="text-xs font-medium text-[var(--accent)] hover:opacity-80"
+                        onClick={() => {
+                          const all = editConditions[0] || "Near Mint";
+                          setEditConditions(
+                            Array.from({ length: editQty }, () => all),
+                          );
+                        }}
+                      >
+                        Alle gleich setzen
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-[var(--muted)]">
+                      Bei unterschiedlichen Zuständen werden getrennte
+                      Einträge in der Sammlung angelegt.
+                    </p>
+                    <ul className="max-h-56 space-y-2 overflow-y-auto pr-0.5">
+                      {Array.from({ length: editQty }, (_, i) => (
+                        <li
+                          key={i}
+                          className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2.5 py-2"
+                        >
+                          <span className="w-20 shrink-0 text-xs text-[var(--muted)]">
+                            Exemplar {i + 1}
+                          </span>
+                          <select
+                            value={
+                              editConditions[i] || editCondition || "Near Mint"
+                            }
+                            onChange={(e) =>
+                              setExemplarCondition(i, e.target.value)
+                            }
+                            className="h-9 min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 text-sm"
+                          >
+                            {EDIT_CONDITIONS.map((c) => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                          </select>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 <label className="flex flex-col gap-1">
                   <span className="text-[var(--muted)]">EK pro Karte (€)</span>
                   <input

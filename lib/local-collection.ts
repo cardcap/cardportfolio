@@ -167,6 +167,95 @@ export function removeLocalCollectionItem(id: string): boolean {
   return true;
 }
 
+/**
+ * Replace one collection row with copies that may have different conditions.
+ * `conditions` is one entry per exemplar (length = total quantity).
+ */
+export function replaceLocalCollectionByConditions(
+  id: string,
+  conditions: string[],
+  patch: {
+    purchasePrice?: number | null;
+    purchaseDate?: string | null;
+  } = {},
+): LocalCollectionItem[] {
+  const items = getLocalCollection();
+  const idx = items.findIndex((i) => i.id === id);
+  if (idx < 0 || conditions.length === 0) return items;
+
+  const orig = items[idx];
+  const unitMarket =
+    orig.quantity > 0
+      ? (orig.marketValue || 0) / Math.max(1, orig.quantity)
+      : (orig.purchasePrice ?? 0);
+
+  const counts = new Map<string, number>();
+  for (const raw of conditions) {
+    const c = (raw || "Near Mint").trim() || "Near Mint";
+    counts.set(c, (counts.get(c) ?? 0) + 1);
+  }
+
+  // Drop original; other rows with same tcgCardId stay until we merge
+  let next = items.filter((i) => i.id !== id);
+  const result: LocalCollectionItem[] = [];
+
+  for (const [condition, quantity] of counts) {
+    const purchasePrice =
+      patch.purchasePrice !== undefined
+        ? patch.purchasePrice
+        : orig.purchasePrice;
+    const purchaseDate =
+      patch.purchaseDate !== undefined ? patch.purchaseDate : orig.purchaseDate;
+
+    const existingIdx = next.findIndex(
+      (i) => i.tcgCardId === orig.tcgCardId && i.condition === condition,
+    );
+
+    if (existingIdx >= 0) {
+      const existing = { ...next[existingIdx] };
+      existing.quantity += quantity;
+      if (patch.purchasePrice !== undefined) {
+        existing.purchasePrice = patch.purchasePrice;
+      }
+      if (patch.purchaseDate !== undefined) {
+        existing.purchaseDate = patch.purchaseDate;
+      }
+      existing.marketValue =
+        Math.round(unitMarket * existing.quantity * 100) / 100;
+      if (existing.purchasePrice != null) {
+        existing.profit =
+          Math.round(
+            (existing.marketValue - existing.purchasePrice * existing.quantity) *
+              100,
+          ) / 100;
+      }
+      next[existingIdx] = existing;
+      result.push(existing);
+      continue;
+    }
+
+    const created: LocalCollectionItem = {
+      ...orig,
+      id: uid(),
+      condition,
+      quantity,
+      purchasePrice: purchasePrice ?? null,
+      purchaseDate: purchaseDate ?? null,
+      marketValue: Math.round(unitMarket * quantity * 100) / 100,
+      profit:
+        purchasePrice != null
+          ? Math.round((unitMarket * quantity - purchasePrice * quantity) * 100) /
+            100
+          : orig.profit,
+    };
+    next.unshift(created);
+    result.push(created);
+  }
+
+  saveLocalCollection(next);
+  return result;
+}
+
 export function localCollectionMetrics(items: LocalCollectionItem[]) {
   const totalCards = items.reduce((s, i) => s + i.quantity, 0);
   const uniqueCards = new Set(items.map((i) => i.tcgCardId)).size;
