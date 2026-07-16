@@ -1446,17 +1446,23 @@ export function SammlungView() {
                               setPanelOpen(true);
                             };
 
-                            /** Borders on <td> (not <tr>) so top edge always paints */
+                            /**
+                             * Borders on <td> so the frame paints fully.
+                             * role "header" = main card row (stronger highlight when open)
+                             */
                             const frameTd = (
                               col: "first" | "mid" | "last",
                               edge: "top" | "mid" | "bottom",
                               extra = "",
+                              role: "header" | "child" = "child",
                             ) => {
                               if (!expanded) return extra;
                               const parts = [
                                 extra,
                                 "border-[var(--accent)]",
-                                "bg-[var(--accent-soft)]/15",
+                                role === "header"
+                                  ? "bg-[var(--surface-elevated)]"
+                                  : "bg-[var(--background)]/90",
                               ];
                               if (col === "first") parts.push("border-l");
                               if (col === "last") parts.push("border-r");
@@ -1470,11 +1476,22 @@ export function SammlungView() {
                                 parts.push("rounded-bl-lg");
                               if (edge === "bottom" && col === "last")
                                 parts.push("rounded-br-lg");
-                              // subtle divider between sub-rows
                               if (edge === "mid" || edge === "bottom")
-                                parts.push("border-t border-t-[var(--accent)]/25");
+                                parts.push("border-t border-t-[var(--accent)]/30");
                               return parts.filter(Boolean).join(" ");
                             };
+
+                            // Unique conditions among exemplars (for badge)
+                            const conditionSet = new Set(
+                              (row.exemplars?.length
+                                ? row.exemplars.map((e) => e.condition)
+                                : [row.condition]
+                              ).filter(Boolean),
+                            );
+                            const conditionCount = Math.max(
+                              1,
+                              conditionSet.size,
+                            );
 
                             return (
                               <Fragment key={row.id}>
@@ -1487,14 +1504,15 @@ export function SammlungView() {
                                             ? "bg-[var(--accent-soft)]"
                                             : "hover:bg-[var(--surface-elevated)]"
                                         }`
-                                      : "hover:bg-[var(--accent-soft)]/25"
+                                      : "hover:brightness-110"
                                   }`}
                                 >
                                   <td
                                     className={frameTd(
                                       "first",
                                       expanded ? "top" : "mid",
-                                      "px-3 py-2.5",
+                                      "px-3 py-3",
+                                      "header",
                                     )}
                                   >
                                     <div className="flex items-center gap-3">
@@ -1535,8 +1553,13 @@ export function SammlungView() {
                                           {row.name}
                                         </span>
                                         {multi && (
-                                          <p className="text-[11px] text-[var(--muted)]">
+                                          <p className="mt-0.5 text-[11px] text-[var(--muted)]">
                                             {row.quantity} Exemplare
+                                            {expanded && conditionCount > 1 && (
+                                              <span className="ml-1.5 inline-flex rounded-full bg-[var(--accent-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--accent)]">
+                                                {conditionCount} Zustände
+                                              </span>
+                                            )}
                                           </p>
                                         )}
                                       </div>
@@ -1546,7 +1569,8 @@ export function SammlungView() {
                                     className={frameTd(
                                       "mid",
                                       expanded ? "top" : "mid",
-                                      "px-3 py-2.5 text-[var(--muted)]",
+                                      "px-3 py-3 text-[var(--muted)]",
+                                      "header",
                                     )}
                                   >
                                     <div className="leading-snug">
@@ -1562,7 +1586,8 @@ export function SammlungView() {
                                     className={frameTd(
                                       "mid",
                                       expanded ? "top" : "mid",
-                                      "px-3 py-2.5 text-sm text-[var(--muted)]",
+                                      "px-3 py-3 text-sm text-[var(--muted)]",
+                                      "header",
                                     )}
                                   >
                                     {rarityLabel}
@@ -1571,7 +1596,8 @@ export function SammlungView() {
                                     className={frameTd(
                                       "mid",
                                       expanded ? "top" : "mid",
-                                      "px-3 py-2.5 tabular-nums text-[var(--muted)]",
+                                      "px-3 py-3 tabular-nums text-[var(--muted)]",
+                                      "header",
                                     )}
                                   >
                                     {languageShort(row.language)}
@@ -1580,16 +1606,26 @@ export function SammlungView() {
                                     className={frameTd(
                                       "mid",
                                       expanded ? "top" : "mid",
-                                      "px-3 py-2.5",
+                                      "px-3 py-3",
+                                      "header",
                                     )}
                                   >
-                                    <ConditionBadge condition={row.condition} />
+                                    {expanded && conditionCount > 1 ? (
+                                      <span className="inline-flex rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-xs font-medium text-[var(--accent)]">
+                                        {conditionCount} Zustände
+                                      </span>
+                                    ) : (
+                                      <ConditionBadge
+                                        condition={row.condition}
+                                      />
+                                    )}
                                   </td>
                                   <td
                                     className={frameTd(
                                       "mid",
                                       expanded ? "top" : "mid",
-                                      "px-3 py-2.5 text-right tabular-nums",
+                                      "px-3 py-3 text-right tabular-nums",
+                                      "header",
                                     )}
                                   >
                                     {row.quantity}
@@ -1598,25 +1634,36 @@ export function SammlungView() {
                                     className={frameTd(
                                       "mid",
                                       expanded ? "top" : "mid",
-                                      "px-3 py-2.5 text-right tabular-nums text-[var(--muted)]",
+                                      "px-3 py-3 text-right tabular-nums text-[var(--muted)]",
+                                      "header",
                                     )}
                                   >
-                                    {formatCurrency(row.purchasePrice)}
+                                    {expanded
+                                      ? `Ø ${formatCurrency(row.purchasePrice)}`
+                                      : formatCurrency(row.purchasePrice)}
                                   </td>
                                   <td
                                     className={frameTd(
                                       "mid",
                                       expanded ? "top" : "mid",
-                                      "px-3 py-2.5 text-right tabular-nums",
+                                      "px-3 py-3 text-right tabular-nums",
+                                      "header",
                                     )}
                                   >
-                                    <Price value={unitMarket} />
+                                    {expanded ? (
+                                      <span className="tabular-nums">
+                                        Ø <Price value={unitMarket} />
+                                      </span>
+                                    ) : (
+                                      <Price value={unitMarket} />
+                                    )}
                                   </td>
                                   <td
                                     className={frameTd(
                                       "mid",
                                       expanded ? "top" : "mid",
-                                      "px-3 py-2.5 text-right tabular-nums font-medium",
+                                      "px-3 py-3 text-right tabular-nums font-medium",
+                                      "header",
                                     )}
                                   >
                                     <Price value={row.marketValue} />
@@ -1625,7 +1672,8 @@ export function SammlungView() {
                                     className={frameTd(
                                       "last",
                                       expanded ? "top" : "mid",
-                                      `px-3 py-2.5 text-right tabular-nums font-medium ${profitClass}`,
+                                      `px-3 py-3 text-right tabular-nums font-medium ${profitClass}`,
+                                      "header",
                                     )}
                                   >
                                     {row.profit > 0 ? "+" : ""}
@@ -1668,6 +1716,7 @@ export function SammlungView() {
                                               "first",
                                               edge,
                                               "px-3 py-2.5 pl-12",
+                                              "child",
                                             )}
                                             colSpan={2}
                                           >
@@ -1686,6 +1735,7 @@ export function SammlungView() {
                                               "mid",
                                               edge,
                                               "px-3 py-2.5 text-[var(--muted)]",
+                                              "child",
                                             )}
                                           >
                                             {rarityLabel}
@@ -1695,6 +1745,7 @@ export function SammlungView() {
                                               "mid",
                                               edge,
                                               "px-3 py-2.5 text-[var(--muted)]",
+                                              "child",
                                             )}
                                           >
                                             {languageShort(row.language)}
@@ -1704,6 +1755,7 @@ export function SammlungView() {
                                               "mid",
                                               edge,
                                               "px-3 py-2.5",
+                                              "child",
                                             )}
                                           >
                                             <ConditionBadge
@@ -1715,6 +1767,7 @@ export function SammlungView() {
                                               "mid",
                                               edge,
                                               "px-3 py-2.5 text-right tabular-nums text-[var(--muted)]",
+                                              "child",
                                             )}
                                           >
                                             1
@@ -1724,6 +1777,7 @@ export function SammlungView() {
                                               "mid",
                                               edge,
                                               "px-3 py-2.5 text-right tabular-nums text-[var(--muted)]",
+                                              "child",
                                             )}
                                           >
                                             {formatCurrency(exEk ?? 0)}
@@ -1733,6 +1787,7 @@ export function SammlungView() {
                                               "mid",
                                               edge,
                                               "px-3 py-2.5 text-right tabular-nums",
+                                              "child",
                                             )}
                                           >
                                             <Price value={unitMarket} />
@@ -1742,6 +1797,7 @@ export function SammlungView() {
                                               "mid",
                                               edge,
                                               "px-3 py-2.5 text-right tabular-nums",
+                                              "child",
                                             )}
                                           >
                                             <Price value={unitMarket} />
@@ -1751,6 +1807,7 @@ export function SammlungView() {
                                               "last",
                                               edge,
                                               `px-3 py-2.5 text-right tabular-nums ${exProfitClass}`,
+                                              "child",
                                             )}
                                           >
                                             {unitProfit > 0 ? "+" : ""}
