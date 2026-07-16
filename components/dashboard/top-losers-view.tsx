@@ -333,16 +333,16 @@ function LoserRow({ row, rank }: { row: DetailedMover; rank: number }) {
           <KindBadge kind={row.kind} />
           <span className="text-xs font-medium text-[var(--muted)]">{lang}</span>
           <span className="truncate text-xs text-[var(--muted)]">{condition}</span>
-          <p className="tabular-nums text-right text-sm text-[var(--muted)]">
+          <p className="tabular-nums self-center text-right text-sm leading-none text-[var(--muted)]">
             {formatCurrency(row.valueBefore)}
           </p>
-          <div className="text-right">
-            <p className="tabular-nums text-sm font-medium">
+          <div className="flex items-baseline justify-end gap-1.5 self-center text-right">
+            <span className="tabular-nums text-sm font-medium leading-none">
               {formatCurrency(row.currentValue)}
-            </p>
-            <p className="tabular-nums whitespace-nowrap text-xs font-medium text-[var(--negative)]">
+            </span>
+            <span className="tabular-nums whitespace-nowrap text-[11px] font-medium leading-none text-[var(--negative)]">
               {delta}
-            </p>
+            </span>
           </div>
           <div className="flex justify-end">
             <TrendSparkline values={row.trend} />
