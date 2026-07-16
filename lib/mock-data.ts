@@ -552,37 +552,49 @@ export type HistoryPoint = {
   sealed: number;
 };
 
+/**
+ * ~2 years of daily points so 1W / 1M / 3M / 6M / 1J / MAX all look different.
+ * End date fixed for stable SSR/hydration (matches demo “today” snapshot).
+ */
 function buildDailyHistory(): HistoryPoint[] {
-  const start = new Date(2024, 4, 15); // 15 May
-  const end = new Date(2024, 5, 19); // 19 Jun
+  const end = new Date(2026, 6, 16); // 16 Jul 2026
+  const totalDays = 730; // ~2 years
   const points: HistoryPoint[] = [];
-  const totalDays =
-    Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+  const endValue = portfolioMetrics.totalValue;
+  const startValue = Math.round(endValue * 0.42); // growth to current
 
   for (let i = 0; i < totalDays; i++) {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
+    const d = new Date(end);
+    d.setDate(end.getDate() - (totalDays - 1 - i));
     const t = i / (totalDays - 1);
-    // Smooth growth with slight daily noise
-    const wave = Math.sin(i * 0.35) * 120 + Math.cos(i * 0.17) * 80;
-    const total = Math.round(8200 + t * 4250 + wave);
-    const cards = Math.round(total * (0.7 + t * 0.02));
-    const sealed = total - cards;
+    // Long-term growth + medium wave + short noise
+    const wave =
+      Math.sin(i * 0.045) * 280 +
+      Math.cos(i * 0.12) * 140 +
+      Math.sin(i * 0.31) * 60;
+    const total = Math.round(startValue + t * (endValue - startValue) + wave * (0.4 + t * 0.6));
+    const cardsShare = 0.68 + t * 0.04;
+    const cards = Math.round(total * cardsShare);
+    const sealed = Math.max(0, total - cards);
     const iso = d.toISOString().slice(0, 10);
     const label = d.toLocaleDateString("de-DE", {
       day: "numeric",
       month: "short",
     });
-    points.push({ date: iso, label, value: total, cards, sealed });
+    points.push({
+      date: iso,
+      label,
+      value: Math.max(100, total),
+      cards: Math.max(50, cards),
+      sealed: Math.max(20, sealed),
+    });
   }
 
-  // Pin last point to metrics
+  // Pin last point to live metrics
   const last = points[points.length - 1];
   last.value = portfolioMetrics.totalValue;
   last.cards = portfolioMetrics.cardsValue;
   last.sealed = portfolioMetrics.sealedValue;
-  last.label = "19. Jun";
-  last.date = "2024-06-19";
 
   return points;
 }
@@ -1097,36 +1109,49 @@ export type PortfolioHistoryPoint = {
 };
 
 function buildPortfolioYearHistory(): PortfolioHistoryPoint[] {
-  // ~Jun 2023 → Mai 2024 monthly samples (smooth for chart)
-  const months: { y: number; m: number; market: number; invested: number }[] = [
-    { y: 2023, m: 5, market: 5200, invested: 5100 },
-    { y: 2023, m: 6, market: 5600, invested: 5400 },
-    { y: 2023, m: 7, market: 6100, invested: 5800 },
-    { y: 2023, m: 8, market: 6800, invested: 6200 },
-    { y: 2023, m: 9, market: 7400, invested: 6800 },
-    { y: 2023, m: 10, market: 7900, invested: 7200 },
-    { y: 2023, m: 11, market: 8500, invested: 7600 },
-    { y: 2024, m: 0, market: 9200, invested: 8000 },
-    { y: 2024, m: 1, market: 9800, invested: 8400 },
-    { y: 2024, m: 2, market: 11250, invested: 8900 }, // Mar 15 hover point
-    { y: 2024, m: 3, market: 11800, invested: 9300 },
-    { y: 2024, m: 4, market: 12450, invested: 9800 },
-  ];
-
+  // Daily samples over ~2 years so 1W–MAX ranges all differ
+  const end = new Date(2026, 6, 16);
+  const days = 730;
   const points: PortfolioHistoryPoint[] = [];
-  for (const row of months) {
-    const d = new Date(row.y, row.m, row.m === 2 ? 15 : 1);
-    const cards = Math.round(row.market * 0.66);
-    const sealed = row.market - cards;
+  const endMarket = portfolioAnalytics.totalValue;
+  const endInvested = portfolioAnalytics.invested;
+  const startMarket = Math.round(endMarket * 0.38);
+  const startInvested = Math.round(endInvested * 0.48);
+
+  for (let i = 0; i < days; i++) {
+    const d = new Date(end);
+    d.setDate(end.getDate() - (days - 1 - i));
+    const t = i / (days - 1);
+    const wave =
+      Math.sin(i * 0.045) * 240 +
+      Math.cos(i * 0.11) * 150 +
+      Math.sin(i * 0.28) * 55;
+    const market = Math.round(
+      startMarket + t * (endMarket - startMarket) + wave * (0.35 + t * 0.65),
+    );
+    const invested = Math.round(
+      startInvested + t * (endInvested - startInvested) + wave * 0.12,
+    );
+    const cards = Math.round(market * (0.64 + t * 0.03));
+    const sealed = Math.max(0, market - cards);
     points.push({
       date: d.toISOString().slice(0, 10),
-      label: d.toLocaleDateString("de-DE", { month: "short", year: "2-digit" }),
-      market: row.market,
-      invested: row.invested,
-      cards,
-      sealed,
+      label: d.toLocaleDateString("de-DE", {
+        day: "numeric",
+        month: "short",
+      }),
+      market: Math.max(100, market),
+      invested: Math.max(80, invested),
+      cards: Math.max(50, cards),
+      sealed: Math.max(20, sealed),
     });
   }
+
+  const last = points[points.length - 1];
+  last.market = endMarket;
+  last.invested = endInvested;
+  last.cards = portfolioAnalytics.cardsValue;
+  last.sealed = portfolioAnalytics.sealedValue;
   return points;
 }
 

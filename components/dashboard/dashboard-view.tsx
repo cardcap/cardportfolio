@@ -159,11 +159,12 @@ export function DashboardView() {
       </div>
 
       {/* Chart + allocation / sets */}
-      <div className="mb-5 grid gap-5 xl:grid-cols-[1.55fr_1fr]">
+      <div className="mb-5 grid items-stretch gap-5 xl:grid-cols-[1.55fr_1fr]">
         <AreaChart
           dailyData={portfolioHistoryDaily}
           title="Wertentwicklung"
           showSeriesLegend
+          minHeight={280}
           footerNote={`Preise zuletzt aktualisiert: ${portfolioMetrics.pricesUpdatedLabel}`}
         />
 

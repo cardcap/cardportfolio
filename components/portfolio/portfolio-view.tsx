@@ -204,8 +204,8 @@ export function PortfolioView() {
 
           {/* Chart + allocation */}
           <div className="mb-5 grid gap-5 xl:grid-cols-[1.55fr_1fr]">
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
-              <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+            <div className="flex h-full min-h-[22rem] flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
+              <div className="mb-3 flex shrink-0 flex-wrap items-start justify-between gap-3">
                 <div>
                   <h2 className="text-sm font-medium">Portfolio-Entwicklung</h2>
                   <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[11px] text-[var(--muted)]">
@@ -236,7 +236,7 @@ export function PortfolioView() {
                         key={r}
                         type="button"
                         onClick={() => setRange(r)}
-                        className={`rounded-md px-2 py-1 text-[11px] ${
+                        className={`rounded-md px-2 py-1 text-[11px] transition-colors ${
                           range === r
                             ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
                             : "text-[var(--muted)] hover:text-[var(--foreground)]"
@@ -252,9 +252,10 @@ export function PortfolioView() {
               <PortfolioGrowthChart
                 data={portfolioYearHistory}
                 series={chartSeries}
+                range={range}
               />
 
-              <p className="mt-3 flex items-center gap-1.5 text-xs text-[var(--muted)]">
+              <p className="mt-3 flex shrink-0 items-center gap-1.5 text-xs text-[var(--muted)]">
                 <span aria-hidden>⏱</span>
                 Marktpreise zuletzt aktualisiert: {a.pricesUpdatedLabel}
               </p>
@@ -629,33 +630,102 @@ export function PortfolioView() {
 
 /* ── Charts ─────────────────────────────────────────────── */
 
+const PORTFOLIO_RANGE_DAYS: Record<Range, number | null> = {
+  "1W": 7,
+  "1M": 30,
+  "3M": 90,
+  "6M": 180,
+  "1J": 365,
+  MAX: null,
+};
+
+function filterPortfolioRange(
+  data: PortfolioHistoryPoint[],
+  range: Range,
+): PortfolioHistoryPoint[] {
+  if (!data.length) return data;
+  const days = PORTFOLIO_RANGE_DAYS[range];
+  if (days == null) return data;
+  const last = data[data.length - 1];
+  const end = new Date(`${last.date}T12:00:00`);
+  if (Number.isNaN(end.getTime())) {
+    return data.length <= days ? data : data.slice(-days);
+  }
+  const start = new Date(end);
+  start.setDate(start.getDate() - (days - 1));
+  const startIso = start.toISOString().slice(0, 10);
+  const filtered = data.filter((p) => p.date >= startIso);
+  return filtered.length ? filtered : data.slice(-1);
+}
+
+function downsamplePoints<T>(points: T[], maxPoints: number): T[] {
+  if (points.length <= maxPoints) return points;
+  const out: T[] = [];
+  const last = points.length - 1;
+  for (let i = 0; i < maxPoints; i++) {
+    const idx = Math.round((i / (maxPoints - 1)) * last);
+    if (!out.length || out[out.length - 1] !== points[idx]) {
+      out.push(points[idx]);
+    }
+  }
+  if (out[out.length - 1] !== points[last]) out.push(points[last]);
+  return out;
+}
+
 function PortfolioGrowthChart({
   data,
   series,
+  range,
 }: {
   data: PortfolioHistoryPoint[];
   series: ChartSeries;
+  range: Range;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
-  const width = 720;
-  const height = 260;
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ w: 720, h: 260 });
+
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const r = entries[0]?.contentRect;
+      if (!r) return;
+      setSize({
+        w: Math.max(280, Math.round(r.width)),
+        h: Math.max(220, Math.round(r.height)),
+      });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const width = size.w;
+  const height = size.h;
   const pad = { top: 16, right: 16, bottom: 32, left: 48 };
-  const cw = width - pad.left - pad.right;
-  const ch = height - pad.top - pad.bottom;
+  const cw = Math.max(1, width - pad.left - pad.right);
+  const ch = Math.max(1, height - pad.top - pad.bottom);
 
   const marketKey =
     series === "karten" ? "cards" : series === "sealed" ? "sealed" : "market";
 
-  const values = data.flatMap((d) => [
+  const filtered = useMemo(() => {
+    const f = filterPortfolioRange(data, range);
+    const maxPts =
+      range === "1W" ? 60 : range === "1M" ? 90 : range === "3M" ? 120 : 160;
+    return downsamplePoints(f, maxPts);
+  }, [data, range]);
+
+  const values = filtered.flatMap((d) => [
     d[marketKey as "market" | "cards" | "sealed"],
     d.invested * (series === "gesamt" ? 1 : series === "karten" ? 0.64 : 0.36),
   ]);
-  const min = Math.min(...values) * 0.9;
-  const max = Math.max(...values) * 1.06;
+  const min = (values.length ? Math.min(...values) : 0) * 0.9;
+  const max = (values.length ? Math.max(...values) : 1) * 1.06;
   const span = Math.max(max - min, 1);
 
-  const mapped = data.map((d, i) => {
+  const mapped = filtered.map((d, i) => {
     const market = d[marketKey as "market" | "cards" | "sealed"];
     const invested =
       series === "gesamt"
@@ -663,7 +733,10 @@ function PortfolioGrowthChart({
         : series === "karten"
           ? Math.round(d.invested * 0.64)
           : Math.round(d.invested * 0.36);
-    const x = pad.left + (i / (data.length - 1)) * cw;
+    const x =
+      filtered.length === 1
+        ? pad.left + cw / 2
+        : pad.left + (i / (filtered.length - 1)) * cw;
     const yM = pad.top + ch - ((market - min) / span) * ch;
     const yI = pad.top + ch - ((invested - min) / span) * ch;
     return { ...d, market, invested, x, yM, yI };
@@ -675,9 +748,12 @@ function PortfolioGrowthChart({
   const investedPath = mapped
     .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.yI}`)
     .join(" ");
-  const areaPath = `${marketPath} L ${mapped[mapped.length - 1].x} ${
-    pad.top + ch
-  } L ${mapped[0].x} ${pad.top + ch} Z`;
+  const areaPath =
+    mapped.length > 0
+      ? `${marketPath} L ${mapped[mapped.length - 1].x} ${
+          pad.top + ch
+        } L ${mapped[0].x} ${pad.top + ch} Z`
+      : "";
 
   function onMove(e: React.MouseEvent<SVGSVGElement>) {
     const svg = svgRef.current;
@@ -698,13 +774,15 @@ function PortfolioGrowthChart({
 
   const h = hover != null ? mapped[hover] : null;
   const profit = h ? h.market - h.invested : 0;
+  const labelStep = Math.max(1, Math.ceil(mapped.length / 6));
 
   return (
-    <div className="relative">
+    <div ref={bodyRef} className="relative min-h-[14rem] w-full flex-1">
       <svg
         ref={svgRef}
         viewBox={`0 0 ${width} ${height}`}
-        className="h-auto w-full cursor-crosshair"
+        preserveAspectRatio="xMidYMid meet"
+        className="absolute inset-0 h-full w-full cursor-crosshair"
         onMouseMove={onMove}
         onMouseLeave={() => setHover(null)}
       >
@@ -758,9 +836,9 @@ function PortfolioGrowthChart({
           strokeLinejoin="round"
         />
         {mapped.map((p, i) =>
-          i % 2 === 0 || i === mapped.length - 1 ? (
+          i % labelStep === 0 || i === mapped.length - 1 ? (
             <text
-              key={p.date}
+              key={`${p.date}-${i}`}
               x={p.x}
               y={height - 8}
               textAnchor="middle"

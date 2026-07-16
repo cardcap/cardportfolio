@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { formatCurrency } from "@/lib/format";
 import type { HistoryPoint } from "@/lib/mock-data";
 
@@ -14,7 +14,8 @@ type AreaChartProps = {
   title?: string;
   subtitle?: string;
   currentLabel?: string;
-  height?: number;
+  /** Minimum chart body height (px) */
+  minHeight?: number;
   showRangeTabs?: boolean;
   showSeriesLegend?: boolean;
   footerNote?: string;
@@ -56,10 +57,45 @@ function toPoints(dailyData?: HistoryPoint[], data?: LegacyPoint[]): HistoryPoin
   }));
 }
 
-function filterByRange(points: HistoryPoint[], range: Range): HistoryPoint[] {
+/** Filter by calendar days from the last data point (not array length). */
+export function filterHistoryByRange<T extends { date: string }>(
+  points: T[],
+  range: Range,
+): T[] {
+  if (!points.length) return points;
   const days = rangeDays[range];
-  if (days == null || points.length <= days) return points;
-  return points.slice(-days);
+  if (days == null) return points;
+
+  const last = points[points.length - 1];
+  // legacy-* dates: fall back to array slice
+  if (last.date.startsWith("legacy")) {
+    return points.length <= days ? points : points.slice(-days);
+  }
+
+  const end = new Date(`${last.date}T12:00:00`);
+  if (Number.isNaN(end.getTime())) {
+    return points.length <= days ? points : points.slice(-days);
+  }
+  const start = new Date(end);
+  start.setDate(start.getDate() - (days - 1));
+  const startIso = start.toISOString().slice(0, 10);
+  const filtered = points.filter((p) => p.date >= startIso);
+  return filtered.length > 0 ? filtered : points.slice(-1);
+}
+
+/** Downsample for smooth SVG paths on long ranges (keep first/last + even steps). */
+function downsample<T>(points: T[], maxPoints: number): T[] {
+  if (points.length <= maxPoints) return points;
+  const out: T[] = [];
+  const last = points.length - 1;
+  for (let i = 0; i < maxPoints; i++) {
+    const idx = Math.round((i / (maxPoints - 1)) * last);
+    if (out.length === 0 || out[out.length - 1] !== points[idx]) {
+      out.push(points[idx]);
+    }
+  }
+  if (out[out.length - 1] !== points[last]) out.push(points[last]);
+  return out;
 }
 
 export function AreaChart({
@@ -68,7 +104,7 @@ export function AreaChart({
   title,
   subtitle,
   currentLabel,
-  height = 280,
+  minHeight = 260,
   showRangeTabs = true,
   showSeriesLegend = true,
   footerNote,
@@ -81,24 +117,51 @@ export function AreaChart({
   });
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  const chartBodyRef = useRef<HTMLDivElement>(null);
+  const [bodySize, setBodySize] = useState({ w: 800, h: minHeight });
 
   const allPoints = useMemo(() => toPoints(dailyData, data), [dailyData, data]);
-  const points = useMemo(
-    () => filterByRange(allPoints, range),
-    [allPoints, range],
-  );
+  const points = useMemo(() => {
+    const filtered = filterHistoryByRange(allPoints, range);
+    // denser for short ranges, cap for long
+    const maxPts =
+      range === "1W" ? 60 : range === "1M" ? 90 : range === "3M" ? 120 : 160;
+    return downsample(filtered, maxPts);
+  }, [allPoints, range]);
 
-  const width = 800;
-  const padding = { top: 20, right: 24, bottom: 36, left: 52 };
-  const chartWidth = width - padding.left - padding.right;
-  const chartHeight = height - padding.top - padding.bottom;
+  // Fill available height — no empty gap under the graph when the card stretches
+  useEffect(() => {
+    const el = chartBodyRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      const { width, height } = entry.contentRect;
+      setBodySize({
+        w: Math.max(280, Math.round(width)),
+        h: Math.max(minHeight, Math.round(height)),
+      });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [minHeight]);
 
-  const activeKeys = seriesMeta.filter((s) => activeSeries[s.key]).map((s) => s.key);
-  const seriesValues = points.flatMap((p) =>
-    activeKeys.map((k) => p[k]),
-  );
-  const min = Math.min(...seriesValues) * 0.94;
-  const max = Math.max(...seriesValues) * 1.03;
+  const width = bodySize.w;
+  const height = bodySize.h;
+  const padding = { top: 16, right: 16, bottom: 32, left: 48 };
+  const chartWidth = Math.max(1, width - padding.left - padding.right);
+  const chartHeight = Math.max(1, height - padding.top - padding.bottom);
+
+  const activeKeys = seriesMeta
+    .filter((s) => activeSeries[s.key])
+    .map((s) => s.key);
+  const seriesValues = points.flatMap((p) => activeKeys.map((k) => p[k]));
+  const min = seriesValues.length
+    ? Math.min(...seriesValues) * 0.94
+    : 0;
+  const max = seriesValues.length
+    ? Math.max(...seriesValues) * 1.03
+    : 1;
   const span = Math.max(max - min, 1);
 
   const mapped = points.map((point, index) => {
@@ -157,13 +220,14 @@ export function AreaChart({
       ? "cards"
       : "sealed";
 
-  // Axis label sampling
-  const labelStep = Math.max(1, Math.ceil(mapped.length / 6));
+  const labelCount =
+    range === "1W" ? 7 : range === "1M" ? 6 : range === "1J" ? 6 : 5;
+  const labelStep = Math.max(1, Math.ceil(mapped.length / labelCount));
 
   return (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
+    <div className="flex h-full min-h-[22rem] flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
       {(title || showRangeTabs) && (
-        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div className="mb-3 flex shrink-0 flex-wrap items-start justify-between gap-3">
           <div>
             {title && <h2 className="text-sm font-medium">{title}</h2>}
             {subtitle && (
@@ -195,7 +259,7 @@ export function AreaChart({
       )}
 
       {showSeriesLegend && (
-        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="mb-3 flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-medium text-[var(--muted)]">
               Anzeigen:
@@ -209,7 +273,6 @@ export function AreaChart({
                   onClick={() =>
                     setActiveSeries((prev) => {
                       const next = { ...prev, [s.key]: !prev[s.key] };
-                      // keep at least one active
                       if (!next.value && !next.cards && !next.sealed) {
                         return prev;
                       }
@@ -222,11 +285,7 @@ export function AreaChart({
                       ? "border-transparent text-white shadow-sm"
                       : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] hover:border-[var(--border-strong)] hover:text-[var(--foreground)]"
                   }`}
-                  style={
-                    on
-                      ? { backgroundColor: s.color }
-                      : undefined
-                  }
+                  style={on ? { backgroundColor: s.color } : undefined}
                 >
                   <span
                     className={`h-2 w-2 rounded-full ring-2 ring-white/30 ${
@@ -252,11 +311,17 @@ export function AreaChart({
         </div>
       )}
 
-      <div className="relative">
+      {/* Chart body grows to fill card — no empty strip under the graph */}
+      <div
+        ref={chartBodyRef}
+        className="relative min-h-[16rem] w-full flex-1"
+        style={{ minHeight }}
+      >
         <svg
           ref={svgRef}
           viewBox={`0 0 ${width} ${height}`}
-          className="h-auto w-full cursor-crosshair touch-none"
+          preserveAspectRatio="xMidYMid meet"
+          className="absolute inset-0 h-full w-full cursor-crosshair touch-none"
           onMouseMove={handleMove}
           onMouseLeave={() => setHoverIndex(null)}
           role="img"
@@ -297,7 +362,7 @@ export function AreaChart({
             );
           })}
 
-          {activeSeries.value && (
+          {activeSeries.value && mapped.length > 0 && (
             <>
               <path d={areaFor("value")} fill="url(#areaFill)" />
               <path
@@ -307,33 +372,36 @@ export function AreaChart({
                 strokeWidth="2.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
               />
             </>
           )}
-          {activeSeries.cards && (
+          {activeSeries.cards && mapped.length > 0 && (
             <path
               d={pathFor("cards")}
               fill="none"
-              stroke="#a1a1aa"
+              stroke="#f472b6"
               strokeWidth="2"
               strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
             />
           )}
-          {activeSeries.sealed && (
+          {activeSeries.sealed && mapped.length > 0 && (
             <path
               d={pathFor("sealed")}
               fill="none"
-              stroke="#71717a"
+              stroke="#a78bfa"
               strokeWidth="2"
               strokeDasharray="5 4"
               strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
             />
           )}
 
           {mapped.map((p, i) =>
             i % labelStep === 0 || i === mapped.length - 1 ? (
               <text
-                key={p.date}
+                key={`${p.date}-${i}`}
                 x={p.x}
                 y={height - 8}
                 textAnchor="middle"
@@ -344,7 +412,6 @@ export function AreaChart({
             ) : null,
           )}
 
-          {/* hover guide + point */}
           {hover && (
             <g>
               <line
@@ -354,6 +421,7 @@ export function AreaChart({
                 y2={padding.top + chartHeight}
                 stroke="var(--border-strong)"
                 strokeDasharray="3 3"
+                vectorEffect="non-scaling-stroke"
               />
               <circle
                 cx={hover.x}
@@ -362,6 +430,7 @@ export function AreaChart({
                 fill="var(--background)"
                 stroke="var(--accent)"
                 strokeWidth="2.5"
+                vectorEffect="non-scaling-stroke"
               />
             </g>
           )}
@@ -374,6 +443,7 @@ export function AreaChart({
               fill="var(--background)"
               stroke="var(--accent)"
               strokeWidth="2"
+              vectorEffect="non-scaling-stroke"
             />
           )}
         </svg>
@@ -389,11 +459,14 @@ export function AreaChart({
             <p className="text-[11px] font-medium text-[var(--foreground)]">
               {hover.date.startsWith("legacy")
                 ? hover.label
-                : new Date(hover.date + "T12:00:00").toLocaleDateString("de-DE", {
-                    day: "2-digit",
-                    month: "long",
-                    year: "numeric",
-                  })}
+                : new Date(hover.date + "T12:00:00").toLocaleDateString(
+                    "de-DE",
+                    {
+                      day: "2-digit",
+                      month: "long",
+                      year: "numeric",
+                    },
+                  )}
             </p>
             <div className="mt-1.5 space-y-1">
               {seriesMeta
@@ -421,7 +494,7 @@ export function AreaChart({
       </div>
 
       {(footerNote || currentLabel) && (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--muted)]">
+        <div className="mt-3 flex shrink-0 flex-wrap items-center justify-between gap-2 text-xs text-[var(--muted)]">
           {footerNote ? (
             <p className="flex items-center gap-1.5">
               <span aria-hidden>⏱</span>
