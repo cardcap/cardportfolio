@@ -24,10 +24,10 @@ export function WishlistHeart({ item, className = "" }: WishlistHeartProps) {
         e.preventDefault();
         toggleItem(item);
       }}
-      className={`flex h-7 w-7 items-center justify-center rounded-full border bg-[var(--surface)]/90 shadow-sm backdrop-blur-sm transition-all hover:scale-105 ${
+      className={`flex h-7 w-7 items-center justify-center rounded-full border shadow-sm backdrop-blur-sm transition-all hover:scale-105 ${
         active
-          ? "border-[var(--accent)] text-[var(--accent)]"
-          : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+          ? "border-[var(--accent)] bg-[var(--accent)] text-white ring-2 ring-[var(--accent)]/35"
+          : "border-[var(--border)] bg-[var(--surface)]/90 text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
       } ${className}`}
     >
       <svg

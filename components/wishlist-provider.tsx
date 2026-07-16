@@ -283,16 +283,15 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     );
   }, []);
 
-  const toggleItem = useCallback(
-    (item: WishlistItem) => {
-      if (isInWishlist(item.id)) {
-        removeItem(item.id);
-      } else {
-        addItem(item);
+  const toggleItem = useCallback((item: WishlistItem) => {
+    // Functional update avoids stale isInWishlist closures
+    setItems((prev) => {
+      if (prev.some((i) => i.id === item.id)) {
+        return prev.filter((i) => i.id !== item.id);
       }
-    },
-    [isInWishlist, removeItem, addItem],
-  );
+      return [...prev, normalizeWishlistItem(item)];
+    });
+  }, []);
 
   const totalValue = useMemo(
     () =>
