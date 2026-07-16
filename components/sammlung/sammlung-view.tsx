@@ -217,7 +217,6 @@ export function SammlungView() {
   const [languageFilter, setLanguageFilter] = useState("Alle Sprachen");
   const [conditionFilter, setConditionFilter] = useState("Alle Zustände");
   const [rarityFilter, setRarityFilter] = useState("Alle Seltenheiten");
-  const [variantFilter, setVariantFilter] = useState("Alle Varianten");
   const [sort, setSort] = useState<SortKey>("recent");
   const [view, setView] = useState<ViewMode>("list");
   const [page, setPage] = useState(1);
