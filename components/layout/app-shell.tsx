@@ -8,10 +8,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex h-dvh max-h-dvh min-h-0 bg-[var(--background)]">
       <Sidebar />
       <MobileNav />
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <main className="app-main flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-4 sm:px-6 lg:overflow-hidden lg:px-8">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--background)]">
+        {/*
+          Single scroll container: content uses full width to the right edge.
+          Thin transparent scrollbar (globals.css) — no dark gutter strip.
+        */}
+        <main className="app-main flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain bg-[var(--background)] px-4 sm:px-6 lg:px-6 xl:px-8">
           <DemoBanner />
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+          <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
             {children}
           </div>
           <MarketPriceDisclaimer className="shrink-0 pt-3" />
