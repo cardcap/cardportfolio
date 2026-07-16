@@ -235,6 +235,28 @@ export function InfoTip({ text }: { text: string }) {
   );
 }
 
+/** Smooth cubic path through points (no labels — only geometry). */
+function smoothPath(coords: { x: number; y: number }[]): string {
+  if (coords.length === 0) return "";
+  if (coords.length === 1) return `M ${coords[0].x} ${coords[0].y}`;
+  if (coords.length === 2) {
+    return `M ${coords[0].x} ${coords[0].y} L ${coords[1].x} ${coords[1].y}`;
+  }
+  let d = `M ${coords[0].x} ${coords[0].y}`;
+  for (let i = 0; i < coords.length - 1; i++) {
+    const p0 = coords[Math.max(0, i - 1)];
+    const p1 = coords[i];
+    const p2 = coords[i + 1];
+    const p3 = coords[Math.min(coords.length - 1, i + 2)];
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
+  }
+  return d;
+}
+
 function MiniSparkline({
   values,
   positive,
@@ -248,14 +270,13 @@ function MiniSparkline({
   accent?: boolean;
   style?: "area" | "step";
 }) {
-  // Extra padding so end-dot (r≈4) is never clipped
-  const w = 112;
-  const h = 56;
-  const padX = 7;
-  const padTop = 7;
-  const padBottom = 10; // room for dashed baseline + label alignment
-  const baselineY = h - 5;
-  const plotBottom = baselineY - 2;
+  // Padding keeps start/end dots fully visible (no clip)
+  const w = 118;
+  const h = 58;
+  const padX = 8;
+  const padTop = 8;
+  const baselineY = h - 6;
+  const plotBottom = baselineY - 3;
   const plotTop = padTop;
   const plotH = Math.max(1, plotBottom - plotTop);
 
@@ -290,16 +311,12 @@ function MiniSparkline({
     });
     linePath = parts.join(" ");
   } else {
-    linePath = coords
-      .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`)
-      .join(" ");
+    linePath = smoothPath(coords);
   }
 
   const last = coords[coords.length - 1];
   const first = coords[0];
-  // Fill down to the dashed baseline (not SVG bottom)
   const areaPath = `${linePath} L ${last.x} ${baselineY} L ${first.x} ${baselineY} Z`;
-
   const gradId = `spark-${style}-${positive ? "p" : negative ? "n" : "a"}`;
 
   return (
@@ -312,57 +329,73 @@ function MiniSparkline({
     >
       <defs>
         <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={stroke} stopOpacity="0.28" />
-          <stop offset="100%" stopColor={stroke} stopOpacity="0.02" />
+          <stop offset="0%" stopColor={stroke} stopOpacity="0.32" />
+          <stop offset="55%" stopColor={stroke} stopOpacity="0.1" />
+          <stop offset="100%" stopColor={stroke} stopOpacity="0" />
         </linearGradient>
       </defs>
 
-      {/* Koordinaten-Grundlinie, bündig mit „letzte 7 Tage“ */}
+      {/* Dashed axis under the curve — like mock, no tick labels */}
       <line
-        x1={padX - 1}
+        x1={padX}
         y1={baselineY}
-        x2={w - padX + 1}
+        x2={w - padX}
         y2={baselineY}
-        stroke="var(--border-strong)"
-        strokeWidth="1"
-        strokeDasharray="3 2.5"
+        stroke="currentColor"
+        className="text-[var(--muted)]"
+        strokeWidth="1.25"
+        strokeDasharray="2.5 3"
         strokeLinecap="round"
-        opacity={0.9}
+        opacity={0.55}
       />
 
       {style === "area" && <path d={areaPath} fill={`url(#${gradId})`} />}
+
       <path
         d={linePath}
         fill="none"
         stroke={stroke}
-        strokeWidth="2"
+        strokeWidth="2.25"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+
       {style === "step" &&
-        coords.map((p, i) =>
-          i === coords.length - 1 ? null : (
-            <circle
-              key={i}
-              cx={p.x}
-              cy={p.y}
-              r="2.5"
-              fill="var(--surface)"
-              stroke={stroke}
-              strokeWidth="1.5"
-              opacity={0.9}
-            />
-          ),
-        )}
-      {/* End marker — fully inside viewBox thanks to padX/padTop */}
-      <circle
-        cx={last.x}
-        cy={last.y}
-        r="4"
-        fill="var(--surface)"
-        stroke={stroke}
-        strokeWidth="2"
-      />
+        coords.map((p, i) => (
+          <circle
+            key={i}
+            cx={p.x}
+            cy={p.y}
+            r={i === coords.length - 1 ? 4 : 2.75}
+            fill="var(--surface)"
+            stroke={stroke}
+            strokeWidth={i === coords.length - 1 ? 2 : 1.5}
+          />
+        ))}
+
+      {style === "area" && (
+        <>
+          {/* Start dot on the curve (no euro labels) */}
+          <circle
+            cx={first.x}
+            cy={first.y}
+            r="3.25"
+            fill="var(--surface)"
+            stroke={stroke}
+            strokeWidth="1.75"
+            opacity={0.95}
+          />
+          {/* End highlight — full circle, not clipped */}
+          <circle
+            cx={last.x}
+            cy={last.y}
+            r="4.25"
+            fill="var(--surface)"
+            stroke={stroke}
+            strokeWidth="2.25"
+          />
+        </>
+      )}
     </svg>
   );
 }
