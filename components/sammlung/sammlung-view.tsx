@@ -1391,9 +1391,9 @@ export function SammlungView() {
                       })}
                     </div>
 
-                    {/* Desktop table */}
+                    {/* Desktop table — border-separate so accent frames on cells work */}
                     <div className="hidden overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] lg:block">
-                      <table className="w-full min-w-[960px] text-left text-sm">
+                      <table className="w-full min-w-[960px] border-separate border-spacing-0 text-left text-sm">
                         <thead>
                           <tr className="border-b border-[var(--border)] text-[11px] uppercase tracking-wider text-[var(--muted)]">
                             <th className="px-3 py-3 font-medium">Karte</th>
@@ -1446,35 +1446,57 @@ export function SammlungView() {
                               setPanelOpen(true);
                             };
 
-                            // Thin pink frame wraps main row + expanded exemplars
-                            const groupTop = expanded
-                              ? "border-x border-t border-[var(--accent)] rounded-t-xl bg-[var(--accent-soft)]/15"
-                              : "";
-                            const groupSide = expanded
-                              ? "border-x border-[var(--accent)] bg-[var(--accent-soft)]/20"
-                              : "";
+                            /** Borders on <td> (not <tr>) so top edge always paints */
+                            const frameTd = (
+                              col: "first" | "mid" | "last",
+                              edge: "top" | "mid" | "bottom",
+                              extra = "",
+                            ) => {
+                              if (!expanded) return extra;
+                              const parts = [
+                                extra,
+                                "border-[var(--accent)]",
+                                "bg-[var(--accent-soft)]/15",
+                              ];
+                              if (col === "first") parts.push("border-l");
+                              if (col === "last") parts.push("border-r");
+                              if (edge === "top") parts.push("border-t");
+                              if (edge === "bottom") parts.push("border-b");
+                              if (edge === "top" && col === "first")
+                                parts.push("rounded-tl-lg");
+                              if (edge === "top" && col === "last")
+                                parts.push("rounded-tr-lg");
+                              if (edge === "bottom" && col === "first")
+                                parts.push("rounded-bl-lg");
+                              if (edge === "bottom" && col === "last")
+                                parts.push("rounded-br-lg");
+                              // subtle divider between sub-rows
+                              if (edge === "mid" || edge === "bottom")
+                                parts.push("border-t border-t-[var(--accent)]/25");
+                              return parts.filter(Boolean).join(" ");
+                            };
 
                             return (
                               <Fragment key={row.id}>
                                 <tr
                                   onClick={openRow}
                                   className={`cursor-pointer transition-colors ${
-                                    expanded
-                                      ? groupTop
-                                      : `border-b border-[var(--border)] last:border-0 ${
+                                    !expanded
+                                      ? `border-b border-[var(--border)] last:border-0 ${
                                           isSelected
                                             ? "bg-[var(--accent-soft)]"
                                             : "hover:bg-[var(--surface-elevated)]"
                                         }`
-                                  } ${
-                                    expanded && isSelected
-                                      ? "bg-[var(--accent-soft)]/40"
-                                      : expanded
-                                        ? "hover:bg-[var(--accent-soft)]/30"
-                                        : ""
+                                      : "hover:bg-[var(--accent-soft)]/25"
                                   }`}
                                 >
-                                  <td className="px-3 py-2.5">
+                                  <td
+                                    className={frameTd(
+                                      "first",
+                                      expanded ? "top" : "mid",
+                                      "px-3 py-2.5",
+                                    )}
+                                  >
                                     <div className="flex items-center gap-3">
                                       {multi ? (
                                         <button
@@ -1520,7 +1542,13 @@ export function SammlungView() {
                                       </div>
                                     </div>
                                   </td>
-                                  <td className="px-3 py-2.5 text-[var(--muted)]">
+                                  <td
+                                    className={frameTd(
+                                      "mid",
+                                      expanded ? "top" : "mid",
+                                      "px-3 py-2.5 text-[var(--muted)]",
+                                    )}
+                                  >
                                     <div className="leading-snug">
                                       <p className="text-[var(--foreground)]">
                                         {row.setName || "—"}
@@ -1530,29 +1558,75 @@ export function SammlungView() {
                                       )}
                                     </div>
                                   </td>
-                                  <td className="px-3 py-2.5 text-sm text-[var(--muted)]">
+                                  <td
+                                    className={frameTd(
+                                      "mid",
+                                      expanded ? "top" : "mid",
+                                      "px-3 py-2.5 text-sm text-[var(--muted)]",
+                                    )}
+                                  >
                                     {rarityLabel}
                                   </td>
-                                  <td className="px-3 py-2.5 tabular-nums text-[var(--muted)]">
+                                  <td
+                                    className={frameTd(
+                                      "mid",
+                                      expanded ? "top" : "mid",
+                                      "px-3 py-2.5 tabular-nums text-[var(--muted)]",
+                                    )}
+                                  >
                                     {languageShort(row.language)}
                                   </td>
-                                  <td className="px-3 py-2.5">
+                                  <td
+                                    className={frameTd(
+                                      "mid",
+                                      expanded ? "top" : "mid",
+                                      "px-3 py-2.5",
+                                    )}
+                                  >
                                     <ConditionBadge condition={row.condition} />
                                   </td>
-                                  <td className="px-3 py-2.5 text-right tabular-nums">
+                                  <td
+                                    className={frameTd(
+                                      "mid",
+                                      expanded ? "top" : "mid",
+                                      "px-3 py-2.5 text-right tabular-nums",
+                                    )}
+                                  >
                                     {row.quantity}
                                   </td>
-                                  <td className="px-3 py-2.5 text-right tabular-nums text-[var(--muted)]">
+                                  <td
+                                    className={frameTd(
+                                      "mid",
+                                      expanded ? "top" : "mid",
+                                      "px-3 py-2.5 text-right tabular-nums text-[var(--muted)]",
+                                    )}
+                                  >
                                     {formatCurrency(row.purchasePrice)}
                                   </td>
-                                  <td className="px-3 py-2.5 text-right tabular-nums">
+                                  <td
+                                    className={frameTd(
+                                      "mid",
+                                      expanded ? "top" : "mid",
+                                      "px-3 py-2.5 text-right tabular-nums",
+                                    )}
+                                  >
                                     <Price value={unitMarket} />
                                   </td>
-                                  <td className="px-3 py-2.5 text-right tabular-nums font-medium">
+                                  <td
+                                    className={frameTd(
+                                      "mid",
+                                      expanded ? "top" : "mid",
+                                      "px-3 py-2.5 text-right tabular-nums font-medium",
+                                    )}
+                                  >
                                     <Price value={row.marketValue} />
                                   </td>
                                   <td
-                                    className={`px-3 py-2.5 text-right tabular-nums font-medium ${profitClass}`}
+                                    className={frameTd(
+                                      "last",
+                                      expanded ? "top" : "mid",
+                                      `px-3 py-2.5 text-right tabular-nums font-medium ${profitClass}`,
+                                    )}
                                   >
                                     {row.profit > 0 ? "+" : ""}
                                     <Price
@@ -1582,22 +1656,19 @@ export function SammlungView() {
                                             ? "text-[var(--negative)]"
                                             : "text-[var(--muted)]";
                                       const isLast = i === row.quantity - 1;
-                                      const frame = [
-                                        groupSide,
-                                        isLast
-                                          ? "border-b rounded-b-xl"
-                                          : "border-b border-b-[var(--accent)]/20",
-                                      ]
-                                        .filter(Boolean)
-                                        .join(" ");
+                                      const edge = isLast ? "bottom" : "mid";
                                       return (
                                         <tr
                                           key={`${row.id}-ex-${i}`}
                                           onClick={openRow}
-                                          className={`cursor-pointer text-sm transition-colors hover:bg-[var(--accent-soft)]/40 ${frame}`}
+                                          className="cursor-pointer text-sm transition-colors hover:bg-[var(--accent-soft)]/40"
                                         >
                                           <td
-                                            className="px-3 py-2.5 pl-12"
+                                            className={frameTd(
+                                              "first",
+                                              edge,
+                                              "px-3 py-2.5 pl-12",
+                                            )}
                                             colSpan={2}
                                           >
                                             <div className="flex items-center gap-2">
@@ -1610,31 +1681,77 @@ export function SammlungView() {
                                               />
                                             </div>
                                           </td>
-                                          <td className="px-3 py-2.5 text-[var(--muted)]">
+                                          <td
+                                            className={frameTd(
+                                              "mid",
+                                              edge,
+                                              "px-3 py-2.5 text-[var(--muted)]",
+                                            )}
+                                          >
                                             {rarityLabel}
                                           </td>
-                                          <td className="px-3 py-2.5 text-[var(--muted)]">
+                                          <td
+                                            className={frameTd(
+                                              "mid",
+                                              edge,
+                                              "px-3 py-2.5 text-[var(--muted)]",
+                                            )}
+                                          >
                                             {languageShort(row.language)}
                                           </td>
-                                          <td className="px-3 py-2.5">
+                                          <td
+                                            className={frameTd(
+                                              "mid",
+                                              edge,
+                                              "px-3 py-2.5",
+                                            )}
+                                          >
                                             <ConditionBadge
                                               condition={exCondition}
                                             />
                                           </td>
-                                          <td className="px-3 py-2.5 text-right tabular-nums text-[var(--muted)]">
+                                          <td
+                                            className={frameTd(
+                                              "mid",
+                                              edge,
+                                              "px-3 py-2.5 text-right tabular-nums text-[var(--muted)]",
+                                            )}
+                                          >
                                             1
                                           </td>
-                                          <td className="px-3 py-2.5 text-right tabular-nums text-[var(--muted)]">
+                                          <td
+                                            className={frameTd(
+                                              "mid",
+                                              edge,
+                                              "px-3 py-2.5 text-right tabular-nums text-[var(--muted)]",
+                                            )}
+                                          >
                                             {formatCurrency(exEk ?? 0)}
                                           </td>
-                                          <td className="px-3 py-2.5 text-right tabular-nums">
-                                            <Price value={unitMarket} />
-                                          </td>
-                                          <td className="px-3 py-2.5 text-right tabular-nums">
+                                          <td
+                                            className={frameTd(
+                                              "mid",
+                                              edge,
+                                              "px-3 py-2.5 text-right tabular-nums",
+                                            )}
+                                          >
                                             <Price value={unitMarket} />
                                           </td>
                                           <td
-                                            className={`px-3 py-2.5 text-right tabular-nums ${exProfitClass}`}
+                                            className={frameTd(
+                                              "mid",
+                                              edge,
+                                              "px-3 py-2.5 text-right tabular-nums",
+                                            )}
+                                          >
+                                            <Price value={unitMarket} />
+                                          </td>
+                                          <td
+                                            className={frameTd(
+                                              "last",
+                                              edge,
+                                              `px-3 py-2.5 text-right tabular-nums ${exProfitClass}`,
+                                            )}
                                           >
                                             {unitProfit > 0 ? "+" : ""}
                                             <Price
