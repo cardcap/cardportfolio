@@ -259,16 +259,9 @@ export function DashboardView() {
           changePct={scoped.weeklyChange}
           positive={profitPositive}
           negative={!profitPositive}
+          colorValue
           info
           infoText={scoped.profitInfo}
-          sparkline={scoped.sparkTotal.map(
-            (v, i, arr) =>
-              v -
-              (scoped.sparkInvested[
-                Math.min(i, scoped.sparkInvested.length - 1)
-              ] ?? arr[0] * 0.78),
-          )}
-          sparkStyle="area"
           period="7T"
           periodNote="letzte 7 Tage"
         />
@@ -279,10 +272,9 @@ export function DashboardView() {
           changeAbsCurrency={false}
           positive={returnPositive}
           negative={!returnPositive}
+          colorValue
           info
           infoText={scoped.returnInfo}
-          sparkline={metricSparklines.returnRate}
-          sparkStyle="area"
           period="7T"
           periodNote="letzte 7 Tage"
         />

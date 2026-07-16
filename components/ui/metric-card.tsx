@@ -8,6 +8,8 @@ type MetricCardProps = {
   accent?: boolean;
   positive?: boolean;
   negative?: boolean;
+  /** Color the main value green/red (for G/V, Rendite) */
+  colorValue?: boolean;
   /** Optional sparkline values (no axis labels) */
   sparkline?: number[];
   /** "area" soft fill (default) · "step" for invested-style steps */
@@ -44,6 +46,7 @@ export function MetricCard({
   accent,
   positive,
   negative,
+  colorValue = false,
   sparkline,
   sparkStyle = "area",
   changeAbs,
@@ -77,7 +80,11 @@ export function MetricCard({
 
   const valueColor = accent
     ? "text-[var(--accent)]"
-    : ""; // main value stays neutral (like mock) — color on delta only
+    : colorValue && trendPositive
+      ? "text-[var(--positive)]"
+      : colorValue && trendNegative
+        ? "text-[var(--negative)]"
+        : "";
 
   const tip =
     infoText ??
