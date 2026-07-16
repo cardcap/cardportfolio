@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AreaChart } from "@/components/charts/area-chart";
 import { DonutChart } from "@/components/charts/donut-chart";
 import { PageHeader } from "@/components/layout/page-header";
@@ -11,16 +11,23 @@ import { Panel } from "@/components/ui/panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { SetLogo } from "@/components/ui/set-logo";
 import { formatMarketPrice } from "@/components/ui/price";
+import { useAuthMode } from "@/components/auth/use-auth-mode";
 import { useWishlist } from "@/components/wishlist-provider";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import {
+  getLocalCollection,
+  localCollectionMetrics,
+} from "@/lib/local-collection";
+import {
   getCard,
+  getSealedMetrics,
   metricSparklines,
   portfolioAllocation,
   portfolioAllocationBreakdown,
   portfolioHistoryDaily,
   portfolioMetrics,
   recentAdditions,
+  sealedProducts,
   setProgress,
   sets,
   topLosersDetailed,
@@ -40,7 +47,52 @@ function scaleSpark(values: number[], targetEnd: number): number[] {
 export function DashboardView() {
   const [scope, setScope] = useState<Scope>("gesamt");
   const { count: wishlistCount } = useWishlist();
+  const { isAuthenticated } = useAuthMode();
   const m = portfolioMetrics;
+
+  // Live asset counts (same source as Assets → Karten / Sealed)
+  const [cardCount, setCardCount] = useState(0);
+  const sealedCount = useMemo(
+    () => getSealedMetrics(sealedProducts).totalUnits,
+    [],
+  );
+
+  const refreshCardCount = useCallback(async () => {
+    const local = localCollectionMetrics(getLocalCollection()).totalCards;
+    if (!isAuthenticated) {
+      setCardCount(local);
+      return;
+    }
+    try {
+      const res = await fetch("/api/collection");
+      if (!res.ok) {
+        setCardCount(local);
+        return;
+      }
+      const data = await res.json();
+      const apiTotal =
+        data.metrics?.totalCards ??
+        (data.items ?? []).reduce(
+          (s: number, i: { quantity?: number }) => s + (i.quantity ?? 1),
+          0,
+        );
+      // Prefer max so local adds still show if API lags / fails
+      setCardCount(Math.max(apiTotal, local));
+    } catch {
+      setCardCount(local);
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    void refreshCardCount();
+    const onLocal = () => void refreshCardCount();
+    window.addEventListener("cardcap-collection-changed", onLocal);
+    window.addEventListener("storage", onLocal);
+    return () => {
+      window.removeEventListener("cardcap-collection-changed", onLocal);
+      window.removeEventListener("storage", onLocal);
+    };
+  }, [refreshCardCount]);
 
   const scoped = useMemo(() => {
     if (scope === "karten") {
@@ -78,8 +130,8 @@ export function DashboardView() {
         recent: recentAdditions.filter((r) => r.kind !== "Sealed"),
         losers: topLosersDetailed.filter((r) => r.kind !== "Sealed"),
         showSets: true,
-        countCards: m.totalCards,
-        countSealed: m.sealedCount,
+        countCards: cardCount,
+        countSealed: sealedCount,
       };
     }
     if (scope === "sealed") {
@@ -119,8 +171,8 @@ export function DashboardView() {
         recent: recentAdditions.filter((r) => r.kind === "Sealed"),
         losers: topLosersDetailed.filter((r) => r.kind === "Sealed"),
         showSets: false,
-        countCards: m.totalCards,
-        countSealed: m.sealedCount,
+        countCards: cardCount,
+        countSealed: sealedCount,
       };
     }
 
@@ -148,10 +200,10 @@ export function DashboardView() {
       recent: recentAdditions,
       losers: topLosersDetailed,
       showSets: true,
-      countCards: m.totalCards,
-      countSealed: m.sealedCount,
+      countCards: cardCount,
+      countSealed: sealedCount,
     };
-  }, [scope, m]);
+  }, [scope, m, cardCount, sealedCount]);
 
   const profitPositive = scoped.profitLoss >= 0;
   const returnPositive = scoped.returnRate >= 0;
