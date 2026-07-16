@@ -564,7 +564,6 @@ function CashflowChart({
   mode: CashMode;
 }) {
   const [hover, setHover] = useState<number | null>(null);
-  const ref = useRef<HTMLDivElement>(null);
 
   const series = useMemo(() => {
     if (mode === "monatlich") return data;
@@ -582,80 +581,53 @@ function CashflowChart({
     });
   }, [data, mode]);
 
-  const maxAbs = Math.max(
-    ...series.flatMap((d) => [d.buys, d.sells, Math.abs(d.net)]),
+  const maxVal = Math.max(
+    ...series.flatMap((d) => [d.buys, d.sells]),
     1,
   );
-  const chartH = 160;
-  const mid = chartH / 2;
+  const barMaxH = 120;
 
   return (
-    <div className="relative" ref={ref}>
-      <div className="flex h-48 items-stretch gap-1.5 sm:gap-2">
+    <div className="relative">
+      <div className="flex h-52 items-end gap-2 sm:gap-3">
         {series.map((d, i) => {
-          const buyH = (d.buys / maxAbs) * mid * 0.95;
-          const sellH = (d.sells / maxAbs) * mid * 0.95;
+          const buyH = Math.max(4, (d.buys / maxVal) * barMaxH);
+          const sellH = Math.max(4, (d.sells / maxVal) * barMaxH);
           return (
             <div
               key={d.label}
-              className="relative flex flex-1 flex-col items-center"
+              className="flex flex-1 flex-col items-center gap-1.5"
               onMouseEnter={() => setHover(i)}
               onMouseLeave={() => setHover(null)}
             >
-              <div className="relative w-full flex-1">
-                {/* zero line */}
+              <div className="flex h-[7.5rem] w-full items-end justify-center gap-1">
                 <div
-                  className="absolute inset-x-0 border-t border-dashed border-[var(--border-strong)]"
-                  style={{ top: mid }}
+                  className="w-[40%] max-w-[1.25rem] rounded-t-md bg-pink-400/90"
+                  style={{ height: buyH }}
+                  title={`Käufe ${d.buys}`}
                 />
-                {/* sells up */}
                 <div
-                  className="absolute left-1/2 w-[42%] -translate-x-[110%] rounded-t-sm bg-emerald-400/85"
-                  style={{ bottom: mid, height: sellH }}
-                />
-                {/* buys down */}
-                <div
-                  className="absolute left-1/2 w-[42%] translate-x-[10%] rounded-b-sm bg-pink-400/85"
-                  style={{ top: mid, height: buyH }}
-                />
-                {/* net dot */}
-                <div
-                  className="absolute left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-zinc-200"
-                  style={{
-                    top: mid - (d.net / maxAbs) * mid * 0.95 - 3,
-                  }}
+                  className="w-[40%] max-w-[1.25rem] rounded-t-md bg-emerald-400/90"
+                  style={{ height: sellH }}
+                  title={`Verkäufe ${d.sells}`}
                 />
               </div>
-              <span className="mt-1 text-[9px] text-[var(--muted)] sm:text-[10px]">
-                {d.label}
+              <span
+                className={`tabular-nums text-[10px] font-medium ${
+                  d.net >= 0 ? "text-[var(--positive)]" : "text-[var(--negative)]"
+                }`}
+              >
+                {d.net >= 0 ? "+" : ""}
+                {Math.round(d.net)}
               </span>
+              <span className="text-[10px] text-[var(--muted)]">{d.label}</span>
             </div>
           );
         })}
       </div>
 
-      {/* net line overlay simplified */}
-      <svg
-        className="pointer-events-none absolute inset-x-0 top-0 h-48 w-full"
-        viewBox={`0 0 ${series.length * 40} ${chartH}`}
-        preserveAspectRatio="none"
-      >
-        <polyline
-          fill="none"
-          stroke="#d4d4d8"
-          strokeWidth="1.5"
-          points={series
-            .map((d, i) => {
-              const x = i * 40 + 20;
-              const y = mid - (d.net / maxAbs) * mid * 0.95;
-              return `${x},${y}`;
-            })
-            .join(" ")}
-        />
-      </svg>
-
       {hover != null && series[hover] && (
-        <div className="pointer-events-none absolute left-1/2 top-2 z-10 min-w-[9rem] -translate-x-1/2 rounded-lg border border-[var(--border-strong)] bg-[var(--surface-elevated)] px-3 py-2 text-xs shadow-lg">
+        <div className="pointer-events-none absolute left-1/2 top-0 z-10 min-w-[10rem] -translate-x-1/2 rounded-lg border border-[var(--border-strong)] bg-[var(--surface-elevated)] px-3 py-2 text-xs shadow-lg">
           <p className="font-medium">{series[hover].label}</p>
           <div className="mt-1.5 space-y-1">
             <div className="flex justify-between gap-4">
@@ -752,7 +724,7 @@ function Metric({
   return (
     <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
       <span
-        className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${
+        className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
           accent
             ? "bg-[var(--accent-soft)] text-[var(--accent)]"
             : positive
@@ -798,7 +770,7 @@ function Strip({
 }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-      <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[var(--surface-elevated)] text-[var(--muted)] ring-1 ring-[var(--border)]">
+      <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[var(--surface-elevated)] text-[var(--muted)] ring-1 ring-[var(--border)]">
         <MIcon type={icon} />
       </span>
       <div>
@@ -915,8 +887,8 @@ function SearchIcon() {
 
 function MIcon({ type }: { type: string }) {
   const p = {
-    width: 16,
-    height: 16,
+    width: 22,
+    height: 22,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",

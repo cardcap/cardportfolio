@@ -96,10 +96,11 @@ export function SetCardDetailPanel({
 
   return (
     <>
+      {/* Mobile: full dimmer. Desktop: only left strip closes; page stays scrollable */}
       <button
         type="button"
         aria-label="Detailansicht schließen"
-        className="fixed inset-0 z-40 bg-black/40 lg:bg-black/25"
+        className="fixed inset-0 z-40 bg-black/40 lg:inset-y-0 lg:left-0 lg:right-auto lg:w-[calc(100%-min(26rem+2rem,100%))] lg:bg-black/10"
         onClick={onClose}
       />
       <aside className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-50 flex max-h-[min(88dvh,100%)] w-full flex-col overflow-hidden rounded-t-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl lg:inset-x-auto lg:inset-y-4 lg:left-auto lg:right-4 lg:bottom-4 lg:top-4 lg:w-[min(100vw-2rem,26rem)] lg:max-h-none lg:rounded-2xl">

@@ -12,6 +12,7 @@ const APP_PREFIXES = [
   "/sets",
   "/kartendatenbank",
   "/wunschliste",
+  "/einstellungen",
 ];
 
 function isAppRoute(pathname: string): boolean {

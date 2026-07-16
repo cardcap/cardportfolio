@@ -18,9 +18,12 @@ type SortKey =
   | "progress-desc"
   | "progress-asc"
   | "name"
+  | "name-desc"
   | "date-desc"
   | "date-asc"
-  | "cards-desc";
+  | "cards-desc"
+  | "price-asc"
+  | "price-desc";
 type SetKind = "Hauptset" | "Spezialset" | "Promo";
 type CollectStatus =
   | "not_started"
@@ -201,11 +204,18 @@ export function SetsView() {
           return a.progress - b.progress;
         case "name":
           return a.name.localeCompare(b.name, "de");
+        case "name-desc":
+          return b.name.localeCompare(a.name, "de");
         case "date-asc":
           return (a.releaseDate || "").localeCompare(b.releaseDate || "");
         case "date-desc":
           return (b.releaseDate || "").localeCompare(a.releaseDate || "");
         case "cards-desc":
+          return b.total - a.total;
+        case "price-asc":
+          // Demo: proxy price by total cards (larger sets ~ higher value)
+          return a.total - b.total;
+        case "price-desc":
           return b.total - a.total;
         case "progress-desc":
         default:
@@ -292,30 +302,34 @@ export function SetsView() {
           >
             Meine Karten →
           </Link>
-          <div className="flex rounded-full border border-[var(--border)] p-0.5">
-            <button
-              type="button"
-              onClick={() => setView("list")}
-              className={`rounded-full p-2 ${
-                view === "list"
-                  ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-                  : "text-[var(--muted)]"
-              }`}
-              aria-label="Listenansicht"
-            >
-              <ListIcon />
-            </button>
+          <div className="flex rounded-full border border-[var(--border)] bg-[var(--surface)] p-0.5">
             <button
               type="button"
               onClick={() => setView("grid")}
-              className={`rounded-full p-2 ${
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${
                 view === "grid"
-                  ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-                  : "text-[var(--muted)]"
+                  ? "bg-[var(--accent)] text-white shadow-sm"
+                  : "text-[var(--muted)] hover:text-[var(--foreground)]"
               }`}
               aria-label="Kachelansicht"
+              aria-pressed={view === "grid"}
             >
               <GridIcon />
+              Kacheln
+            </button>
+            <button
+              type="button"
+              onClick={() => setView("list")}
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${
+                view === "list"
+                  ? "bg-[var(--accent)] text-white shadow-sm"
+                  : "text-[var(--muted)] hover:text-[var(--foreground)]"
+              }`}
+              aria-label="Listenansicht"
+              aria-pressed={view === "list"}
+            >
+              <ListIcon />
+              Liste
             </button>
           </div>
           <ThemeToggleButton className="!h-9 !w-9" />
@@ -518,6 +532,9 @@ export function SetsView() {
           <option value="date-desc">Neueste zuerst</option>
           <option value="date-asc">Älteste zuerst</option>
           <option value="name">Name A–Z</option>
+          <option value="name-desc">Name Z–A</option>
+          <option value="price-asc">Preis: niedrigster zuerst</option>
+          <option value="price-desc">Preis: höchster zuerst</option>
           <option value="cards-desc">Kartenanzahl</option>
         </select>
       </div>
@@ -542,7 +559,7 @@ export function SetsView() {
           )}
         </p>
       ) : view === "grid" ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-3">
           {filtered.map((set) => (
             <SetCard key={set.id} set={set} language={language} />
           ))}
@@ -571,8 +588,11 @@ function SetCard({
   const complete = set.collectStatus === "complete";
 
   return (
-    <article className="group overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] transition-colors hover:border-[var(--border-strong)]">
-      <div className="relative aspect-[16/9] overflow-hidden bg-gradient-to-br from-zinc-900 via-zinc-950 to-black">
+    <Link
+      href={setDetailPath(set.id)}
+      className="group flex flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] transition-colors hover:border-[var(--accent)]/50 hover:shadow-md"
+    >
+      <div className="relative aspect-[2/1] overflow-hidden bg-gradient-to-br from-zinc-900 via-zinc-950 to-black">
         <div
           className="absolute inset-0 opacity-40"
           style={{
@@ -584,59 +604,53 @@ function SetCard({
           src={set.images.logo}
           fallbacks={fallbacks}
           alt={set.name}
-          size="md"
-          className="absolute inset-0 !h-full !w-full !rounded-none bg-transparent"
+          size="sm"
+          className="absolute inset-0 m-auto !h-[70%] !w-[70%] !rounded-none bg-transparent object-contain p-2"
         />
-        <div className="absolute left-2 top-2 flex flex-wrap gap-1.5">
-          <span className="rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-zinc-200 backdrop-blur-sm">
+        <div className="absolute left-1.5 top-1.5 flex flex-wrap gap-1">
+          <span className="rounded bg-black/55 px-1 py-0.5 text-[9px] font-medium text-zinc-200 backdrop-blur-sm">
             {language.toUpperCase()}
           </span>
           <span
-            className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium backdrop-blur-sm ${KIND_STYLES[set.kind]}`}
+            className={`rounded px-1 py-0.5 text-[9px] font-medium backdrop-blur-sm ${KIND_STYLES[set.kind]}`}
           >
             {set.kind}
           </span>
         </div>
         {complete && (
-          <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-medium text-emerald-300 ring-1 ring-emerald-400/30">
-            ✓ Vollständig
+          <span className="absolute right-1.5 top-1.5 rounded-full bg-emerald-500/25 px-1.5 py-0.5 text-[9px] font-medium text-emerald-300 ring-1 ring-emerald-400/30">
+            ✓
           </span>
         )}
       </div>
 
-      <div className="p-4">
-        <p className="text-xs text-[var(--muted)]">{set.series}</p>
-        <h2 className="mt-0.5 text-lg font-semibold tracking-tight">{set.name}</h2>
-        <p className="mt-1 text-xs text-[var(--muted)]">
+      <div className="flex flex-1 flex-col p-2.5 sm:p-3">
+        <p className="truncate text-[10px] text-[var(--muted)]">{set.series}</p>
+        <h2 className="mt-0.5 line-clamp-2 text-sm font-semibold leading-snug tracking-tight group-hover:text-[var(--accent)]">
+          {set.name}
+        </h2>
+        <p className="mt-1 text-[10px] text-[var(--muted)]">
           {set.releaseDate ? formatDateDE(set.releaseDate) : "—"}
-          <span className="mx-1.5 opacity-40">·</span>
+          <span className="mx-1 opacity-40">·</span>
           {set.total.toLocaleString("de-DE")} Karten
         </p>
 
-        <div className="mt-3">
-          <div className="mb-1 flex items-center justify-between text-xs">
+        <div className="mt-auto pt-2">
+          <div className="mb-1 flex items-center justify-between text-[10px]">
             <span className="tabular-nums text-[var(--muted)]">
-              {set.owned} / {set.total} Karten · {set.progress} %
+              {set.owned}/{set.total}
             </span>
+            <span className="tabular-nums font-medium">{set.progress} %</span>
           </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-[var(--border)]">
+          <div className="h-1 overflow-hidden rounded-full bg-[var(--border)]">
             <div
               className="h-full rounded-full bg-[var(--accent)] transition-all"
               style={{ width: `${set.progress}%` }}
             />
           </div>
         </div>
-
-        <div className="mt-3 flex justify-end">
-          <Link
-            href={setDetailPath(set.id)}
-            className="text-sm font-medium text-[var(--accent)] transition-opacity hover:opacity-80"
-          >
-            Set öffnen →
-          </Link>
-        </div>
       </div>
-    </article>
+    </Link>
   );
 }
 

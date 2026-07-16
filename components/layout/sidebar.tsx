@@ -78,9 +78,20 @@ export function Sidebar() {
       </nav>
 
       <div className="space-y-0.5 border-t border-[var(--border)] px-3 py-4">
+        <Link
+          href="/einstellungen"
+          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+            isActive(pathname, "/einstellungen")
+              ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+              : "text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)]"
+          }`}
+        >
+          <NavIcon type="settings" />
+          Einstellungen
+        </Link>
         {isAuthenticated ? (
           <>
-            <div className="mb-2 px-3 py-1">
+            <div className="mb-1 mt-2 px-3 py-1">
               <p className="truncate text-xs font-medium">
                 {user?.name ?? "Nutzer"}
               </p>
@@ -90,7 +101,7 @@ export function Sidebar() {
             </div>
             <button
               type="button"
-              onClick={() => signOut({ callbackUrl: "/dashboard" })}
+              onClick={() => signOut({ callbackUrl: "/" })}
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-[var(--muted)] transition-colors hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)]"
             >
               <NavIcon type="logout" />

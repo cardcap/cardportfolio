@@ -35,7 +35,8 @@ type SortKey =
   | "number-desc"
   | "name"
   | "rarity"
-  | "price-desc";
+  | "price-desc"
+  | "price-asc";
 
 /** Deterministic demo ownership for checklist UX */
 function demoOwnedQty(cardId: string): number {
@@ -165,6 +166,8 @@ export function SetDetailView({
           return (a.rarity ?? "").localeCompare(b.rarity ?? "", "de");
         case "price-desc":
           return (getCardPrice(b) ?? 0) - (getCardPrice(a) ?? 0);
+        case "price-asc":
+          return (getCardPrice(a) ?? 0) - (getCardPrice(b) ?? 0);
         case "number-asc":
         default:
           return parseCardNumber(a) - parseCardNumber(b);
@@ -441,6 +444,7 @@ export function SetDetailView({
             <option value="name">Name A–Z</option>
             <option value="rarity">Seltenheit</option>
             <option value="price-desc">Preis: höchster zuerst</option>
+            <option value="price-asc">Preis: niedrigster zuerst</option>
           </select>
 
           <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--muted)]">
@@ -668,7 +672,7 @@ function CardTile({
           className="!aspect-[5/7] !h-full !w-full !rounded-none"
         />
         {!missing && (
-          <span className="absolute right-1.5 top-1.5 rounded-md bg-[var(--accent)] px-1.5 py-0.5 text-[10px] font-semibold text-white shadow">
+          <span className="absolute right-1 top-1 z-10 inline-flex min-w-[1.75rem] items-center justify-center rounded-lg bg-[var(--accent)] px-2 py-1 text-xs font-bold text-white shadow-lg ring-2 ring-black/40">
             ×{qty}
           </span>
         )}

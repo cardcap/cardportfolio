@@ -167,51 +167,69 @@ export function PortfolioAnalyse() {
           <ReturnChart data={portfolioReturnSeries} mode={returnMode} />
         </div>
 
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
-          <h2 className="mb-3 text-sm font-medium">Gewinner &amp; Verlierer</h2>
-          <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-base font-semibold">Gewinner &amp; Verlierer</h2>
+            <Link
+              href="/portfolio/positionen"
+              className="text-sm font-medium text-[var(--accent)] hover:opacity-80"
+            >
+              Alle Positionen →
+            </Link>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <WinLossStat
+              tone="plus"
+              label="Im Plus"
+              pct={wl.inPlus}
+              count={wl.cards.plus + wl.sealed.plus}
+              href="/portfolio/top-performer"
+              cta="Top Performer"
+            />
+            <WinLossStat
+              tone="flat"
+              label="Unverändert"
+              pct={wl.unchanged}
+              count={wl.cards.flat + wl.sealed.flat}
+            />
+            <WinLossStat
+              tone="minus"
+              label="Im Minus"
+              pct={wl.inMinus}
+              count={wl.cards.minus + wl.sealed.minus}
+              href="/portfolio/top-verlierer"
+              cta="Top Verlierer"
+            />
+          </div>
+
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <AssetBreakdown
+              title="Karten"
+              plus={wl.cards.plus}
+              plusPct={wl.cards.plusPct}
+              flat={wl.cards.flat}
+              flatPct={wl.cards.flatPct}
+              minus={wl.cards.minus}
+              minusPct={wl.cards.minusPct}
+            />
+            <AssetBreakdown
+              title="Sealed"
+              plus={wl.sealed.plus}
+              plusPct={wl.sealed.plusPct}
+              flat={wl.sealed.flat}
+              flatPct={wl.sealed.flatPct}
+              minus={wl.sealed.minus}
+              minusPct={wl.sealed.minusPct}
+            />
+          </div>
+
+          <div className="mt-5 flex justify-center">
             <WinLossDonut
               plus={wl.inPlus}
               flat={wl.unchanged}
               minus={wl.inMinus}
             />
-            <div className="w-full space-y-3 text-xs">
-              <LegendRow color="#f472b6" label="Im Plus" value={`${wl.inPlus} %`} />
-              <LegendRow color="#71717a" label="Unverändert" value={`${wl.unchanged} %`} />
-              <LegendRow color="#f87171" label="Im Minus" value={`${wl.inMinus} %`} />
-              <div className="grid grid-cols-2 gap-3 border-t border-[var(--border)] pt-3">
-                <div>
-                  <p className="mb-1.5 font-medium text-[var(--muted)]">Karten</p>
-                  <p className="text-[var(--positive)]">
-                    {wl.cards.plus} ({wl.cards.plusPct} %)
-                  </p>
-                  <p className="text-[var(--muted)]">
-                    {wl.cards.flat} ({wl.cards.flatPct} %)
-                  </p>
-                  <p className="text-[var(--negative)]">
-                    {wl.cards.minus} ({wl.cards.minusPct} %)
-                  </p>
-                </div>
-                <div>
-                  <p className="mb-1.5 font-medium text-[var(--muted)]">Sealed</p>
-                  <p className="text-[var(--positive)]">
-                    {wl.sealed.plus} ({wl.sealed.plusPct} %)
-                  </p>
-                  <p className="text-[var(--muted)]">
-                    {wl.sealed.flat} ({wl.sealed.flatPct} %)
-                  </p>
-                  <p className="text-[var(--negative)]">
-                    {wl.sealed.minus} ({wl.sealed.minusPct} %)
-                  </p>
-                </div>
-              </div>
-              <Link
-                href="/portfolio/positionen"
-                className="inline-block text-xs font-medium text-[var(--accent)] hover:opacity-80"
-              >
-                Positionen ansehen →
-              </Link>
-            </div>
           </div>
         </div>
       </div>
@@ -326,12 +344,14 @@ export function PortfolioAnalyse() {
 
       {/* Distribution + attribute analysis */}
       <div className="grid gap-5 xl:grid-cols-2">
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
-          <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-sm font-medium">Renditeverteilung</h2>
-            <p className="text-xs text-[var(--muted)]">
-              Basis: {m.totalAssets} bewertete Assets
-            </p>
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
+          <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+            <div>
+              <h2 className="text-base font-semibold">Renditeverteilung</h2>
+              <p className="mt-0.5 text-xs text-[var(--muted)]">
+                Anteil der Assets nach Renditeband · {m.totalAssets} bewertete Assets
+              </p>
+            </div>
           </div>
           <ReturnDistributionChart data={portfolioReturnDistribution} />
         </div>
@@ -407,7 +427,7 @@ function AnalyseMetric({
   return (
     <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
       <span
-        className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${
+        className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
           negative
             ? "bg-[var(--negative-soft)] text-[var(--negative)]"
             : warn
@@ -790,27 +810,141 @@ function ReturnDistributionChart({
 }: {
   data: { label: string; pct: number; color: string }[];
 }) {
-  const max = Math.max(...data.map((d) => d.pct)) * 1.15;
+  const max = Math.max(...data.map((d) => d.pct), 1);
   return (
-    <div className="mt-4">
-      <div className="flex h-40 items-end gap-3">
-        {data.map((d) => (
-          <div key={d.label} className="flex flex-1 flex-col items-center gap-1.5">
-            <span className="tabular-nums text-[11px] font-medium text-[var(--muted)]">
-              {d.pct} %
+    <div className="space-y-3">
+      {data.map((d) => (
+        <div key={d.label} className="group">
+          <div className="mb-1 flex items-center justify-between gap-2 text-sm">
+            <span className="flex items-center gap-2 font-medium">
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{ backgroundColor: d.color }}
+              />
+              {d.label}
             </span>
+            <span className="tabular-nums font-semibold">{d.pct} %</span>
+          </div>
+          <div className="h-3 overflow-hidden rounded-full bg-[var(--border)]">
             <div
-              className="w-full max-w-[3rem] rounded-t-md"
+              className="h-full rounded-full transition-all"
               style={{
-                height: `${(d.pct / max) * 120}px`,
+                width: `${Math.max(4, (d.pct / max) * 100)}%`,
                 backgroundColor: d.color,
               }}
             />
-            <span className="text-center text-[9px] leading-tight text-[var(--muted)] sm:text-[10px]">
-              {d.label}
+          </div>
+        </div>
+      ))}
+      <div className="mt-4 flex h-28 items-end gap-2 border-t border-[var(--border)] pt-4">
+        {data.map((d) => (
+          <div key={`bar-${d.label}`} className="flex flex-1 flex-col items-center gap-1">
+            <span className="tabular-nums text-[10px] text-[var(--muted)]">{d.pct}%</span>
+            <div
+              className="w-full max-w-[2.5rem] rounded-t-md"
+              style={{
+                height: `${Math.max(8, (d.pct / max) * 80)}px`,
+                backgroundColor: d.color,
+              }}
+            />
+            <span className="line-clamp-2 text-center text-[9px] leading-tight text-[var(--muted)]">
+              {d.label.replace(" bis ", "–")}
             </span>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function WinLossStat({
+  tone,
+  label,
+  pct,
+  count,
+  href,
+  cta,
+}: {
+  tone: "plus" | "flat" | "minus";
+  label: string;
+  pct: number;
+  count: number;
+  href?: string;
+  cta?: string;
+}) {
+  const styles =
+    tone === "plus"
+      ? "border-emerald-400/30 bg-emerald-500/10"
+      : tone === "minus"
+        ? "border-red-400/30 bg-red-500/10"
+        : "border-[var(--border)] bg-[var(--surface-elevated)]/40";
+  const valueColor =
+    tone === "plus"
+      ? "text-[var(--positive)]"
+      : tone === "minus"
+        ? "text-[var(--negative)]"
+        : "text-[var(--foreground)]";
+
+  return (
+    <div className={`rounded-xl border px-4 py-4 ${styles}`}>
+      <p className="text-xs font-medium uppercase tracking-wider text-[var(--muted)]">
+        {label}
+      </p>
+      <p className={`tabular-nums mt-1 text-3xl font-bold tracking-tight ${valueColor}`}>
+        {pct} %
+      </p>
+      <p className="mt-1 text-sm text-[var(--muted)]">{count} Assets</p>
+      {href && cta && (
+        <Link
+          href={href}
+          className="mt-3 inline-flex text-sm font-medium text-[var(--accent)] hover:opacity-80"
+        >
+          {cta} →
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function AssetBreakdown({
+  title,
+  plus,
+  plusPct,
+  flat,
+  flatPct,
+  minus,
+  minusPct,
+}: {
+  title: string;
+  plus: number;
+  plusPct: number;
+  flat: number;
+  flatPct: number;
+  minus: number;
+  minusPct: number;
+}) {
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)]/30 px-4 py-3">
+      <p className="mb-2 text-sm font-semibold">{title}</p>
+      <div className="space-y-1.5 text-sm">
+        <div className="flex justify-between gap-2">
+          <span className="text-[var(--positive)]">Im Plus</span>
+          <span className="tabular-nums font-medium">
+            {plus} · {plusPct} %
+          </span>
+        </div>
+        <div className="flex justify-between gap-2">
+          <span className="text-[var(--muted)]">Unverändert</span>
+          <span className="tabular-nums font-medium">
+            {flat} · {flatPct} %
+          </span>
+        </div>
+        <div className="flex justify-between gap-2">
+          <span className="text-[var(--negative)]">Im Minus</span>
+          <span className="tabular-nums font-medium">
+            {minus} · {minusPct} %
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -870,8 +1004,8 @@ function LegendRow({
 
 function AIcon({ type }: { type: string }) {
   const p = {
-    width: 18,
-    height: 18,
+    width: 22,
+    height: 22,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
