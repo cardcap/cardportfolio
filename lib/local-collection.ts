@@ -307,6 +307,84 @@ export function replaceLocalCollectionByCopies(
   return result;
 }
 
+/**
+ * Remove all local rows for a tcgCardId (or explicit ids), then write copies
+ * from a template item (name, images, …).
+ */
+export function replaceLocalCollectionForCard(
+  template: LocalCollectionItem,
+  copies: CollectionCopyInput[],
+  options: {
+    removeIds?: string[];
+    purchaseDate?: string | null;
+  } = {},
+): LocalCollectionItem[] {
+  const items = getLocalCollection();
+  const removeSet = new Set(
+    options.removeIds?.length
+      ? options.removeIds
+      : items
+          .filter((i) => i.tcgCardId === template.tcgCardId)
+          .map((i) => i.id),
+  );
+  // Keep unrelated cards
+  let next = items.filter((i) => !removeSet.has(i.id));
+
+  // Group copies by condition
+  const byCondition = new Map<string, CollectionCopyInput[]>();
+  for (const copy of copies) {
+    const c = (copy.condition || "Near Mint").trim() || "Near Mint";
+    const list = byCondition.get(c) ?? [];
+    list.push({ condition: c, purchasePrice: copy.purchasePrice });
+    byCondition.set(c, list);
+  }
+
+  const unitMarket =
+    template.quantity > 0 && template.marketValue
+      ? template.marketValue / Math.max(1, template.quantity)
+      : (template.purchasePrice ?? 0);
+  // Prefer unit market from first removee if available
+  const removed = items.find((i) => removeSet.has(i.id));
+  const marketUnit =
+    removed && removed.quantity > 0
+      ? removed.marketValue / removed.quantity
+      : unitMarket;
+
+  const date =
+    options.purchaseDate !== undefined
+      ? options.purchaseDate
+      : template.purchaseDate;
+  const result: LocalCollectionItem[] = [];
+
+  for (const [condition, groupCopies] of byCondition) {
+    const quantity = groupCopies.length;
+    const invested = sumInvested(groupCopies);
+    const purchasePrice =
+      Math.round((invested / Math.max(1, quantity)) * 100) / 100;
+    const marketValue = Math.round(marketUnit * quantity * 100) / 100;
+    const profit = Math.round((marketValue - invested) * 100) / 100;
+    const created: LocalCollectionItem = {
+      ...template,
+      id: uid(),
+      condition,
+      quantity,
+      purchasePrice,
+      purchaseDate: date ?? null,
+      marketValue,
+      profit,
+      exemplars: groupCopies.map((c) => ({
+        condition: c.condition,
+        purchasePrice: c.purchasePrice,
+      })),
+    };
+    next.unshift(created);
+    result.push(created);
+  }
+
+  saveLocalCollection(next);
+  return result;
+}
+
 /** @deprecated use replaceLocalCollectionByCopies */
 export function replaceLocalCollectionByConditions(
   id: string,

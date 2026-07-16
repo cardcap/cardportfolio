@@ -37,6 +37,7 @@ import {
   localCollectionMetrics,
   removeLocalCollectionItem,
   replaceLocalCollectionByCopies,
+  replaceLocalCollectionForCard,
   updateLocalCollectionItem,
   type LocalCollectionItem,
   type LocalExemplar,
@@ -160,7 +161,92 @@ type DisplayRow = {
   variant: string;
   /** Per-copy EK/condition when saved */
   exemplars?: LocalExemplar[];
+  /** All storage row ids that make up this display group (different conditions) */
+  groupMemberIds?: string[];
 };
+
+/** Flatten a storage row into exemplar list */
+function rowToExemplars(row: DisplayRow): LocalExemplar[] {
+  if (row.exemplars && row.exemplars.length > 0) {
+    return row.exemplars.map((e) => ({
+      condition: e.condition || row.condition,
+      purchasePrice: e.purchasePrice,
+    }));
+  }
+  return Array.from({ length: Math.max(1, row.quantity) }, () => ({
+    condition: row.condition,
+    purchasePrice: row.purchasePrice,
+  }));
+}
+
+/**
+ * Collapse multiple condition-rows of the same tcgCard into one expandable row.
+ */
+function groupByTcgCard(rows: DisplayRow[]): DisplayRow[] {
+  const order: string[] = [];
+  const buckets = new Map<string, DisplayRow[]>();
+  for (const row of rows) {
+    const key = row.tcgCardId || row.id;
+    if (!buckets.has(key)) {
+      order.push(key);
+      buckets.set(key, []);
+    }
+    buckets.get(key)!.push(row);
+  }
+
+  return order.map((key) => {
+    const group = buckets.get(key)!;
+    if (group.length === 1) {
+      const only = group[0];
+      // Ensure exemplars exist for expand UI
+      return {
+        ...only,
+        exemplars: rowToExemplars(only),
+        groupMemberIds: [only.id],
+      };
+    }
+
+    const base = group[0];
+    const exemplars = group.flatMap(rowToExemplars);
+    const quantity = exemplars.length;
+    const marketValue = group.reduce((s, g) => s + g.marketValue, 0);
+    const invested = exemplars.reduce(
+      (s, e) => s + (e.purchasePrice ?? 0),
+      0,
+    );
+    const avgEk =
+      quantity > 0 ? Math.round((invested / quantity) * 100) / 100 : 0;
+    const profit = Math.round((marketValue - invested) * 100) / 100;
+
+    // Primary condition = most common
+    const counts = new Map<string, number>();
+    for (const e of exemplars) {
+      const c = e.condition || "Near Mint";
+      counts.set(c, (counts.get(c) ?? 0) + 1);
+    }
+    let primary = base.condition;
+    let max = 0;
+    for (const [c, n] of counts) {
+      if (n > max) {
+        max = n;
+        primary = c;
+      }
+    }
+
+    return {
+      ...base,
+      // Stable group id for expand/selection (first member stays addressable via groupMemberIds)
+      id: base.id,
+      condition: primary,
+      quantity,
+      purchasePrice: avgEk,
+      marketValue: Math.round(marketValue * 100) / 100,
+      profit,
+      exemplars,
+      groupMemberIds: group.map((g) => g.id),
+    };
+  });
+}
 
 function rowToTcgCard(row: DisplayRow): TcgCard {
   const unit =
@@ -556,6 +642,7 @@ export function SammlungView() {
 
   const filteredItems = useMemo(() => {
     const term = search.trim().toLowerCase();
+    // 1) Filter flat storage rows (condition filter: keep row if it matches)
     let rows = displayItems.filter((row) => {
       if (term) {
         const haystack =
@@ -583,6 +670,44 @@ export function SammlungView() {
       if (!matchesAssetsRarityFilter(row.rarity, rarityFilter)) return false;
       return true;
     });
+
+    // When filtering by condition, also pull sibling conditions of the same card
+    // so the group still shows under one header (only if not filtering by condition)
+    // — if user filters NM, only NM copies appear (as a group if multi NM).
+
+    // 2) Group different conditions of same tcgCard into one expandable row
+    if (conditionFilter === "Alle Zustände") {
+      // Include all condition-siblings even if only some matched other filters
+      const matchedKeys = new Set(
+        rows.map((r) => r.tcgCardId || r.id),
+      );
+      rows = displayItems.filter((row) => {
+        const key = row.tcgCardId || row.id;
+        if (!matchedKeys.has(key)) return false;
+        // re-apply non-condition filters
+        if (term) {
+          const haystack =
+            `${row.name} ${row.setName} ${row.number} ${row.rarity ?? ""}`.toLowerCase();
+          if (!haystack.includes(term)) return false;
+        }
+        if (setFilter !== "Alle Sets" && row.setName !== setFilter) return false;
+        if (languageFilter !== "Alle Sprachen") {
+          const lang = languageLabel(row.language);
+          const short = languageShort(row.language);
+          if (
+            lang !== languageFilter &&
+            short !== languageFilter &&
+            row.language.toLowerCase() !== languageFilter.toLowerCase()
+          ) {
+            return false;
+          }
+        }
+        if (!matchesAssetsRarityFilter(row.rarity, rarityFilter)) return false;
+        return true;
+      });
+    }
+
+    rows = groupByTcgCard(rows);
 
     rows = [...rows].sort((a, b) => {
       switch (sort) {
@@ -859,33 +984,48 @@ export function SammlungView() {
 
       const singlePrice = prices[0] ?? parseEuroInput(editPrice);
 
-      if (isLocalRow(selectedRow.id) || !isAuthenticated) {
-        if (needsSplit || quantity > 1) {
-          replaceLocalCollectionByCopies(
-            selectedRow.id,
-            perCopy,
-            purchaseDate,
+      const memberIds =
+        selectedRow.groupMemberIds && selectedRow.groupMemberIds.length > 0
+          ? selectedRow.groupMemberIds
+          : [selectedRow.id];
+      const isLocalGroup =
+        memberIds.every((id) => isLocalRow(id)) || !isAuthenticated;
+
+      if (isLocalGroup) {
+        const template =
+          getLocalCollection().find((i) => memberIds.includes(i.id)) ??
+          getLocalCollection().find(
+            (i) => i.tcgCardId === selectedRow.tcgCardId,
           );
-        } else {
-          updateLocalCollectionItem(selectedRow.id, {
+        if (template && (needsSplit || quantity > 1 || memberIds.length > 1)) {
+          replaceLocalCollectionForCard(template, perCopy, {
+            removeIds: memberIds,
+            purchaseDate,
+          });
+        } else if (template) {
+          updateLocalCollectionItem(memberIds[0], {
             quantity,
             condition: conditions[0] || "Near Mint",
             purchasePrice: singlePrice,
             purchaseDate,
           });
+        } else {
+          replaceLocalCollectionByCopies(selectedRow.id, perCopy, purchaseDate);
         }
         loadLocal();
         setEditing(false);
         return;
       }
 
-      if (needsSplit || quantity > 1) {
-        await fetch("/api/collection", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: selectedRow.id }),
-        });
-        // Group by condition with weighted avg EK
+      if (needsSplit || quantity > 1 || memberIds.length > 1) {
+        // Remove every storage row of this card, then re-add by condition
+        for (const mid of memberIds) {
+          await fetch("/api/collection", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: mid }),
+          });
+        }
         const byCond = new Map<string, number[]>();
         for (const c of perCopy) {
           const list = byCond.get(c.condition) ?? [];
@@ -925,7 +1065,14 @@ export function SammlungView() {
             }
           }
         }
-        replaceLocalCollectionByCopies(selectedRow.id, perCopy, purchaseDate);
+        const localTemplate = getLocalCollection().find(
+          (i) => i.tcgCardId === selectedRow.tcgCardId,
+        );
+        if (localTemplate) {
+          replaceLocalCollectionForCard(localTemplate, perCopy, {
+            purchaseDate,
+          });
+        }
         await loadCollection();
         setEditing(false);
         return;
@@ -971,28 +1118,39 @@ export function SammlungView() {
 
   const removeSelected = useCallback(async () => {
     if (!selectedRow) return;
+    const memberIds =
+      selectedRow.groupMemberIds && selectedRow.groupMemberIds.length > 0
+        ? selectedRow.groupMemberIds
+        : [selectedRow.id];
     const ok = window.confirm(
-      `„${selectedRow.name}“ aus der Sammlung entfernen?`,
+      memberIds.length > 1
+        ? `„${selectedRow.name}“ mit allen ${selectedRow.quantity} Exemplaren aus der Sammlung entfernen?`
+        : `„${selectedRow.name}“ aus der Sammlung entfernen?`,
     );
     if (!ok) return;
 
     setSaving(true);
     try {
-      if (isLocalRow(selectedRow.id) || !isAuthenticated) {
-        removeLocalCollectionItem(selectedRow.id);
+      const allLocal =
+        memberIds.every((id) => isLocalRow(id)) || !isAuthenticated;
+      if (allLocal) {
+        for (const mid of memberIds) {
+          removeLocalCollectionItem(mid);
+        }
         loadLocal();
       } else {
-        const res = await fetch("/api/collection", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: selectedRow.id }),
-        });
-        if (!res.ok) {
-          removeLocalCollectionItem(selectedRow.id);
-          loadLocal();
-        } else {
-          await loadCollection();
+        for (const mid of memberIds) {
+          const res = await fetch("/api/collection", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: mid }),
+          });
+          if (!res.ok) {
+            removeLocalCollectionItem(mid);
+          }
         }
+        loadLocal();
+        await loadCollection();
       }
       setEditing(false);
       setPanelOpen(false);
