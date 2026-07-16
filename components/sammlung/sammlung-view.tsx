@@ -1414,14 +1414,10 @@ export function SammlungView() {
                                           onClick={(e) =>
                                             toggleRowExpand(row.id, e)
                                           }
-                                          className={`mr-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
-                                            expanded
-                                              ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
-                                              : "border-[var(--accent)]/70 text-[var(--accent)] hover:border-[var(--accent)] hover:bg-[var(--accent-soft)]"
-                                          }`}
+                                          className="mr-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--accent)] transition-colors hover:bg-[var(--accent-soft)]"
                                         >
                                           <span
-                                            className={`inline-block text-lg font-semibold leading-none transition-transform ${
+                                            className={`inline-block text-xl font-semibold leading-none transition-transform ${
                                               expanded ? "rotate-90" : ""
                                             }`}
                                             aria-hidden
@@ -1445,7 +1441,6 @@ export function SammlungView() {
                                         {multi && (
                                           <p className="text-[11px] text-[var(--muted)]">
                                             {row.quantity} Exemplare
-                                            {expanded ? " · ausgeklappt" : ""}
                                           </p>
                                         )}
                                       </div>
