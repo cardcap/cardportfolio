@@ -35,7 +35,7 @@ import {
   getLocalCollection,
   localCollectionMetrics,
   removeLocalCollectionItem,
-  replaceLocalCollectionByConditions,
+  replaceLocalCollectionByCopies,
   updateLocalCollectionItem,
   type LocalCollectionItem,
 } from "@/lib/local-collection";
@@ -377,6 +377,8 @@ export function SammlungView() {
   const [editCondition, setEditCondition] = useState("Near Mint");
   /** One condition per exemplar when qty > 1 */
   const [editConditions, setEditConditions] = useState<string[]>(["Near Mint"]);
+  /** One EK (DE format string) per exemplar when qty > 1 */
+  const [editPrices, setEditPrices] = useState<string[]>([""]);
   const [editPrice, setEditPrice] = useState("");
   const [editDate, setEditDate] = useState("");
   const [saving, setSaving] = useState(false);
@@ -750,19 +752,20 @@ export function SammlungView() {
 
   const isLocalRow = (id: string) => id.startsWith("local-");
 
+  const formatPriceInput = (n: number | null | undefined) =>
+    n != null ? n.toFixed(2).replace(".", ",") : "";
+
   const startEdit = useCallback(() => {
     if (!selectedRow) return;
     const qty = Math.max(1, selectedRow.quantity);
+    const priceStr = formatPriceInput(selectedRow.purchasePrice);
     setEditQty(qty);
     setEditCondition(selectedRow.condition);
     setEditConditions(
       Array.from({ length: qty }, () => selectedRow.condition || "Near Mint"),
     );
-    setEditPrice(
-      selectedRow.purchasePrice != null
-        ? selectedRow.purchasePrice.toFixed(2).replace(".", ",")
-        : "",
-    );
+    setEditPrices(Array.from({ length: qty }, () => priceStr));
+    setEditPrice(priceStr);
     setEditDate(toDateInputValue(selectedRow.purchaseDate));
     setEditing(true);
   }, [selectedRow]);
@@ -778,6 +781,12 @@ export function SammlungView() {
       const fill = prev[prev.length - 1] || editCondition || "Near Mint";
       return [...prev, ...Array.from({ length: qty - prev.length }, () => fill)];
     });
+    setEditPrices((prev) => {
+      if (qty === prev.length) return prev;
+      if (qty < prev.length) return prev.slice(0, qty);
+      const fill = prev[prev.length - 1] || editPrice || "";
+      return [...prev, ...Array.from({ length: qty - prev.length }, () => fill)];
+    });
   };
 
   const setExemplarCondition = (index: number, condition: string) => {
@@ -786,39 +795,52 @@ export function SammlungView() {
       next[index] = condition;
       return next;
     });
-    // Keep single-select in sync when only one copy
     if (editQty === 1) setEditCondition(condition);
+  };
+
+  const setExemplarPrice = (index: number, value: string) => {
+    setEditPrices((prev) => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+    if (editQty === 1) setEditPrice(value);
   };
 
   const saveEdit = useCallback(async () => {
     if (!selectedRow) return;
     setSaving(true);
     try {
-      const purchasePrice = parseEuroInput(editPrice);
       const purchaseDate = editDate.trim() || null;
       const quantity = Math.max(1, Math.floor(editQty) || 1);
-      const perCopy =
-        editConditions.length === quantity
-          ? editConditions.map((c) => c || "Near Mint")
-          : Array.from(
-              { length: quantity },
-              (_, i) =>
-                editConditions[i] || editCondition || "Near Mint",
-            );
-      const uniqueConditions = new Set(perCopy);
-      const multiCondition = uniqueConditions.size > 1;
+      const perCopy = Array.from({ length: quantity }, (_, i) => ({
+        condition:
+          editConditions[i] || editCondition || "Near Mint",
+        purchasePrice: parseEuroInput(
+          editPrices[i] ?? editPrice ?? "",
+        ),
+      }));
+      const conditions = perCopy.map((c) => c.condition);
+      const prices = perCopy.map((c) => c.purchasePrice);
+      const uniqueConditions = new Set(conditions);
+      const uniquePrices = new Set(prices.map((p) => p ?? "null"));
+      const needsSplit =
+        uniqueConditions.size > 1 || uniquePrices.size > 1;
+
+      const singlePrice = prices[0] ?? parseEuroInput(editPrice);
 
       if (isLocalRow(selectedRow.id) || !isAuthenticated) {
-        if (multiCondition) {
-          replaceLocalCollectionByConditions(selectedRow.id, perCopy, {
-            purchasePrice,
+        if (needsSplit || quantity > 1) {
+          replaceLocalCollectionByCopies(
+            selectedRow.id,
+            perCopy,
             purchaseDate,
-          });
+          );
         } else {
           updateLocalCollectionItem(selectedRow.id, {
             quantity,
-            condition: perCopy[0] || "Near Mint",
-            purchasePrice,
+            condition: conditions[0] || "Near Mint",
+            purchasePrice: singlePrice,
             purchaseDate,
           });
         }
@@ -827,18 +849,25 @@ export function SammlungView() {
         return;
       }
 
-      if (multiCondition) {
-        // Split: remove original, re-add per condition group
+      if (needsSplit || quantity > 1) {
         await fetch("/api/collection", {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: selectedRow.id }),
         });
-        const counts = new Map<string, number>();
+        // Group by condition with weighted avg EK
+        const byCond = new Map<string, number[]>();
         for (const c of perCopy) {
-          counts.set(c, (counts.get(c) ?? 0) + 1);
+          const list = byCond.get(c.condition) ?? [];
+          list.push(c.purchasePrice ?? 0);
+          byCond.set(c.condition, list);
         }
-        for (const [condition, qty] of counts) {
+        for (const [condition, priceList] of byCond) {
+          const qty = priceList.length;
+          const avg =
+            Math.round(
+              (priceList.reduce((s, p) => s + p, 0) / qty) * 100,
+            ) / 100;
           const addRes = await fetch("/api/collection", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -859,24 +888,20 @@ export function SammlungView() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   id: body.data.id,
-                  purchasePrice,
+                  purchasePrice: avg,
                   purchaseDate,
                 }),
               });
             }
           }
         }
-        // Also keep local mirror in sync for demo merge
-        replaceLocalCollectionByConditions(selectedRow.id, perCopy, {
-          purchasePrice,
-          purchaseDate,
-        });
+        replaceLocalCollectionByCopies(selectedRow.id, perCopy, purchaseDate);
         await loadCollection();
         setEditing(false);
         return;
       }
 
-      const condition = perCopy[0] || "Near Mint";
+      const condition = conditions[0] || "Near Mint";
       const res = await fetch("/api/collection", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -884,7 +909,7 @@ export function SammlungView() {
           id: selectedRow.id,
           quantity,
           condition,
-          purchasePrice,
+          purchasePrice: singlePrice,
           purchaseDate,
         }),
       });
@@ -892,7 +917,7 @@ export function SammlungView() {
         updateLocalCollectionItem(selectedRow.id, {
           quantity,
           condition,
-          purchasePrice,
+          purchasePrice: singlePrice,
           purchaseDate,
         });
       }
@@ -904,6 +929,7 @@ export function SammlungView() {
   }, [
     selectedRow,
     editPrice,
+    editPrices,
     editDate,
     editQty,
     editCondition,
@@ -1496,17 +1522,31 @@ export function SammlungView() {
                                         row.quantity > 0
                                           ? row.profit / row.quantity
                                           : row.profit;
+                                      const isFirst = i === 0;
+                                      const isLast = i === row.quantity - 1;
+                                      // Pink frame around the whole expanded block only
+                                      const frame = [
+                                        "border-[var(--accent)] bg-[var(--accent-soft)]/25",
+                                        "border-x-2",
+                                        isFirst
+                                          ? "border-t-2 rounded-t-xl"
+                                          : "border-t border-t-[var(--accent)]/25",
+                                        isLast
+                                          ? "border-b-2 rounded-b-xl"
+                                          : "",
+                                      ]
+                                        .filter(Boolean)
+                                        .join(" ");
                                       return (
                                         <tr
                                           key={`${row.id}-ex-${i}`}
                                           onClick={openRow}
-                                          className={`cursor-pointer border-b border-[var(--border)] bg-[var(--background)]/80 text-sm last:border-0 hover:bg-[var(--surface-elevated)] ${
-                                            isSelected
-                                              ? "bg-[var(--accent-soft)]/50"
-                                              : ""
-                                          }`}
+                                          className={`cursor-pointer text-sm transition-colors hover:bg-[var(--accent-soft)]/50 ${frame}`}
                                         >
-                                          <td className="px-3 py-2 pl-12" colSpan={2}>
+                                          <td
+                                            className="px-3 py-2.5 pl-12"
+                                            colSpan={2}
+                                          >
                                             <div className="flex items-center gap-2">
                                               <span className="text-xs font-medium text-[var(--muted)]">
                                                 Exemplar {i + 1}
@@ -1517,31 +1557,31 @@ export function SammlungView() {
                                               />
                                             </div>
                                           </td>
-                                          <td className="px-3 py-2 text-[var(--muted)]">
+                                          <td className="px-3 py-2.5 text-[var(--muted)]">
                                             {rarityLabel}
                                           </td>
-                                          <td className="px-3 py-2 text-[var(--muted)]">
+                                          <td className="px-3 py-2.5 text-[var(--muted)]">
                                             {languageShort(row.language)}
                                           </td>
-                                          <td className="px-3 py-2">
+                                          <td className="px-3 py-2.5">
                                             <ConditionBadge
                                               condition={row.condition}
                                             />
                                           </td>
-                                          <td className="px-3 py-2 text-right tabular-nums text-[var(--muted)]">
+                                          <td className="px-3 py-2.5 text-right tabular-nums text-[var(--muted)]">
                                             1
                                           </td>
-                                          <td className="px-3 py-2 text-right tabular-nums text-[var(--muted)]">
+                                          <td className="px-3 py-2.5 text-right tabular-nums text-[var(--muted)]">
                                             {formatCurrency(row.purchasePrice)}
                                           </td>
-                                          <td className="px-3 py-2 text-right tabular-nums">
+                                          <td className="px-3 py-2.5 text-right tabular-nums">
                                             <Price value={unitMarket} />
                                           </td>
-                                          <td className="px-3 py-2 text-right tabular-nums">
+                                          <td className="px-3 py-2.5 text-right tabular-nums">
                                             <Price value={unitMarket} />
                                           </td>
                                           <td
-                                            className={`px-3 py-2 text-right tabular-nums ${profitClass}`}
+                                            className={`px-3 py-2.5 text-right tabular-nums ${profitClass}`}
                                           >
                                             {unitProfit > 0 ? "+" : ""}
                                             <Price
@@ -1780,51 +1820,84 @@ export function SammlungView() {
                 </label>
 
                 {editQty <= 1 ? (
-                  <label className="flex flex-col gap-1">
-                    <span className="text-[var(--muted)]">Zustand</span>
-                    <select
-                      value={editConditions[0] || editCondition}
-                      onChange={(e) => {
-                        setEditCondition(e.target.value);
-                        setEditConditions([e.target.value]);
-                      }}
-                      className="h-10 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3"
-                    >
-                      {EDIT_CONDITIONS.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[var(--muted)]">Zustand</span>
+                      <select
+                        value={editConditions[0] || editCondition}
+                        onChange={(e) => {
+                          setEditCondition(e.target.value);
+                          setEditConditions([e.target.value]);
+                        }}
+                        className="h-10 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3"
+                      >
+                        {EDIT_CONDITIONS.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[var(--muted)]">
+                        EK pro Karte (€)
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={editPrices[0] ?? editPrice}
+                        onChange={(e) => {
+                          setEditPrice(e.target.value);
+                          setEditPrices([e.target.value]);
+                        }}
+                        placeholder="0,00"
+                        className="h-10 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 tabular-nums"
+                      />
+                    </label>
+                  </>
                 ) : (
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="text-[var(--muted)]">
-                        Zustand pro Exemplar
+                        Zustand &amp; EK pro Exemplar
                       </span>
-                      <button
-                        type="button"
-                        className="text-xs font-medium text-[var(--accent)] hover:opacity-80"
-                        onClick={() => {
-                          const all = editConditions[0] || "Near Mint";
-                          setEditConditions(
-                            Array.from({ length: editQty }, () => all),
-                          );
-                        }}
-                      >
-                        Alle gleich setzen
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-[var(--accent)] hover:opacity-80"
+                          onClick={() => {
+                            const all = editConditions[0] || "Near Mint";
+                            setEditConditions(
+                              Array.from({ length: editQty }, () => all),
+                            );
+                          }}
+                        >
+                          Zustand für alle
+                        </button>
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-[var(--accent)] hover:opacity-80"
+                          onClick={() => {
+                            const all = editPrices[0] || editPrice || "";
+                            setEditPrices(
+                              Array.from({ length: editQty }, () => all),
+                            );
+                            setEditPrice(all);
+                          }}
+                        >
+                          EK für alle
+                        </button>
+                      </div>
                     </div>
                     <p className="text-[11px] text-[var(--muted)]">
-                      Bei unterschiedlichen Zuständen werden getrennte
-                      Einträge in der Sammlung angelegt.
+                      Unterschiedliche Zustände werden als getrennte Einträge
+                      gespeichert. EK gilt je Exemplar.
                     </p>
-                    <ul className="max-h-56 space-y-2 overflow-y-auto pr-0.5">
+                    <ul className="max-h-64 space-y-2 overflow-y-auto pr-0.5">
                       {Array.from({ length: editQty }, (_, i) => (
                         <li
                           key={i}
-                          className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2.5 py-2"
+                          className="flex flex-col gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2.5 py-2 sm:flex-row sm:items-center sm:gap-2"
                         >
                           <span className="w-20 shrink-0 text-xs text-[var(--muted)]">
                             Exemplar {i + 1}
@@ -1844,23 +1917,26 @@ export function SammlungView() {
                               </option>
                             ))}
                           </select>
+                          <label className="flex min-w-0 flex-1 items-center gap-1.5">
+                            <span className="shrink-0 text-[10px] uppercase tracking-wider text-[var(--muted)]">
+                              EK €
+                            </span>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={editPrices[i] ?? ""}
+                              onChange={(e) =>
+                                setExemplarPrice(i, e.target.value)
+                              }
+                              placeholder="0,00"
+                              className="h-9 min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 text-sm tabular-nums"
+                            />
+                          </label>
                         </li>
                       ))}
                     </ul>
                   </div>
                 )}
-
-                <label className="flex flex-col gap-1">
-                  <span className="text-[var(--muted)]">EK pro Karte (€)</span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={editPrice}
-                    onChange={(e) => setEditPrice(e.target.value)}
-                    placeholder="0,00"
-                    className="h-10 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 tabular-nums"
-                  />
-                </label>
                 <label className="flex flex-col gap-1">
                   <span className="text-[var(--muted)]">Kaufdatum</span>
                   <input

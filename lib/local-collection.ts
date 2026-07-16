@@ -167,21 +167,23 @@ export function removeLocalCollectionItem(id: string): boolean {
   return true;
 }
 
+export type CollectionCopyInput = {
+  condition: string;
+  purchasePrice: number | null;
+};
+
 /**
- * Replace one collection row with copies that may have different conditions.
- * `conditions` is one entry per exemplar (length = total quantity).
+ * Replace one collection row with per-exemplar condition + EK.
+ * Same condition is merged; EK is quantity-weighted average when prices differ.
  */
-export function replaceLocalCollectionByConditions(
+export function replaceLocalCollectionByCopies(
   id: string,
-  conditions: string[],
-  patch: {
-    purchasePrice?: number | null;
-    purchaseDate?: string | null;
-  } = {},
+  copies: CollectionCopyInput[],
+  purchaseDate?: string | null,
 ): LocalCollectionItem[] {
   const items = getLocalCollection();
   const idx = items.findIndex((i) => i.id === id);
-  if (idx < 0 || conditions.length === 0) return items;
+  if (idx < 0 || copies.length === 0) return items;
 
   const orig = items[idx];
   const unitMarket =
@@ -189,23 +191,25 @@ export function replaceLocalCollectionByConditions(
       ? (orig.marketValue || 0) / Math.max(1, orig.quantity)
       : (orig.purchasePrice ?? 0);
 
-  const counts = new Map<string, number>();
-  for (const raw of conditions) {
-    const c = (raw || "Near Mint").trim() || "Near Mint";
-    counts.set(c, (counts.get(c) ?? 0) + 1);
+  // condition → list of EKs
+  const byCondition = new Map<string, number[]>();
+  for (const copy of copies) {
+    const c = (copy.condition || "Near Mint").trim() || "Near Mint";
+    const list = byCondition.get(c) ?? [];
+    list.push(copy.purchasePrice ?? 0);
+    byCondition.set(c, list);
   }
 
-  // Drop original; other rows with same tcgCardId stay until we merge
   let next = items.filter((i) => i.id !== id);
   const result: LocalCollectionItem[] = [];
+  const date =
+    purchaseDate !== undefined ? purchaseDate : orig.purchaseDate;
 
-  for (const [condition, quantity] of counts) {
+  for (const [condition, prices] of byCondition) {
+    const quantity = prices.length;
+    const sum = prices.reduce((s, p) => s + p, 0);
     const purchasePrice =
-      patch.purchasePrice !== undefined
-        ? patch.purchasePrice
-        : orig.purchasePrice;
-    const purchaseDate =
-      patch.purchaseDate !== undefined ? patch.purchaseDate : orig.purchaseDate;
+      Math.round((sum / Math.max(1, quantity)) * 100) / 100;
 
     const existingIdx = next.findIndex(
       (i) => i.tcgCardId === orig.tcgCardId && i.condition === condition,
@@ -213,22 +217,22 @@ export function replaceLocalCollectionByConditions(
 
     if (existingIdx >= 0) {
       const existing = { ...next[existingIdx] };
-      existing.quantity += quantity;
-      if (patch.purchasePrice !== undefined) {
-        existing.purchasePrice = patch.purchasePrice;
-      }
-      if (patch.purchaseDate !== undefined) {
-        existing.purchaseDate = patch.purchaseDate;
-      }
+      const prevQty = existing.quantity;
+      const prevUnit = existing.purchasePrice ?? 0;
+      const newQty = prevQty + quantity;
+      const blended =
+        Math.round(
+          ((prevUnit * prevQty + purchasePrice * quantity) / newQty) * 100,
+        ) / 100;
+      existing.quantity = newQty;
+      existing.purchasePrice = blended;
+      existing.purchaseDate = date ?? existing.purchaseDate;
       existing.marketValue =
         Math.round(unitMarket * existing.quantity * 100) / 100;
-      if (existing.purchasePrice != null) {
-        existing.profit =
-          Math.round(
-            (existing.marketValue - existing.purchasePrice * existing.quantity) *
-              100,
-          ) / 100;
-      }
+      existing.profit =
+        Math.round(
+          (existing.marketValue - blended * existing.quantity) * 100,
+        ) / 100;
       next[existingIdx] = existing;
       result.push(existing);
       continue;
@@ -239,14 +243,12 @@ export function replaceLocalCollectionByConditions(
       id: uid(),
       condition,
       quantity,
-      purchasePrice: purchasePrice ?? null,
-      purchaseDate: purchaseDate ?? null,
+      purchasePrice,
+      purchaseDate: date ?? null,
       marketValue: Math.round(unitMarket * quantity * 100) / 100,
       profit:
-        purchasePrice != null
-          ? Math.round((unitMarket * quantity - purchasePrice * quantity) * 100) /
-            100
-          : orig.profit,
+        Math.round((unitMarket * quantity - purchasePrice * quantity) * 100) /
+        100,
     };
     next.unshift(created);
     result.push(created);
@@ -254,6 +256,26 @@ export function replaceLocalCollectionByConditions(
 
   saveLocalCollection(next);
   return result;
+}
+
+/** @deprecated use replaceLocalCollectionByCopies */
+export function replaceLocalCollectionByConditions(
+  id: string,
+  conditions: string[],
+  patch: {
+    purchasePrice?: number | null;
+    purchaseDate?: string | null;
+  } = {},
+): LocalCollectionItem[] {
+  return replaceLocalCollectionByCopies(
+    id,
+    conditions.map((condition) => ({
+      condition,
+      purchasePrice:
+        patch.purchasePrice !== undefined ? patch.purchasePrice : null,
+    })),
+    patch.purchaseDate,
+  );
 }
 
 export function localCollectionMetrics(items: LocalCollectionItem[]) {
