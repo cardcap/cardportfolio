@@ -112,7 +112,7 @@ export function buildSealedCatalog(sets: TcgSet[]): CatalogSealedProduct[] {
       const langs = TYPE_CONFIG[type].langs;
       const lang = langs[h % langs.length];
       const id = `sealed-cat-${set.id}-${type.replace(/\s+/g, "-").toLowerCase()}-${lang}`;
-      const images = buildSealedImagesFromSet(set);
+      const images = buildSealedImagesFromSet(set, type);
       products.push({
         id,
         name: `${set.name} ${TYPE_CONFIG[type].suffix}`,

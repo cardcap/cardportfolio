@@ -715,12 +715,16 @@ function SetListRow({
 }
 
 function buildFallbacks(set: TcgSet, language: CardLanguage): string[] {
+  const serie = set.seriesId ?? "";
   const list = [
     ...(set.images.fallbacks ?? []),
-    set.images.symbol,
-    `https://assets.tcgdex.net/${language}/${set.seriesId ?? ""}/${set.id}/logo.webp`,
-    `https://assets.tcgdex.net/en/${set.seriesId ?? ""}/${set.id}/logo.webp`,
+    // Prefer EN/DE logos before symbol (classic sets often only have EN)
+    `https://assets.tcgdex.net/en/${serie}/${set.id}/logo.webp`,
+    `https://assets.tcgdex.net/en/${serie}/${set.id}/logo.png`,
+    `https://assets.tcgdex.net/${language}/${serie}/${set.id}/logo.webp`,
+    `https://assets.tcgdex.net/de/${serie}/${set.id}/logo.webp`,
     `https://images.pokemontcg.io/${set.id}/logo.png`,
+    set.images.symbol,
   ].filter(Boolean);
   return [...new Set(list)].filter((u) => u !== set.images.logo);
 }

@@ -14,6 +14,10 @@ import {
   resolveRarityForApi,
 } from "@/lib/rarity-labels";
 import type { CardsResponse, TcgCard, TcgSet } from "@/lib/pokemon-tcg";
+import {
+  normalizeAssetUrl,
+  resolveSetImageUrls as resolveSetImagesShared,
+} from "@/lib/set-images";
 import { COLORS_BY_LANG } from "@/lib/tcgdex-constants";
 import {
   DEFAULT_LANGUAGE,
@@ -101,13 +105,8 @@ export function extractSerieId(set: TcgdexCachedSet): string | null {
   return match?.[1] ?? null;
 }
 
-const TCGDEX_ASSET_EXT = /\.(webp|png|jpg|jpeg|gif|svg)$/i;
-
 export function normalizeTcgdexAssetUrl(url: string): string {
-  if (!url) return "";
-  const trimmed = url.replace(/\/$/, "");
-  if (TCGDEX_ASSET_EXT.test(trimmed)) return trimmed;
-  return `${trimmed}.webp`;
+  return normalizeAssetUrl(url);
 }
 
 export function buildSetLogoUrl(
@@ -135,32 +134,16 @@ export function resolveSetImageUrls(
   set: TcgdexCachedSet,
   lang: CardLanguage,
 ): { logo: string; symbol: string; fallbacks: string[] } {
-  const symbol = buildSetSymbolUrl(set);
-  let logo = "";
-
-  if (set.logo) {
-    logo = normalizeTcgdexAssetUrl(set.logo);
-  } else if (symbol) {
-    logo = symbol;
-  } else {
-    logo = buildSetLogoUrl(set, lang);
-  }
-
-  // Additional sources when TCGdex logo is missing
-  const fallbacks = [
-    logo,
-    symbol,
-    buildSetLogoUrl(set, lang),
-    buildSetLogoUrl(set, "en"),
-    `https://images.pokemontcg.io/${set.id}/logo.png`,
-    symbol ? symbol.replace(/\.webp$/i, ".png") : "",
-  ].filter(Boolean);
-
-  return {
-    logo,
-    symbol,
-    fallbacks: [...new Set(fallbacks)].filter((u) => u !== logo),
-  };
+  const serieId = extractSerieId(set) ?? set.serieId ?? "";
+  return resolveSetImagesShared(
+    {
+      id: set.id,
+      logo: set.logo,
+      symbol: set.symbol,
+      serieId,
+    },
+    lang,
+  );
 }
 
 function normalizeImageBase(url: string): string {

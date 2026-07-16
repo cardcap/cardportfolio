@@ -46,23 +46,18 @@ export function SealedProductImage({
         background: `linear-gradient(145deg, hsl(${hue} 42% 24%), #0c0c10 72%)`,
       }}
     >
-      {/* subtle product box frame */}
-      <div
-        className="pointer-events-none absolute inset-[8%] rounded-md border border-white/10 bg-black/20"
-        aria-hidden
-      />
-
       {showImage ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={sources[index]}
           alt={alt}
           loading="lazy"
+          decoding="async"
           onError={() => {
             if (index < sources.length - 1) setIndex((i) => i + 1);
             else setFailed(true);
           }}
-          className="relative z-[1] h-full w-full object-contain p-2 drop-shadow-lg sm:p-3"
+          className="relative z-[1] h-full w-full object-contain p-1.5 drop-shadow-md sm:p-2"
         />
       ) : (
         <div className="relative z-[1] flex h-full w-full flex-col items-center justify-center gap-1 px-2 text-center">

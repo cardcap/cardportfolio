@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
 
 type SetLogoProps = {
@@ -17,6 +16,10 @@ const sizes = {
   lg: "h-16 w-36",
 };
 
+/**
+ * Set logo with multi-URL fallback chain.
+ * Uses plain <img> for full-resolution TCGdex/PokémonTCG assets (no Next image compression).
+ */
 export function SetLogo({
   src,
   alt,
@@ -54,21 +57,14 @@ export function SetLogo({
 
   return (
     <div className={containerClass}>
-      <Image
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
         src={currentSrc}
         alt={alt}
-        fill
-        className={`object-contain ${isBanner ? "p-6 sm:p-8" : "p-2"}`}
-        sizes={
-          size === "sm"
-            ? "72px"
-            : size === "lg"
-              ? "144px"
-              : isBanner
-                ? "(max-width: 768px) 100vw, 33vw"
-                : "200px"
-        }
+        loading="lazy"
+        decoding="async"
         onError={handleError}
+        className={`h-full w-full object-contain ${isBanner ? "p-4 sm:p-5" : "p-1.5"}`}
       />
     </div>
   );
