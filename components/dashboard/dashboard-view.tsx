@@ -214,7 +214,7 @@ export function DashboardView() {
       </PageHeader>
 
       {/* Primary metrics — react to Gesamt / Karten / Sealed */}
-      <div className="mb-3 grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className="mb-3 grid grid-cols-2 items-stretch gap-3 xl:grid-cols-4">
         <MetricCard
           label={scoped.valueLabel}
           value={formatMarketPrice(scoped.totalValue)}
@@ -230,7 +230,6 @@ export function DashboardView() {
           infoText={scoped.valueInfo}
           sparkline={scoped.sparkTotal}
           sparkStyle="area"
-          period="7T"
           periodNote="letzte 7 Tage"
         />
         <MetricCard
@@ -250,7 +249,6 @@ export function DashboardView() {
           infoText={scoped.investInfo}
           sparkline={scoped.sparkInvested}
           sparkStyle="step"
-          period="7T"
           periodNote="letzte 7 Tage"
         />
         <MetricCard
@@ -262,7 +260,6 @@ export function DashboardView() {
           colorValue
           info
           infoText={scoped.profitInfo}
-          period="7T"
           periodNote="letzte 7 Tage"
         />
         <MetricCard
@@ -275,7 +272,6 @@ export function DashboardView() {
           colorValue
           info
           infoText={scoped.returnInfo}
-          period="7T"
           periodNote="letzte 7 Tage"
         />
       </div>

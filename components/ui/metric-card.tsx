@@ -28,9 +28,9 @@ type MetricCardProps = {
   changeMeta?: string;
   /** Put changeMeta on the €/Δ line instead of under periodNote */
   metaWithDelta?: boolean;
-  /** Period chip, default "7T" */
+  /** Optional period chip (e.g. "7T") — omit to hide */
   period?: string;
-  /** Subline under change, default "letzte 7 Tage" when period set */
+  /** Subline under change, e.g. "letzte 7 Tage" */
   periodNote?: string;
   /** Show info affordance next to label */
   info?: boolean;
@@ -54,7 +54,7 @@ export function MetricCard({
   changePct,
   changeMeta,
   metaWithDelta = false,
-  period = "7T",
+  period,
   periodNote,
   info,
   infoText,
@@ -98,8 +98,9 @@ export function MetricCard({
             ? "Prozentuale Entwicklung: (Marktwert − Investiert) ÷ Investiert."
             : "Weitere Informationen zu dieser Kennzahl.");
 
-  const hasDelta = changeAbs != null || changePct != null || Boolean(changeMeta);
-  const note = periodNote ?? (hasDelta || sparkline ? "letzte 7 Tage" : undefined);
+  const hasDelta =
+    changeAbs != null || changePct != null || (metaWithDelta && Boolean(changeMeta));
+  const note = periodNote;
 
   let absText: string | null = null;
   if (changeAbs != null) {
@@ -124,24 +125,24 @@ export function MetricCard({
 
   return (
     <div
-      className={`rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3.5 sm:px-4 sm:py-4 ${className}`}
+      className={`flex h-full flex-col rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3.5 sm:px-4 sm:py-4 ${className}`}
     >
-      {/* Header: label + period chip */}
+      {/* Header — no period chip unless explicitly set */}
       <div className="flex items-start justify-between gap-2">
         <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-[var(--muted)]">
           {label}
           {info && <InfoTip text={tip} />}
         </p>
-        {(period || sparkline) && (
+        {period ? (
           <span className="shrink-0 rounded-full border border-[var(--border)] bg-[var(--background)] px-2.5 py-1 text-xs font-medium tabular-nums text-[var(--muted)]">
             {period}
           </span>
-        )}
+        ) : null}
       </div>
 
-      {/* Value + sparkline */}
-      <div className="mt-2.5 flex items-end justify-between gap-3">
-        <div className="min-w-0 flex-1">
+      {/* Body: text + sparkline bottom-aligned across cards */}
+      <div className="mt-2.5 flex min-h-0 flex-1 items-end justify-between gap-3">
+        <div className="flex min-h-[4.75rem] min-w-0 flex-1 flex-col justify-end">
           <p
             className={`tabular-nums text-xl font-semibold tracking-tight sm:text-[1.35rem] ${valueColor}`}
           >
@@ -173,7 +174,6 @@ export function MetricCard({
             </p>
           )}
 
-          {/* Legacy hint if no structured delta */}
           {!hasDelta && hint && (
             <p
               className={`mt-1.5 text-xs tabular-nums ${
@@ -188,25 +188,27 @@ export function MetricCard({
             </p>
           )}
 
-          {/* Always same slot for period so cards align (“letzte 7 Tage”) */}
-          {note && (
-            <p className="mt-1 text-[11px] text-[var(--muted)]">{note}</p>
-          )}
-          {/* Meta below period (e.g. “3 Käufe”) — keeps 7-Tage line level across cards */}
-          {!metaWithDelta && changeMeta && (
-            <p className="mt-0.5 text-[11px] text-[var(--muted)]">{changeMeta}</p>
+          {/* Fixed footer slot: period + meta on one line when both exist */}
+          {(note || (!metaWithDelta && changeMeta)) && (
+            <p className="mt-1 text-[11px] text-[var(--muted)]">
+              {note}
+              {note && !metaWithDelta && changeMeta ? " · " : null}
+              {!metaWithDelta && changeMeta ? changeMeta : null}
+            </p>
           )}
         </div>
 
-        {sparkline && sparkline.length > 1 && (
-          <MiniSparkline
-            values={sparkline}
-            positive={trendPositive}
-            negative={trendNegative}
-            accent={accent}
-            style={sparkStyle}
-          />
-        )}
+        {sparkline && sparkline.length > 1 ? (
+          <div className="flex h-[3.25rem] shrink-0 items-end">
+            <MiniSparkline
+              values={sparkline}
+              positive={trendPositive}
+              negative={trendNegative}
+              accent={accent}
+              style={sparkStyle}
+            />
+          </div>
+        ) : null}
       </div>
     </div>
   );
