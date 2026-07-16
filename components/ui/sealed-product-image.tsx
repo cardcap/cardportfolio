@@ -57,7 +57,7 @@ export function SealedProductImage({
             if (index < sources.length - 1) setIndex((i) => i + 1);
             else setFailed(true);
           }}
-          className="relative z-[1] h-full w-full object-contain p-1.5 drop-shadow-md sm:p-2"
+          className="relative z-[1] h-full w-full object-contain p-1 drop-shadow-lg sm:p-1.5"
         />
       ) : (
         <div className="relative z-[1] flex h-full w-full flex-col items-center justify-center gap-1 px-2 text-center">

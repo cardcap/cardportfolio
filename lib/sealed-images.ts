@@ -1,14 +1,11 @@
 /**
- * Sealed product images: prefer real product photos (TCGPlayer CDN) when mapped,
- * otherwise high-res set logos (EN first) — never a wrong set / bare symbol.
+ * Sealed product images: real retail product photos (TCGPlayer CDN via catalog map).
+ * Prefer product type match → set default product → soft branded placeholder.
+ * Do not use set logos as product photos (they look wrong on sealed tiles).
  */
 
 import type { TcgSet } from "@/lib/pokemon-tcg";
-import {
-  normalizeAssetUrl,
-  POKEMONTCG_SET_CODES,
-  resolveSetImageUrls,
-} from "@/lib/set-images";
+import sealedImageMap from "@/data/sealed-product-images.json";
 
 /** Keep in sync with sealed-catalog SealedProductType (avoid circular import) */
 type SealedProductType =
@@ -24,83 +21,57 @@ export type SealedImageSet = {
   imageFallbacks: string[];
 };
 
-/** TCGPlayer product IDs for common sealed SKUs (EN retail photos, 800px) */
-const TCGPLAYER_SEALED: Partial<
-  Record<string, Partial<Record<SealedProductType | "default", number>>>
-> = {
-  // Scarlet & Violet base
-  sv01: {
-    "Booster Display": 495000,
-    "Top-Trainer-Box": 495001,
-    default: 495000,
-  },
-  sv02: {
-    "Booster Display": 501000,
-    default: 501000,
-  },
-  sv03: {
-    "Booster Display": 511234,
-    "Top-Trainer-Box": 511235,
-    default: 511234,
-  },
-  "sv03.5": {
-    "Booster Display": 517172,
-    "Top-Trainer-Box": 517173,
-    "Booster Bundle": 517174,
-    default: 517172,
-  },
-  sv04: {
-    "Booster Display": 528000,
-    default: 528000,
-  },
-  "sv04.5": {
-    "Booster Display": 540080,
-    "Top-Trainer-Box": 540081,
-    default: 540080,
-  },
-  sv05: {
-    "Booster Display": 540082,
-    "Top-Trainer-Box": 540083,
-    default: 540082,
-  },
-  sv06: {
-    "Booster Display": 540084,
-    default: 540084,
-  },
-  "sv06.5": {
-    "Booster Display": 553680,
-    "Top-Trainer-Box": 553681,
-    default: 553680,
-  },
-  sv07: {
-    "Booster Display": 553682,
-    "Top-Trainer-Box": 553683,
-    default: 553682,
-  },
-  sv08: {
-    "Booster Display": 478138,
-    "Top-Trainer-Box": 478139,
-    default: 478138,
-  },
+type MappedProduct = {
+  productId: number;
+  name: string;
+  imageUrl: string;
+  imageFallbacks: string[];
 };
 
-function tcgplayerUrl(productId: number, size = 800): string {
-  return `https://product-images.tcgplayer.com/fit-in/${size}x${size}/${productId}.jpg`;
-}
+type SetImageEntry = {
+  groupId: number;
+  groupName: string;
+  products: Partial<Record<SealedProductType, MappedProduct>>;
+  default?: MappedProduct;
+};
 
-function productIdsFor(
+const BY_SET = (sealedImageMap as { bySet: Record<string, SetImageEntry> })
+  .bySet;
+
+function mappedImages(
   setId: string,
   productType?: SealedProductType,
-): number[] {
-  const entry = TCGPLAYER_SEALED[setId];
-  if (!entry) return [];
-  const ids: number[] = [];
-  if (productType && entry[productType]) ids.push(entry[productType]!);
-  if (entry.default) ids.push(entry.default);
-  for (const v of Object.values(entry)) {
-    if (typeof v === "number" && !ids.includes(v)) ids.push(v);
+): SealedImageSet | null {
+  const entry = BY_SET[setId];
+  if (!entry) return null;
+
+  const pick =
+    (productType && entry.products[productType]) ||
+    entry.default ||
+    entry.products["Booster Display"] ||
+    entry.products["Top-Trainer-Box"] ||
+    Object.values(entry.products).find(Boolean);
+
+  if (!pick) return null;
+
+  // Cross-type fallbacks from same set (still real product photos)
+  const extras: string[] = [];
+  for (const p of Object.values(entry.products)) {
+    if (!p || p.productId === pick.productId) continue;
+    extras.push(p.imageUrl, ...(p.imageFallbacks ?? []));
   }
-  return ids;
+
+  const urls = [
+    pick.imageUrl,
+    ...(pick.imageFallbacks ?? []),
+    ...extras,
+  ].filter(Boolean);
+
+  const unique = [...new Set(urls)];
+  return {
+    imageUrl: unique[0] ?? "",
+    imageFallbacks: unique.slice(1),
+  };
 }
 
 /**
@@ -110,46 +81,12 @@ export function buildSealedImagesFromSet(
   set: TcgSet,
   productType?: SealedProductType,
 ): SealedImageSet {
-  const urls: string[] = [];
+  const mapped = mappedImages(set.id, productType);
+  if (mapped?.imageUrl) return mapped;
 
-  // 1) Real product photos when we have TCGPlayer IDs for this set
-  for (const id of productIdsFor(set.id, productType)) {
-    urls.push(tcgplayerUrl(id, 800), tcgplayerUrl(id, 437));
-  }
-
-  // 2) High-res set logos (correct set branding)
-  const resolved = resolveSetImageUrls(
-    {
-      id: set.id,
-      logo: set.images?.logo,
-      symbol: set.images?.symbol,
-      serieId: set.seriesId,
-    },
-    "en",
-  );
-  if (resolved.logo) urls.push(resolved.logo);
-  urls.push(...resolved.fallbacks);
-
-  // 3) Featured card art as soft last resort (pack-style, high res)
-  const serie = set.seriesId;
-  if (serie) {
-    urls.push(
-      `https://assets.tcgdex.net/en/${serie}/${set.id}/1/high.webp`,
-      `https://assets.tcgdex.net/en/${serie}/${set.id}/001/high.webp`,
-      `https://assets.tcgdex.net/en/${serie}/${set.id}/2/high.webp`,
-    );
-  }
-
-  const ptcg = POKEMONTCG_SET_CODES[set.id];
-  if (ptcg) {
-    urls.push(`https://images.pokemontcg.io/${ptcg}/1_hires.png`);
-  }
-
-  const unique = [...new Set(urls.map(normalizeAssetUrl).filter(Boolean))];
-  return {
-    imageUrl: unique[0] ?? "",
-    imageFallbacks: unique.slice(1),
-  };
+  // No product photo mapped yet — empty src → SealedProductImage shows gradient placeholder
+  // (better than wrong set logo on a product tile)
+  return { imageUrl: "", imageFallbacks: [] };
 }
 
 /**
@@ -165,7 +102,7 @@ const DEMO_SEALED_META: Record<
   sp4: { serie: "sv", setId: "sv03.5", type: "Kollektion", ptcg: "sv3pt5" },
   sp5: { serie: "sv", setId: "sv06", type: "Tin", ptcg: "sv6" },
   sp6: { serie: "sv", setId: "sv02", type: "Blister", ptcg: "sv2" },
-  sp7: { serie: "sv", setId: "sv08", type: "Booster Display", ptcg: "sv8" },
+  sp7: { serie: "me", setId: "me04", type: "Booster Display" },
   sp8: {
     serie: "swsh",
     setId: "swsh12",
@@ -198,6 +135,9 @@ export function getDemoSealedImages(productId: string): SealedImageSet {
     return getDemoSealedImages(keys[h % keys.length]);
   }
 
+  const mapped = mappedImages(meta.setId, meta.type);
+  if (mapped?.imageUrl) return mapped;
+
   const fakeSet = {
     id: meta.setId,
     name: meta.setId,
@@ -206,8 +146,8 @@ export function getDemoSealedImages(productId: string): SealedImageSet {
     total: 100,
     releaseDate: "",
     images: {
-      logo: `https://assets.tcgdex.net/en/${meta.serie}/${meta.setId}/logo.webp`,
-      symbol: `https://assets.tcgdex.net/univ/${meta.serie}/${meta.setId}/symbol.webp`,
+      logo: "",
+      symbol: "",
       fallbacks: [],
     },
   } satisfies TcgSet;

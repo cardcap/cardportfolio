@@ -13,6 +13,7 @@
     "patch-sets": "node scripts/patch-sets.mjs",
     "patch-types": "node scripts/patch-card-types.mjs",
     "sync-set-codes": "node scripts/sync-set-codes.mjs",
+    "sync-sealed-images": "node scripts/sync-sealed-images.mjs",
     "update-prices": "node scripts/update-prices.mjs",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
