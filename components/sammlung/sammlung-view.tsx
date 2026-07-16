@@ -359,7 +359,7 @@ export function SammlungView() {
   const [metrics, setMetrics] = useState<CollectionMetrics | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [uiReady, setUiReady] = useState(false);
-  const [search, setSearch] = useState(DEFAULT_UI.search);
+  const [search, setSearch] = useState("");
   const [setFilter, setSetFilter] = useState(DEFAULT_UI.setFilter);
   const [languageFilter, setLanguageFilter] = useState(DEFAULT_UI.languageFilter);
   const [conditionFilter, setConditionFilter] = useState(
@@ -465,10 +465,10 @@ export function SammlungView() {
     };
   }, [loadCollection, loadLocal]);
 
-  // Restore filters / page size after mount (SSR-safe)
+  // Restore filters / page size after mount (SSR-safe). Search is never restored.
   useEffect(() => {
     const saved = loadKartenUi();
-    setSearch(saved.search);
+    setSearch(""); // always clear search when entering the page
     setSetFilter(saved.setFilter);
     setLanguageFilter(saved.languageFilter);
     setConditionFilter(saved.conditionFilter);
@@ -482,11 +482,17 @@ export function SammlungView() {
     skipPageResetRef.current = true;
   }, []);
 
-  // Persist filters so they survive pagination and leaving/re-entering the page
+  // Clear search when leaving Assets → Karten (soft navigation)
+  useEffect(() => {
+    return () => {
+      setSearch("");
+    };
+  }, []);
+
+  // Persist filters (without search) so other prefs survive reload
   useEffect(() => {
     if (!uiReady || typeof window === "undefined") return;
     const payload: KartenUiState = {
-      search,
       setFilter,
       languageFilter,
       conditionFilter,
@@ -503,7 +509,6 @@ export function SammlungView() {
     }
   }, [
     uiReady,
-    search,
     setFilter,
     languageFilter,
     conditionFilter,
@@ -1396,7 +1401,7 @@ export function SammlungView() {
                                   } ${expanded ? "border-b-0" : "last:border-0"}`}
                                 >
                                   <td className="px-3 py-2.5">
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-3">
                                       {multi ? (
                                         <button
                                           type="button"
@@ -1409,10 +1414,14 @@ export function SammlungView() {
                                           onClick={(e) =>
                                             toggleRowExpand(row.id, e)
                                           }
-                                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)]"
+                                          className={`mr-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                                            expanded
+                                              ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                                              : "border-[var(--accent)]/70 text-[var(--accent)] hover:border-[var(--accent)] hover:bg-[var(--accent-soft)]"
+                                          }`}
                                         >
                                           <span
-                                            className={`inline-block text-xs transition-transform ${
+                                            className={`inline-block text-lg font-semibold leading-none transition-transform ${
                                               expanded ? "rotate-90" : ""
                                             }`}
                                             aria-hidden
@@ -1421,7 +1430,7 @@ export function SammlungView() {
                                           </span>
                                         </button>
                                       ) : (
-                                        <span className="w-7 shrink-0" />
+                                        <span className="w-9 shrink-0" />
                                       )}
                                       <CardImage
                                         src={row.imageUrl}
@@ -1429,7 +1438,7 @@ export function SammlungView() {
                                         alt={row.name}
                                         size="sm"
                                       />
-                                      <div className="min-w-0">
+                                      <div className="min-w-0 pl-0.5">
                                         <span className="font-medium">
                                           {row.name}
                                         </span>
