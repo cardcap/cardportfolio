@@ -282,8 +282,8 @@ export function SammlungView() {
         onClose={() => setImportOpen(false)}
         onImported={() => void loadCollection()}
       />
-      <div className="flex min-h-0 flex-1 flex-col">
-        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
+      {/* Scroll via AppShell main only — no nested overflow (was blocking wheel scroll) */}
+      <div className="w-full min-w-0 pb-4">
           <div className="mb-1 text-xs text-[var(--muted)]">
             <Link href="/assets/sealed" className="hover:text-[var(--foreground)]">
               Assets
@@ -573,7 +573,6 @@ export function SammlungView() {
               </p>
             )
           ) : null}
-        </div>
       </div>
 
       {selectedRow && panelOpen && (
