@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AreaChart } from "@/components/charts/area-chart";
 import { DonutChart } from "@/components/charts/donut-chart";
 import { PageHeader } from "@/components/layout/page-header";
@@ -29,8 +29,130 @@ import { setDetailPath } from "@/lib/set-path";
 
 type Scope = "gesamt" | "karten" | "sealed";
 
+function scaleSpark(values: number[], targetEnd: number): number[] {
+  if (!values.length) return values;
+  const last = values[values.length - 1] || 1;
+  const factor = targetEnd / last;
+  return values.map((v) => Math.round(v * factor));
+}
+
 export function DashboardView() {
   const [scope, setScope] = useState<Scope>("gesamt");
+  const m = portfolioMetrics;
+
+  const scoped = useMemo(() => {
+    if (scope === "karten") {
+      const share = m.cardsValue / m.totalValue;
+      const invested = Math.round(m.invested * share);
+      const profit = m.cardsValue - invested;
+      const returnRate = invested > 0 ? (profit / invested) * 100 : 0;
+      const weekly = m.weeklyChange + 0.4;
+      return {
+        totalValue: m.cardsValue,
+        invested,
+        profitLoss: profit,
+        returnRate,
+        weeklyChange: weekly,
+        weeklyChangeInvested: m.weeklyChangeInvested + 0.2,
+        sparkTotal: scaleSpark(metricSparklines.totalValue, m.cardsValue),
+        sparkInvested: scaleSpark(metricSparklines.invested, invested),
+        valueLabel: "Kartenwert",
+        valueInfo: "Aktueller Marktwert nur deiner Einzelkarten.",
+        investInfo: "Summe der Einkaufspreise (EK) deiner Karten-Positionen.",
+        profitInfo: "Karten-Marktwert minus investiertes Karten-Kapital.",
+        returnInfo: "Rendite nur auf den Karten-Anteil deines Portfolios.",
+        allocation: [
+          {
+            label: "Karten",
+            percent: 100,
+            color: "#f472b6",
+            value: m.cardsValue,
+          },
+        ],
+        breakdown: portfolioAllocationBreakdown.filter(
+          (b) => b.label === "Einzelkarten" || b.label.toLowerCase().includes("karte"),
+        ),
+        centerLabel: "Karten",
+        recent: recentAdditions.filter((r) => r.kind !== "Sealed"),
+        losers: topLosersDetailed.filter((r) => r.kind !== "Sealed"),
+        showSets: true,
+        countCards: m.totalCards,
+        countSealed: m.sealedCount,
+      };
+    }
+    if (scope === "sealed") {
+      const share = m.sealedValue / m.totalValue;
+      const invested = Math.round(m.invested * share);
+      const profit = m.sealedValue - invested;
+      const returnRate = invested > 0 ? (profit / invested) * 100 : 0;
+      const weekly = m.weeklyChange - 0.6;
+      return {
+        totalValue: m.sealedValue,
+        invested,
+        profitLoss: profit,
+        returnRate,
+        weeklyChange: weekly,
+        weeklyChangeInvested: m.weeklyChangeInvested - 0.1,
+        sparkTotal: scaleSpark(metricSparklines.totalValue, m.sealedValue),
+        sparkInvested: scaleSpark(metricSparklines.invested, invested),
+        valueLabel: "Sealed-Wert",
+        valueInfo: "Aktueller Marktwert nur deiner Sealed-Produkte.",
+        investInfo: "Summe der Einkaufspreise (EK) deiner Sealed-Produkte.",
+        profitInfo: "Sealed-Marktwert minus investiertes Sealed-Kapital.",
+        returnInfo: "Rendite nur auf den Sealed-Anteil deines Portfolios.",
+        allocation: [
+          {
+            label: "Sealed",
+            percent: 100,
+            color: "#a78bfa",
+            value: m.sealedValue,
+          },
+        ],
+        breakdown: portfolioAllocationBreakdown.filter(
+          (b) =>
+            b.label !== "Einzelkarten" &&
+            !b.label.toLowerCase().includes("karte"),
+        ),
+        centerLabel: "Sealed",
+        recent: recentAdditions.filter((r) => r.kind === "Sealed"),
+        losers: topLosersDetailed.filter((r) => r.kind === "Sealed"),
+        showSets: false,
+        countCards: m.totalCards,
+        countSealed: m.sealedCount,
+      };
+    }
+
+    return {
+      totalValue: m.totalValue,
+      invested: m.invested,
+      profitLoss: m.profitLoss,
+      returnRate: m.returnRate,
+      weeklyChange: m.weeklyChange,
+      weeklyChangeInvested: m.weeklyChangeInvested,
+      sparkTotal: metricSparklines.totalValue,
+      sparkInvested: metricSparklines.invested,
+      valueLabel: "Gesamtwert",
+      valueInfo:
+        "Aktueller Marktwert aller Karten und Sealed-Produkte in deiner Sammlung.",
+      investInfo:
+        "Summe aller Einkaufspreise (EK) deiner Positionen – was du tatsächlich ausgegeben hast.",
+      profitInfo:
+        "Differenz aus Marktwert und investiertem Kapital (unrealisierter Gewinn in der Demo).",
+      returnInfo:
+        "Prozentuale Performance: (Marktwert − Investiert) ÷ Investiert × 100.",
+      allocation: portfolioAllocation,
+      breakdown: portfolioAllocationBreakdown,
+      centerLabel: "Gesamt",
+      recent: recentAdditions,
+      losers: topLosersDetailed,
+      showSets: true,
+      countCards: m.totalCards,
+      countSealed: m.sealedCount,
+    };
+  }, [scope, m]);
+
+  const profitPositive = scoped.profitLoss >= 0;
+  const returnPositive = scoped.returnRate >= 0;
 
   return (
     <div className="pb-2">
@@ -39,7 +161,11 @@ export function DashboardView() {
         subtitle="Deine Sammlung auf einen Blick"
       >
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-full border border-[var(--border)] bg-[var(--surface)] p-0.5">
+          <div
+            className="flex rounded-full border border-[var(--border)] bg-[var(--surface)] p-0.5"
+            role="group"
+            aria-label="Portfolio-Bereich"
+          >
             {(
               [
                 ["gesamt", "Gesamt"],
@@ -51,9 +177,10 @@ export function DashboardView() {
                 key={id}
                 type="button"
                 onClick={() => setScope(id)}
+                aria-pressed={scope === id}
                 className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                   scope === id
-                    ? "bg-[var(--surface-elevated)] text-[var(--foreground)] shadow-sm ring-1 ring-[var(--border)]"
+                    ? "bg-[var(--accent)] text-white shadow-sm"
                     : "text-[var(--muted)] hover:text-[var(--foreground)]"
                 }`}
               >
@@ -84,41 +211,43 @@ export function DashboardView() {
         </div>
       </PageHeader>
 
-      {/* Primary metrics */}
+      {/* Primary metrics — react to Gesamt / Karten / Sealed */}
       <div className="mb-3 grid grid-cols-2 gap-3 xl:grid-cols-4">
         <MetricCard
-          label="Gesamtwert"
-          value={formatMarketPrice(portfolioMetrics.totalValue)}
-          hint={`+${portfolioMetrics.weeklyChange.toLocaleString("de-DE")} % (7 Tage)`}
+          label={scoped.valueLabel}
+          value={formatMarketPrice(scoped.totalValue)}
+          hint={`+${scoped.weeklyChange.toLocaleString("de-DE")} % (7 Tage)`}
           positive
           info
-          infoText="Aktueller Marktwert aller Karten und Sealed-Produkte in deiner Sammlung."
-          sparkline={metricSparklines.totalValue}
+          infoText={scoped.valueInfo}
+          sparkline={scoped.sparkTotal}
         />
         <MetricCard
           label="Investiert"
-          value={formatCurrency(portfolioMetrics.invested)}
-          hint={`+${portfolioMetrics.weeklyChangeInvested.toLocaleString("de-DE")} % (7 Tage)`}
+          value={formatCurrency(scoped.invested)}
+          hint={`+${scoped.weeklyChangeInvested.toLocaleString("de-DE")} % (7 Tage)`}
           positive
           info
-          infoText="Summe aller Einkaufspreise (EK) deiner Positionen – was du tatsächlich ausgegeben hast."
-          sparkline={metricSparklines.invested}
+          infoText={scoped.investInfo}
+          sparkline={scoped.sparkInvested}
         />
         <MetricCard
           label="Gewinn / Verlust"
-          value={`+ ${formatCurrency(portfolioMetrics.profitLoss)}`}
-          hint={`+${portfolioMetrics.weeklyChange.toLocaleString("de-DE")} % (7 Tage)`}
-          positive
+          value={`${profitPositive ? "+ " : ""}${formatCurrency(scoped.profitLoss)}`}
+          hint={`${scoped.weeklyChange >= 0 ? "+" : ""}${scoped.weeklyChange.toLocaleString("de-DE")} % (7 Tage)`}
+          positive={profitPositive}
+          negative={!profitPositive}
           info
-          infoText="Differenz aus Marktwert und investiertem Kapital (unrealisierter Gewinn in der Demo)."
+          infoText={scoped.profitInfo}
         />
         <MetricCard
           label="Rendite"
-          value={formatPercent(portfolioMetrics.returnRate)}
-          hint={`+${portfolioMetrics.weeklyChange.toLocaleString("de-DE")} % (7 Tage)`}
-          positive
+          value={formatPercent(scoped.returnRate)}
+          hint={`${scoped.weeklyChange >= 0 ? "+" : ""}${scoped.weeklyChange.toLocaleString("de-DE")} % (7 Tage)`}
+          positive={returnPositive}
+          negative={!returnPositive}
           info
-          infoText="Prozentuale Performance: (Marktwert − Investiert) ÷ Investiert × 100."
+          infoText={scoped.returnInfo}
         />
       </div>
 
@@ -127,14 +256,16 @@ export function DashboardView() {
         <CountCard
           icon="cards"
           label="Karten"
-          value={portfolioMetrics.totalCards.toLocaleString("de-DE")}
+          value={scoped.countCards.toLocaleString("de-DE")}
           href="/assets/karten"
+          dimmed={scope === "sealed"}
         />
         <CountCard
           icon="box"
           label="Sealed Produkte"
-          value={String(portfolioMetrics.sealedCount)}
+          value={String(scoped.countSealed)}
           href="/assets/sealed"
+          dimmed={scope === "karten"}
         />
         <Link
           href="/wunschliste"
@@ -165,6 +296,7 @@ export function DashboardView() {
           title="Wertentwicklung"
           showSeriesLegend
           minHeight={280}
+          seriesFocus={scope}
           footerNote={`Preise zuletzt aktualisiert: ${portfolioMetrics.pricesUpdatedLabel}`}
         />
 
@@ -176,16 +308,16 @@ export function DashboardView() {
           >
             <div className="flex justify-center py-2">
               <DonutChart
-                segments={portfolioAllocation}
+                segments={scoped.allocation}
                 size={168}
                 ringWidth={26}
                 hideLegend
-                centerLabel="Gesamt"
-                centerSub={formatCurrency(portfolioMetrics.totalValue)}
+                centerLabel={scoped.centerLabel}
+                centerSub={formatCurrency(scoped.totalValue)}
               />
             </div>
             <div className="mt-2 space-y-2 border-t border-[var(--border)] pt-3">
-              {portfolioAllocation.map((item) => (
+              {scoped.allocation.map((item) => (
                 <div
                   key={item.label}
                   className="flex items-center justify-between gap-2 text-sm"
@@ -206,11 +338,12 @@ export function DashboardView() {
                 </div>
               ))}
             </div>
+            {scoped.breakdown.length > 0 && (
             <div className="mt-4 space-y-2.5 border-t border-[var(--border)] pt-3">
               <p className="text-[10px] font-medium uppercase tracking-wider text-[var(--muted)]">
                 Nach Kategorie
               </p>
-              {portfolioAllocationBreakdown.map((item) => (
+              {scoped.breakdown.map((item) => (
                 <div key={item.label}>
                   <div className="mb-1 flex items-center justify-between gap-2 text-xs">
                     <span className="flex min-w-0 items-center gap-1.5">
@@ -243,8 +376,10 @@ export function DashboardView() {
                 </div>
               ))}
             </div>
+            )}
           </Panel>
 
+          {scoped.showSets && (
           <Panel
             title="Set-Fortschritt"
             actionHref="/sets"
@@ -278,6 +413,7 @@ export function DashboardView() {
               })}
             </div>
           </Panel>
+          )}
         </div>
       </div>
 
@@ -289,7 +425,7 @@ export function DashboardView() {
           actionLabel="Alle anzeigen →"
         >
           <div className="space-y-1">
-            {topPerformers.map((item, index) => {
+            {(scope === "sealed" ? [] : topPerformers).map((item, index) => {
               const card = getCard(item.cardId);
               return (
                 <Link
@@ -320,6 +456,11 @@ export function DashboardView() {
                 </Link>
               );
             })}
+            {scope === "sealed" && (
+              <p className="px-1 py-3 text-xs text-[var(--muted)]">
+                Top Performer für Sealed erscheinen unter Assets → Sealed.
+              </p>
+            )}
           </div>
         </Panel>
 
@@ -329,7 +470,7 @@ export function DashboardView() {
           actionLabel="Alle anzeigen →"
         >
           <div className="space-y-1">
-            {topLosersDetailed.slice(0, 3).map((item, index) => {
+            {scoped.losers.slice(0, 3).map((item, index) => {
               const card = getCard(item.cardId);
               const name = item.name ?? card.name;
               const dest =
@@ -370,7 +511,7 @@ export function DashboardView() {
           actionLabel="Sammlung öffnen →"
         >
           <div className="space-y-1">
-            {recentAdditions.map((row) => {
+            {scoped.recent.map((row) => {
               const card = getCard(row.cardId);
               const dest =
                 row.kind === "Sealed" ? "/assets/sealed" : "/assets/karten";
@@ -404,6 +545,11 @@ export function DashboardView() {
                 </Link>
               );
             })}
+            {scoped.recent.length === 0 && (
+              <p className="px-1 py-3 text-xs text-[var(--muted)]">
+                Keine Einträge in diesem Bereich.
+              </p>
+            )}
           </div>
         </Panel>
       </div>
@@ -416,16 +562,20 @@ function CountCard({
   label,
   value,
   href,
+  dimmed,
 }: {
   icon: "cards" | "box";
   label: string;
   value: string;
   href: string;
+  dimmed?: boolean;
 }) {
   return (
     <Link
       href={href}
-      className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3.5 transition-colors hover:border-[var(--accent)]/40"
+      className={`rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3.5 transition-colors hover:border-[var(--accent)]/40 ${
+        dimmed ? "opacity-45" : ""
+      }`}
     >
       <div className="flex items-center gap-3.5">
         <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--surface-elevated)] text-[var(--foreground)] ring-1 ring-[var(--border)]">

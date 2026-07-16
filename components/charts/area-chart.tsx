@@ -19,6 +19,11 @@ type AreaChartProps = {
   showRangeTabs?: boolean;
   showSeriesLegend?: boolean;
   footerNote?: string;
+  /**
+   * External scope from Dashboard/Portfolio header.
+   * Syncs which curve is active: gesamt | karten | sealed.
+   */
+  seriesFocus?: "gesamt" | "karten" | "sealed";
 };
 
 const ranges = ["1W", "1M", "3M", "6M", "1J", "MAX"] as const;
@@ -98,6 +103,14 @@ function downsample<T>(points: T[], maxPoints: number): T[] {
   return out;
 }
 
+function seriesFromFocus(
+  focus?: "gesamt" | "karten" | "sealed",
+): Record<SeriesKey, boolean> {
+  if (focus === "karten") return { value: false, cards: true, sealed: false };
+  if (focus === "sealed") return { value: false, cards: false, sealed: true };
+  return { value: true, cards: false, sealed: false };
+}
+
 export function AreaChart({
   dailyData,
   data,
@@ -108,17 +121,23 @@ export function AreaChart({
   showRangeTabs = true,
   showSeriesLegend = true,
   footerNote,
+  seriesFocus,
 }: AreaChartProps) {
   const [range, setRange] = useState<Range>("1M");
-  const [activeSeries, setActiveSeries] = useState<Record<SeriesKey, boolean>>({
-    value: true,
-    cards: false,
-    sealed: false,
-  });
+  const [activeSeries, setActiveSeries] = useState<Record<SeriesKey, boolean>>(
+    () => seriesFromFocus(seriesFocus),
+  );
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const chartBodyRef = useRef<HTMLDivElement>(null);
   const [bodySize, setBodySize] = useState({ w: 800, h: minHeight });
+
+  // Keep chart curves in sync with header Gesamt / Karten / Sealed
+  useEffect(() => {
+    if (!seriesFocus) return;
+    setActiveSeries(seriesFromFocus(seriesFocus));
+    setHoverIndex(null);
+  }, [seriesFocus]);
 
   const allPoints = useMemo(() => toPoints(dailyData, data), [dailyData, data]);
   const points = useMemo(() => {

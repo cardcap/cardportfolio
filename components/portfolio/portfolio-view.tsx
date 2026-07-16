@@ -53,20 +53,28 @@ export function PortfolioView() {
 
   const metrics = useMemo(() => {
     if (scope === "karten") {
+      const unrealized = a.cardsValue - a.cardsInvested;
       return {
         totalValue: a.cardsValue,
         invested: a.cardsInvested,
-        unrealized: a.cardsValue - a.cardsInvested,
-        returnRate: ((a.cardsValue - a.cardsInvested) / a.cardsInvested) * 100,
+        unrealized,
+        returnRate: a.cardsInvested > 0 ? (unrealized / a.cardsInvested) * 100 : 0,
+        weeklyChange: a.weeklyChange + 0.4,
+        valueLabel: "Kartenwert",
+        returnLabel: "Karten-Rendite",
       };
     }
     if (scope === "sealed") {
+      const unrealized = a.sealedValue - a.sealedInvested;
       return {
         totalValue: a.sealedValue,
         invested: a.sealedInvested,
-        unrealized: a.sealedValue - a.sealedInvested,
+        unrealized,
         returnRate:
-          ((a.sealedValue - a.sealedInvested) / a.sealedInvested) * 100,
+          a.sealedInvested > 0 ? (unrealized / a.sealedInvested) * 100 : 0,
+        weeklyChange: a.weeklyChange - 0.5,
+        valueLabel: "Sealed-Wert",
+        returnLabel: "Sealed-Rendite",
       };
     }
     return {
@@ -74,8 +82,16 @@ export function PortfolioView() {
       invested: a.invested,
       unrealized: a.unrealizedProfit,
       returnRate: a.totalReturnRate,
+      weeklyChange: a.weeklyChange,
+      valueLabel: "Gesamtwert",
+      returnLabel: "Gesamtrendite",
     };
   }, [scope, a]);
+
+  // Keep chart series toggle in sync with header scope
+  useEffect(() => {
+    setChartSeries(scope);
+  }, [scope]);
 
   return (
     <div className="pb-4">
@@ -145,30 +161,30 @@ export function PortfolioView() {
           <div className="mb-3 grid grid-cols-2 gap-3 xl:grid-cols-4">
             <PrimaryMetric
               icon="doc"
-              label="Gesamtwert"
+              label={metrics.valueLabel}
               value={formatCurrency(metrics.totalValue)}
-              hint={`+${a.weeklyChange.toLocaleString("de-DE")} % (7 Tage)`}
-              positive
-              infoText="Aktueller Marktwert aller Karten und Sealed-Produkte im gewählten Scope."
+              hint={`${metrics.weeklyChange >= 0 ? "+" : ""}${metrics.weeklyChange.toLocaleString("de-DE")} % (7 Tage)`}
+              positive={metrics.weeklyChange >= 0}
+              infoText="Aktueller Marktwert im gewählten Bereich (Gesamt / Karten / Sealed)."
             />
             <PrimaryMetric
               icon="coins"
               label="Investiert"
               value={formatCurrency(metrics.invested)}
-              infoText="Summe der Einkaufspreise (EK) deiner Positionen."
+              infoText="Summe der Einkaufspreise (EK) im gewählten Bereich."
             />
             <PrimaryMetric
               icon="trend"
               label="Unrealisierter Gewinn"
-              value={`+${formatCurrency(metrics.unrealized)}`}
-              positive
+              value={`${metrics.unrealized >= 0 ? "+" : ""}${formatCurrency(metrics.unrealized)}`}
+              positive={metrics.unrealized >= 0}
               infoText="Marktwert minus Einkaufspreis bei noch gehaltenen Assets."
             />
             <PrimaryMetric
               icon="pct"
-              label="Gesamtrendite"
+              label={metrics.returnLabel}
               value={formatPercent(metrics.returnRate)}
-              positive
+              positive={metrics.returnRate >= 0}
               infoText="Prozentuale Performance: (Marktwert − Investiert) ÷ Investiert."
             />
           </div>
