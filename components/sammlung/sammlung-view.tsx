@@ -1713,7 +1713,7 @@ export function SammlungView() {
                                         {multi && (
                                           <p className="mt-0.5 text-[11px] text-[var(--muted)]">
                                             {row.quantity} Exemplare
-                                            {expanded && conditionCount > 1 && (
+                                            {conditionCount > 1 && (
                                               <span className="ml-1.5 inline-flex rounded-full bg-[var(--accent-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--accent)]">
                                                 {conditionCount} Zustände
                                               </span>
