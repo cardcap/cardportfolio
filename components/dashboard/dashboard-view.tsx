@@ -52,8 +52,9 @@ export function DashboardView() {
 
   // Live asset counts (same source as Assets → Karten / Sealed)
   const [cardCount, setCardCount] = useState(0);
+  // Same as Assets → Sealed “Produkte” (distinct product lines)
   const sealedCount = useMemo(
-    () => getSealedMetrics(sealedProducts).totalUnits,
+    () => getSealedMetrics(sealedProducts).productCount,
     [],
   );
 

@@ -301,7 +301,7 @@ function PerformerRow({ row, rank }: { row: DetailedMover; rank: number }) {
           </div>
         </div>
 
-        <div className="hidden items-center gap-2 xl:grid xl:grid-cols-[2rem_minmax(11rem,1.3fr)_minmax(6.5rem,0.9fr)_3.25rem_3rem_5.5rem_5.5rem_7.5rem_4.5rem_1.25rem]">
+        <div className="hidden items-center gap-3 xl:grid xl:grid-cols-[2rem_minmax(10rem,1.2fr)_minmax(5.5rem,0.8fr)_auto_2.5rem_2.75rem_minmax(5.25rem,auto)_minmax(9.5rem,auto)_3.75rem_1.25rem]">
           <span
             className={`tabular-nums text-sm font-medium ${
               rank === 1 ? "text-[var(--positive)]" : "text-[var(--muted)]"
@@ -313,18 +313,23 @@ function PerformerRow({ row, rank }: { row: DetailedMover; rank: number }) {
             <CardImage src={card.imageUrl} alt={name} size="sm" />
             <p className="truncate text-sm font-medium">{name}</p>
           </div>
-          <p className="truncate text-sm text-[var(--muted)]">{row.setName}</p>
+          <p className="min-w-0 truncate text-sm text-[var(--muted)]">
+            {row.setName}
+          </p>
           <KindBadge kind={row.kind} />
           <span className="text-xs font-medium text-[var(--muted)]">{lang}</span>
           <span className="truncate text-xs text-[var(--muted)]">{condition}</span>
-          <p className="tabular-nums self-center text-right text-sm leading-none text-[var(--muted)]">
-            {formatCurrency(row.valueBefore)}
-          </p>
-          <div className="flex items-baseline justify-end gap-1.5 self-center text-right">
-            <span className="tabular-nums text-sm font-medium leading-none">
+          <div className="flex min-w-[5.25rem] flex-col items-end justify-center gap-0.5">
+            <span className="tabular-nums whitespace-nowrap text-sm leading-5 text-[var(--muted)]">
+              {formatCurrency(row.valueBefore)}
+            </span>
+            <span className="h-4" aria-hidden />
+          </div>
+          <div className="flex min-w-[9.5rem] flex-col items-end justify-center gap-0.5">
+            <span className="tabular-nums whitespace-nowrap text-sm font-medium leading-5">
               {formatCurrency(row.currentValue)}
             </span>
-            <span className="tabular-nums whitespace-nowrap text-[11px] font-medium leading-none text-[var(--positive)]">
+            <span className="tabular-nums h-4 whitespace-nowrap text-[11px] font-medium leading-4 text-[var(--positive)]">
               {delta}
             </span>
           </div>
