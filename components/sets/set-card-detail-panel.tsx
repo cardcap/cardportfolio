@@ -13,6 +13,10 @@ import {
   getCardPrice,
   type TcgCard,
 } from "@/lib/pokemon-tcg";
+import {
+  conditionRank,
+  sortConditionsWorstFirst,
+} from "@/lib/card-conditions";
 import { formatRarityEnglish } from "@/lib/rarity-labels";
 import type { SetDetail } from "@/lib/set-stats";
 import { wishlistItemFromTcg } from "@/lib/wishlist";
@@ -138,21 +142,38 @@ export function SetCardDetailPanel({
       : qty > 0 && hasPrice
         ? Math.round((price - purchasePrice) * 100) / 100
         : 0;
-  const exemplars = collectionDetails?.exemplars ?? [];
-  const uniqueConditions = new Set(
-    (exemplars.length > 0
-      ? exemplars.map((e) => e.condition)
-      : collectionDetails?.condition
-        ? [collectionDetails.condition]
-        : []
-    ).filter(Boolean),
-  );
-  const multiConditions = uniqueConditions.size > 1;
+  const exemplarsRaw = collectionDetails?.exemplars ?? [];
+  // Worst → best for display (PO … MT), like Cardmarket / mock
+  const exemplars = useMemo(() => {
+    if (exemplarsRaw.length === 0) return [];
+    return [...exemplarsRaw].sort(
+      (a, b) =>
+        conditionRank(a.condition || "Near Mint") -
+        conditionRank(b.condition || "Near Mint"),
+    );
+  }, [exemplarsRaw]);
+
+  const uniqueConditions = useMemo(() => {
+    const list = (
+      exemplars.length > 0
+        ? exemplars.map((e) => e.condition)
+        : collectionDetails?.condition
+          ? [collectionDetails.condition]
+          : []
+    ).filter(Boolean) as string[];
+    return sortConditionsWorstFirst([...new Set(list)]);
+  }, [exemplars, collectionDetails?.condition]);
+
+  const multiConditions = uniqueConditions.length > 1;
+  // Range worst → best, e.g. "PO – MT" or "PL – NM"
   const conditionLabel = multiConditions
-    ? `${uniqueConditions.size} Zustände`
+    ? `${shortConditionLabel(uniqueConditions[0])} – ${shortConditionLabel(uniqueConditions[uniqueConditions.length - 1])}`
     : collectionDetails?.condition
       ? shortConditionLabel(collectionDetails.condition)
       : "NM";
+  const conditionTitle = multiConditions
+    ? uniqueConditions.join(", ")
+    : collectionDetails?.condition;
   const change30 = hasPrice && collectionDetails == null ? 5.3 : hasPrice ? 0 : 0;
 
   const history = useMemo(
@@ -485,14 +506,10 @@ export function SetCardDetailPanel({
                       Zustand
                     </p>
                     <p
-                      className={`mt-0.5 font-medium ${
+                      className={`mt-0.5 font-medium tabular-nums ${
                         multiConditions ? "text-[var(--accent)]" : ""
                       }`}
-                      title={
-                        multiConditions
-                          ? [...uniqueConditions].join(", ")
-                          : collectionDetails?.condition
-                      }
+                      title={conditionTitle}
                     >
                       {conditionLabel}
                     </p>
@@ -544,17 +561,22 @@ export function SetCardDetailPanel({
                       </span>
                     </summary>
                     <ul className="space-y-1.5 px-2 pb-2">
-                      {Array.from({ length: qty }, (_, i) => {
-                        const ex = exemplars[i];
-                        const exCond =
-                          ex?.condition ||
-                          collectionDetails?.condition ||
-                          "Near Mint";
+                      {(exemplars.length > 0
+                        ? exemplars
+                        : Array.from({ length: qty }, () => ({
+                            condition:
+                              collectionDetails?.condition || "Near Mint",
+                            purchasePrice:
+                              collectionDetails?.purchasePrice ?? purchasePrice,
+                            purchaseDate: collectionDetails?.purchaseDate,
+                          }))
+                      ).map((ex, i) => {
+                        const exCond = ex.condition || "Near Mint";
                         const exEk =
-                          ex?.purchasePrice ??
+                          ex.purchasePrice ??
                           collectionDetails?.purchasePrice ??
                           purchasePrice;
-                        const exDate = ex?.purchaseDate;
+                        const exDate = ex.purchaseDate;
                         const dateLabel =
                           exDate && exDate !== "—"
                             ? /^\d{4}-\d{2}-\d{2}/.test(exDate)
@@ -563,7 +585,7 @@ export function SetCardDetailPanel({
                             : "—";
                         return (
                           <li
-                            key={i}
+                            key={`${exCond}-${i}`}
                             className="flex flex-col gap-1 rounded-md bg-[var(--background)] px-2.5 py-2 text-sm sm:flex-row sm:items-center sm:justify-between"
                           >
                             <div className="flex min-w-0 flex-wrap items-center gap-2">

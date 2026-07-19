@@ -31,6 +31,7 @@ import { ConditionBadge } from "@/components/ui/condition-badge";
 import { MetricCard } from "@/components/ui/metric-card";
 import { Price, formatMarketPrice } from "@/components/ui/price";
 import { formatCurrency } from "@/lib/format";
+import { conditionRank } from "@/lib/card-conditions";
 import {
   getLocalCollection,
   itemInvested,
@@ -1877,14 +1878,32 @@ export function SammlungView() {
                                 </tr>
                                 {multi &&
                                   expanded &&
-                                  Array.from(
-                                    { length: row.quantity },
-                                    (_, i) => {
-                                      const ex = row.exemplars?.[i];
+                                  (() => {
+                                    const sortedEx = (
+                                      row.exemplars && row.exemplars.length > 0
+                                        ? [...row.exemplars]
+                                        : Array.from(
+                                            { length: row.quantity },
+                                            () => ({
+                                              condition: row.condition,
+                                              purchasePrice: row.purchasePrice,
+                                              purchaseDate: row.purchaseDate,
+                                            }),
+                                          )
+                                    ).sort(
+                                      (a, b) =>
+                                        conditionRank(
+                                          a.condition || "Near Mint",
+                                        ) -
+                                        conditionRank(
+                                          b.condition || "Near Mint",
+                                        ),
+                                    );
+                                    return sortedEx.map((ex, i) => {
                                       const exCondition =
-                                        ex?.condition || row.condition;
+                                        ex.condition || row.condition;
                                       const exEk =
-                                        ex?.purchasePrice ?? row.purchasePrice;
+                                        ex.purchasePrice ?? row.purchasePrice;
                                       const unitProfit =
                                         Math.round(
                                           (unitMarket - (exEk ?? 0)) * 100,
@@ -1895,11 +1914,11 @@ export function SammlungView() {
                                           : unitProfit < 0
                                             ? "text-[var(--negative)]"
                                             : "text-[var(--muted)]";
-                                      const isLast = i === row.quantity - 1;
+                                      const isLast = i === sortedEx.length - 1;
                                       const edge = isLast ? "bottom" : "mid";
                                       return (
                                         <tr
-                                          key={`${row.id}-ex-${i}`}
+                                          key={`${row.id}-ex-${i}-${exCondition}`}
                                           onClick={openRow}
                                           className="cursor-pointer text-sm transition-colors hover:bg-[var(--accent-soft)]/40"
                                         >
@@ -2010,8 +2029,8 @@ export function SammlungView() {
                                           </td>
                                         </tr>
                                       );
-                                    },
-                                  )}
+                                    });
+                                  })()}
                               </Fragment>
                             );
                           })}

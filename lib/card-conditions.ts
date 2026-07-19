@@ -12,6 +12,36 @@ export const RAW_CONDITIONS = [
   "Poor",
 ] as const;
 
+/** Worst → best (for display order in multi-exemplar lists) */
+export const RAW_CONDITIONS_WORST_FIRST = [
+  "Poor",
+  "Played",
+  "Light Played",
+  "Good",
+  "Excellent",
+  "Near Mint",
+  "Mint",
+] as const;
+
+/** Higher = better. Unknown conditions rank in the middle. */
+export function conditionRank(condition: string): number {
+  const idx = (RAW_CONDITIONS_WORST_FIRST as readonly string[]).indexOf(
+    condition,
+  );
+  if (idx >= 0) return idx;
+  // PSA higher grade = better
+  if (condition.startsWith("PSA")) {
+    const n = Number.parseInt(condition.replace(/\D/g, ""), 10);
+    return Number.isFinite(n) ? 50 + n : 25;
+  }
+  return 25;
+}
+
+/** Sort conditions worst → best */
+export function sortConditionsWorstFirst(conditions: string[]): string[] {
+  return [...conditions].sort((a, b) => conditionRank(a) - conditionRank(b));
+}
+
 /** Legacy PSA labels — not offered in UI filters anymore */
 export const PSA_CONDITIONS = [
   "PSA 10",
