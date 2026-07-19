@@ -304,7 +304,7 @@ export function SealedView() {
         <SmallStat label="Stückzahl gesamt" value={String(metrics.totalUnits)} icon="box" />
       </div>
 
-      {/* Toolbar: Suche + Filter wie bei Karten (ohne Seltenheit) */}
+      {/* Toolbar: Suche + Filter (Sortierung in der Filtergruppe, Toggle rechts) */}
       <div className="mb-3 flex flex-col gap-2 xl:flex-row xl:flex-wrap xl:items-center">
         <label className="relative min-w-0 flex-1 xl:max-w-sm">
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]">
@@ -322,83 +322,85 @@ export function SealedView() {
           />
         </label>
 
-        <select
-          value={category}
-          onChange={(e) => {
-            setCategory(e.target.value as typeof category);
-            setPage(1);
-          }}
-          className="h-10 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--muted)] outline-none focus:border-[var(--accent)] focus:text-[var(--foreground)]"
-        >
-          {CATEGORIES.map((c) => (
-            <option key={c} value={c}>
-              {c === "Alle" ? "Alle Kategorien" : c}
-            </option>
-          ))}
-        </select>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <select
+            value={category}
+            onChange={(e) => {
+              setCategory(e.target.value as typeof category);
+              setPage(1);
+            }}
+            className="h-10 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--muted)] outline-none focus:border-[var(--accent)] focus:text-[var(--foreground)]"
+          >
+            {CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {c === "Alle" ? "Alle Kategorien" : c}
+              </option>
+            ))}
+          </select>
 
-        <select
-          value={setFilter}
-          onChange={(e) => {
-            setSetFilter(e.target.value);
-            setPage(1);
-          }}
-          className="h-10 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--muted)] outline-none focus:border-[var(--accent)] focus:text-[var(--foreground)]"
-        >
-          <option value="Alle Sets">Alle Sets</option>
-          {setOptions.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+          <select
+            value={setFilter}
+            onChange={(e) => {
+              setSetFilter(e.target.value);
+              setPage(1);
+            }}
+            className="h-10 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--muted)] outline-none focus:border-[var(--accent)] focus:text-[var(--foreground)]"
+          >
+            <option value="Alle Sets">Alle Sets</option>
+            {setOptions.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
 
-        <select
-          value={language}
-          onChange={(e) => {
-            setLanguage(e.target.value as typeof language);
-            setPage(1);
-          }}
-          className="h-10 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--muted)] outline-none focus:border-[var(--accent)] focus:text-[var(--foreground)]"
-        >
-          {LANGUAGES.map((l) => (
-            <option key={l} value={l}>
-              {l}
-            </option>
-          ))}
-        </select>
+          <select
+            value={language}
+            onChange={(e) => {
+              setLanguage(e.target.value as typeof language);
+              setPage(1);
+            }}
+            className="h-10 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--muted)] outline-none focus:border-[var(--accent)] focus:text-[var(--foreground)]"
+          >
+            {LANGUAGES.map((l) => (
+              <option key={l} value={l}>
+                {l}
+              </option>
+            ))}
+          </select>
 
-        <select
-          value={condition}
-          onChange={(e) => {
-            setCondition(e.target.value as typeof condition);
-            setPage(1);
-          }}
-          className="h-10 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--muted)] outline-none focus:border-[var(--accent)] focus:text-[var(--foreground)]"
-        >
-          {CONDITIONS.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+          <select
+            value={condition}
+            onChange={(e) => {
+              setCondition(e.target.value as typeof condition);
+              setPage(1);
+            }}
+            className="h-10 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--muted)] outline-none focus:border-[var(--accent)] focus:text-[var(--foreground)]"
+          >
+            {CONDITIONS.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
 
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value as SortKey)}
-          className="h-10 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 text-sm outline-none focus:border-[var(--accent)]"
-        >
-          <option value="newest">Zuletzt hinzugefügt</option>
-          <option value="name">Name A–Z</option>
-          <option value="name-desc">Name Z–A</option>
-          <option value="set">Set</option>
-          <option value="value-desc">Marktwert: höchster zuerst</option>
-          <option value="value-asc">Marktwert: niedrigster zuerst</option>
-          <option value="profit-desc">Gewinn: höchster zuerst</option>
-          <option value="profit-asc">Gewinn: niedrigster zuerst</option>
-        </select>
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as SortKey)}
+            className="h-10 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--muted)] outline-none focus:border-[var(--accent)] focus:text-[var(--foreground)]"
+          >
+            <option value="newest">Neueste zuerst</option>
+            <option value="name">Name A–Z</option>
+            <option value="name-desc">Name Z–A</option>
+            <option value="set">Set</option>
+            <option value="value-desc">Marktwert: höchster zuerst</option>
+            <option value="value-asc">Marktwert: niedrigster zuerst</option>
+            <option value="profit-desc">Gewinn: höchster zuerst</option>
+            <option value="profit-asc">Gewinn: niedrigster zuerst</option>
+          </select>
+        </div>
 
-        <div className="ml-auto flex h-10 rounded-full border border-[var(--border)] bg-[var(--surface)] p-0.5">
+        <div className="flex h-10 shrink-0 rounded-full border border-[var(--border)] bg-[var(--surface)] p-0.5 xl:ml-auto">
           <button
             type="button"
             onClick={() => setView("list")}
