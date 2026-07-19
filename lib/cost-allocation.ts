@@ -32,12 +32,12 @@ export type BulkResidual = {
 /**
  * Distribute sealed product purchase cost across pulled cards.
  *
- * - market: weighted by market value × quantity (recommended)
- * - equal: split evenly across line items (not by quantity of commons)
+ * - market: card portion weighted by market value × quantity
+ * - equal: card portion split evenly across line items
  *
- * If only hits are recorded, pass `bulkMarketValue` (or force residual)
- * so the remaining sealed cost becomes a "Bulk aus …" residual lot.
- * Otherwise hits would absorb 100% of the display price unrealistically.
+ * Bulk residual always uses the estimated bulk market value as a continuous
+ * weight vs. the sum of card market values (so changing the bulk € amount
+ * immediately changes residual + card EK).
  */
 export function allocateSealedCost(params: {
   sealedCost: number;
@@ -53,7 +53,9 @@ export function allocateSealedCost(params: {
   const { sealedCost, method, items, bulkMarketValue = 0, sealedProductName } =
     params;
 
-  if (sealedCost <= 0 || items.length === 0) {
+  const bulkMV = Math.max(0, Number.isFinite(bulkMarketValue) ? bulkMarketValue : 0);
+
+  if (sealedCost <= 0) {
     return {
       allocations: items.map((i) => ({
         id: i.id,
@@ -61,83 +63,95 @@ export function allocateSealedCost(params: {
         costPerUnit: 0,
         share: 0,
       })),
+      residual: null,
+    };
+  }
+
+  if (items.length === 0) {
+    return {
+      allocations: [],
       residual:
         sealedCost > 0
           ? {
               name: bulkName(sealedProductName),
-              costTotal: sealedCost,
+              costTotal: round2(sealedCost),
               note: "Restposten aus geöffnetem Sealed",
             }
           : null,
     };
   }
 
-  const weights = items.map((item) => {
-    if (method === "equal") return 1;
-    const w = Math.max(0, item.marketValue) * Math.max(1, item.quantity);
-    return w;
-  });
-  const bulkWeight =
-    method === "market" ? Math.max(0, bulkMarketValue) : bulkMarketValue > 0 ? 1 : 0;
+  const cardMarketSum = items.reduce(
+    (s, item) =>
+      s + Math.max(0, item.marketValue) * Math.max(1, item.quantity),
+    0,
+  );
 
-  const sumWeights = weights.reduce((s, w) => s + w, 0) + bulkWeight;
+  // Residual share from bulk estimate vs. tracked card market values.
+  // Changing bulkMV always changes residual (and thus card EK).
+  let residualCost = 0;
+  if (bulkMV > 0) {
+    if (cardMarketSum > 0) {
+      residualCost = round2(
+        sealedCost * (bulkMV / (bulkMV + cardMarketSum)),
+      );
+    } else {
+      // No market data on cards: treat bulk as one equal share + n card lines
+      residualCost = round2(sealedCost / (items.length + 1));
+    }
+  }
 
-  // If all market values are 0, fall back to equal including bulk if present
-  const useEqual =
-    method === "equal" || sumWeights <= 0;
-  const effectiveWeights = useEqual
-    ? items.map(() => 1)
-    : weights;
-  const effectiveBulk = useEqual ? (bulkMarketValue > 0 ? 1 : 0) : bulkWeight;
-  const totalW =
-    effectiveWeights.reduce((s, w) => s + w, 0) + effectiveBulk;
+  // Clamp residual
+  if (residualCost > sealedCost) residualCost = sealedCost;
+  if (residualCost < 0) residualCost = 0;
+
+  const cardsPool = round2(sealedCost - residualCost);
+
+  // Weights for splitting the cards pool
+  let weights =
+    method === "equal"
+      ? items.map(() => 1)
+      : items.map(
+          (item) =>
+            Math.max(0, item.marketValue) * Math.max(1, item.quantity),
+        );
+  let weightSum = weights.reduce((s, w) => s + w, 0);
+  if (weightSum <= 0) {
+    weights = items.map(() => 1);
+    weightSum = items.length;
+  }
 
   const allocations: AllocationResult[] = items.map((item, i) => {
-    const share = totalW > 0 ? effectiveWeights[i] / totalW : 0;
-    const costTotal = round2(sealedCost * share);
+    const shareOfCards = weights[i] / weightSum;
+    const costTotal = round2(cardsPool * shareOfCards);
     const qty = Math.max(1, item.quantity);
     return {
       id: item.id,
       costTotal,
       costPerUnit: round2(costTotal / qty),
-      share,
+      share: sealedCost > 0 ? costTotal / sealedCost : 0,
     };
   });
 
-  // Fix rounding drift on last non-bulk item
-  const allocatedSum = allocations.reduce((s, a) => s + a.costTotal, 0);
-  let residualCost = round2(sealedCost - allocatedSum);
-
-  if (effectiveBulk > 0 || residualCost > 0.01) {
-    if (effectiveBulk > 0) {
-      const bulkShare = totalW > 0 ? effectiveBulk / totalW : 0;
-      residualCost = round2(sealedCost * bulkShare);
-      // rebalance cards to sealedCost - residual
-      const targetCards = round2(sealedCost - residualCost);
-      const cardSum = allocations.reduce((s, a) => s + a.costTotal, 0);
-      if (cardSum > 0 && Math.abs(cardSum - targetCards) > 0.01) {
-        const scale = targetCards / cardSum;
-        for (const a of allocations) {
-          a.costTotal = round2(a.costTotal * scale);
-          const item = items.find((i) => i.id === a.id)!;
-          a.costPerUnit = round2(a.costTotal / Math.max(1, item.quantity));
-          a.share = sealedCost > 0 ? a.costTotal / sealedCost : 0;
-        }
-        residualCost = round2(
-          sealedCost - allocations.reduce((s, a) => s + a.costTotal, 0),
-        );
-      }
-    } else if (allocations.length > 0) {
-      // no bulk: attach drift to last item
-      const last = allocations[allocations.length - 1];
-      last.costTotal = round2(last.costTotal + residualCost);
-      const item = items.find((i) => i.id === last.id)!;
-      last.costPerUnit = round2(last.costTotal / Math.max(1, item.quantity));
-      residualCost = 0;
+  // Absorb rounding drift into the largest card line (or last)
+  const cardSum = allocations.reduce((s, a) => s + a.costTotal, 0);
+  const drift = round2(cardsPool - cardSum);
+  if (Math.abs(drift) >= 0.01 && allocations.length > 0) {
+    let target = allocations[allocations.length - 1];
+    for (const a of allocations) {
+      if (a.costTotal > target.costTotal) target = a;
     }
-  } else {
-    residualCost = 0;
+    target.costTotal = round2(target.costTotal + drift);
+    const item = items.find((i) => i.id === target.id)!;
+    target.costPerUnit = round2(
+      target.costTotal / Math.max(1, item.quantity),
+    );
+    target.share = sealedCost > 0 ? target.costTotal / sealedCost : 0;
   }
+
+  // Final residual after drift fix
+  const finalCardSum = allocations.reduce((s, a) => s + a.costTotal, 0);
+  residualCost = round2(sealedCost - finalCardSum);
 
   return {
     allocations,

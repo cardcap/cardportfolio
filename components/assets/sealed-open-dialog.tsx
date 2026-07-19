@@ -326,8 +326,8 @@ export function SealedOpenDialog({
         aria-label="Schließen"
         onClick={onClose}
       />
-      <div className="fixed inset-x-4 top-[8%] z-50 mx-auto max-h-[84dvh] max-w-lg overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl sm:inset-x-auto">
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-5 py-4">
+      <div className="fixed inset-x-4 top-[8%] z-50 mx-auto flex max-h-[84dvh] max-w-lg flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl sm:inset-x-auto">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-5 py-4">
           <div>
             <h2 className="text-lg font-semibold">Sealed öffnen</h2>
             <p className="mt-0.5 text-sm text-[var(--muted)]">{product.name}</p>
@@ -341,7 +341,7 @@ export function SealedOpenDialog({
           </button>
         </div>
 
-        <div className="space-y-5 px-5 py-4">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overflow-x-hidden px-5 py-4">
           <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] px-4 py-3 text-sm">
             <p className="text-[var(--muted)]">Einkaufspreis (gesamt)</p>
             <p className="tabular-nums text-xl font-semibold">
@@ -395,14 +395,31 @@ export function SealedOpenDialog({
             {includeBulk && (
               <label className="mt-3 block">
                 <span className="text-xs text-[var(--muted)]">
-                  Geschätzter Marktwert des Bulk
+                  Geschätzter Marktwert des Bulk (€)
                 </span>
                 <input
                   type="text"
+                  inputMode="decimal"
                   value={bulkEstimate}
-                  onChange={(e) => setBulkEstimate(e.target.value)}
-                  className="mt-1 h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 text-sm outline-none focus:border-[var(--accent)]"
+                  onChange={(e) =>
+                    setBulkEstimate(e.target.value.replace(/[^\d.,]/g, ""))
+                  }
+                  className="mt-1 h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 text-sm tabular-nums outline-none focus:border-[var(--accent)]"
                 />
+                {bulkMarket > 0 && allocation.residual && (
+                  <p className="mt-1.5 text-[11px] text-[var(--muted)]">
+                    → Bulk erhält{" "}
+                    <span className="font-medium tabular-nums text-[var(--foreground)]">
+                      {formatCurrency(allocation.residual.costTotal)}
+                    </span>{" "}
+                    EK (
+                    {(
+                      (allocation.residual.costTotal / Math.max(sealedCost, 1)) *
+                      100
+                    ).toLocaleString("de-DE", { maximumFractionDigits: 1 })}{" "}
+                    % des Display-Preises). Karten-EK passt sich live an.
+                  </p>
+                )}
               </label>
             )}
           </div>
@@ -413,7 +430,7 @@ export function SealedOpenDialog({
             </p>
 
             {/* Card search */}
-            <div ref={searchWrapRef} className="relative mb-3">
+            <div ref={searchWrapRef} className="relative z-20 mb-3">
               <label className="relative block">
                 <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]">
                   <SearchIcon />
@@ -428,7 +445,7 @@ export function SealedOpenDialog({
                   onFocus={() => setShowResults(true)}
                   placeholder={
                     product.setName
-                      ? `Karte aus ${product.setName} suchen…`
+                      ? `Karte suchen (z. B. aus ${product.setName})…`
                       : "Karte suchen und hinzufügen…"
                   }
                   className="h-10 w-full rounded-full border border-[var(--border)] bg-[var(--background)] py-0 pl-9 pr-3 text-sm outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
@@ -436,52 +453,61 @@ export function SealedOpenDialog({
                 />
               </label>
               {showResults && cardSearch.trim().length > 0 && (
-                <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-56 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] py-1 shadow-xl">
+                <ul
+                  role="listbox"
+                  className="absolute left-0 right-0 top-[calc(100%+4px)] z-30 max-h-52 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] py-1 shadow-2xl ring-1 ring-black/20"
+                >
                   {searching && searchResults.length === 0 && (
-                    <p className="px-3 py-2 text-xs text-[var(--muted)]">
+                    <li className="px-3 py-2 text-xs text-[var(--muted)]">
                       Suche…
-                    </p>
+                    </li>
                   )}
                   {!searching && searchResults.length === 0 && (
-                    <p className="px-3 py-2 text-xs text-[var(--muted)]">
-                      Keine Karten gefunden
-                    </p>
+                    <li className="px-3 py-2 text-xs text-[var(--muted)]">
+                      Keine Karten gefunden — anderen Namen versuchen
+                    </li>
                   )}
                   {searchResults.map((hit) => {
                     const already = drafts.some((d) => d.cardId === hit.cardId);
                     return (
-                      <button
-                        key={`${hit.cardId}-${hit.name}`}
-                        type="button"
-                        onClick={() => addCard(hit)}
-                        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--accent-soft)]"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate font-medium">{hit.name}</p>
-                          <p className="truncate text-[11px] text-[var(--muted)]">
-                            {hit.setName}
-                            {hit.number ? ` · #${hit.number}` : ""}
-                            {hit.inSet && (
-                              <span className="ml-1.5 text-[var(--accent)]">
-                                · aus diesem Set
-                              </span>
-                            )}
-                          </p>
-                        </div>
-                        <span className="shrink-0 text-xs font-medium text-[var(--accent)]">
-                          {already ? "+1" : "Hinzufügen"}
-                        </span>
-                      </button>
+                      <li key={`${hit.cardId}-${hit.name}`}>
+                        <button
+                          type="button"
+                          role="option"
+                          onMouseDown={(e) => {
+                            // mousedown before blur so click always registers
+                            e.preventDefault();
+                            addCard(hit);
+                          }}
+                          className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--accent-soft)]"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">{hit.name}</p>
+                            <p className="truncate text-[11px] text-[var(--muted)]">
+                              {hit.setName}
+                              {hit.number ? ` · #${hit.number}` : ""}
+                              {hit.inSet && (
+                                <span className="ml-1.5 text-[var(--accent)]">
+                                  · aus diesem Set
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                          <span className="shrink-0 text-xs font-medium text-[var(--accent)]">
+                            {already ? "+1" : "Hinzufügen"}
+                          </span>
+                        </button>
+                      </li>
                     );
                   })}
-                </div>
+                </ul>
               )}
               <p className="mt-1.5 text-[11px] text-[var(--muted)]">
-                Treffer aus dem Set{" "}
+                Name tippen → Treffer anklicken. Set{" "}
                 <span className="text-[var(--foreground)]">
                   {product.setName}
                 </span>{" "}
-                werden bevorzugt — tippen und hinzufügen.
+                wird bevorzugt.
               </p>
             </div>
 
@@ -576,7 +602,7 @@ export function SealedOpenDialog({
           )}
         </div>
 
-        <div className="sticky bottom-0 flex gap-2 border-t border-[var(--border)] bg-[var(--surface)] px-5 py-4">
+        <div className="flex shrink-0 gap-2 border-t border-[var(--border)] bg-[var(--surface)] px-5 py-4">
           <button
             type="button"
             onClick={onClose}
