@@ -74,23 +74,33 @@ function matchesNameOrNumber(
 ): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return false;
-  if (hit.name.toLowerCase().includes(q)) return true;
-
-  const collector = (hit.collectorId ?? "").toLowerCase();
-  const compact = (s: string) => s.replace(/\s+/g, "");
-  if (collector && (collector.includes(q) || compact(collector).includes(compact(q)))) {
-    return true;
-  }
 
   const num = (hit.number ?? "").toLowerCase();
-  const numNorm = num.replace(/^0+(\d)/, "$1");
-  // pure number or "12/175"
-  const m = q.match(/^(?:[a-z0-9]{1,6}\s+)?(\d+[a-z]?)(?:\s*\/\s*(\d+))?$/i);
+  const numNorm = /^\d+$/.test(num)
+    ? String(parseInt(num, 10))
+    : num.replace(/^0+(\d)/, "$1");
+
+  // Number search: exact card # only (not 120 when typing 12)
+  const m = q.match(/^(?:([a-z0-9]{1,6})\s+)?(\d+[a-z]?)(?:\s*\/\s*(\d+))?$/i);
   if (m) {
-    const qNum = m[1].replace(/^0+(\d)/, "$1").toLowerCase();
-    if (numNorm === qNum || num === m[1].toLowerCase()) return true;
+    const qNum = m[2].replace(/^0+(\d)/, "$1").toLowerCase();
+    return numNorm === qNum || num === m[2].toLowerCase();
   }
-  if (num.includes(q) || numNorm === q) return true;
+
+  // Name
+  if (hit.name.toLowerCase().includes(q)) return true;
+
+  // Collector id with letters (e.g. "scr 12")
+  if (/[a-z]/i.test(q)) {
+    const collector = (hit.collectorId ?? "").toLowerCase();
+    const compact = (s: string) => s.replace(/\s+/g, "");
+    if (
+      collector &&
+      (collector.includes(q) || compact(collector).includes(compact(q)))
+    ) {
+      return true;
+    }
+  }
   return false;
 }
 
@@ -249,6 +259,17 @@ export function SealedOpenDialog({
               c.set?.id === resolvedSetId ||
               setMatches(c.set?.name ?? "", productSet),
           )
+          .filter((c) =>
+            matchesNameOrNumber(
+              {
+                name: c.name,
+                number: c.number,
+                collectorId: c.collectorId ?? c.number,
+                setName: c.set?.name,
+              },
+              q,
+            ),
+          )
           .map((c) => ({
             cardId: c.id,
             name: c.name,
@@ -257,7 +278,20 @@ export function SealedOpenDialog({
             collectorId: c.collectorId ?? c.number,
             marketValue: getCardPrice(c) ?? 0,
           }));
-        hits.sort((a, b) => a.name.localeCompare(b.name, "de"));
+        // Exact number first, then name
+        hits.sort((a, b) => {
+          const qNum = q.replace(/\D/g, "");
+          const aExact =
+            qNum &&
+            String(parseInt(a.number?.replace(/\D/g, "") || "0", 10)) ===
+              String(parseInt(qNum, 10));
+          const bExact =
+            qNum &&
+            String(parseInt(b.number?.replace(/\D/g, "") || "0", 10)) ===
+              String(parseInt(qNum, 10));
+          if (aExact !== bExact) return aExact ? -1 : 1;
+          return a.name.localeCompare(b.name, "de");
+        });
         setApiHits(hits.slice(0, 12));
       } catch {
         if (id === searchIdRef.current) setApiHits([]);
@@ -576,8 +610,14 @@ export function SealedOpenDialog({
 
             <ul className="space-y-2">
               {drafts.length === 0 && (
-                <li className="rounded-lg border border-dashed border-[var(--border)] px-3 py-4 text-center text-xs text-[var(--muted)]">
-                  Noch keine Karten — suche oben und füge Hits hinzu.
+                <li className="rounded-lg border border-dashed border-[var(--border)] px-3 py-5 text-center">
+                  <p className="text-sm font-medium text-[var(--foreground)]">
+                    Noch keine Karten hinzugefügt
+                  </p>
+                  <p className="mt-1 text-xs text-[var(--muted)]">
+                    Über die Suche oben die gezogenen Karten aus diesem Set
+                    suchen und hinzufügen.
+                  </p>
                 </li>
               )}
               {drafts.map((d) => {

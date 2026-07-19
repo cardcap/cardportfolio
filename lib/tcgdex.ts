@@ -404,28 +404,16 @@ function cardMatchesSearch(
   if (!term) return true;
 
   const name = card.name.toLowerCase();
-  const local = card.localId.toLowerCase();
   const localNorm = normalizeLocalId(card.localId);
-  const id = card.id.toLowerCase();
-  const setId = card.setId.toLowerCase();
 
-  // Name / id / set id substring
-  if (
-    name.includes(term) ||
-    local.includes(term) ||
-    id.includes(term) ||
-    setId.includes(term)
-  ) {
-    return true;
-  }
-
-  // Collector number match: "12", "12/88", "POR 12/88"
+  // Number / collector search ("12", "12/142", "SCR 12/142"):
+  // exact card number only — never substring (would match 120, 121, …)
   if (parsed.number) {
-    const numMatch = localNorm === parsed.number.toLowerCase();
-    if (!numMatch) return false;
+    const want = parsed.number.toLowerCase();
+    if (localNorm !== want) return false;
+
     if (parsed.code) {
       const code = getSetCollectorCode(card.setId).toUpperCase();
-      // also accept setId variants (sv07 / SV07)
       if (
         code !== parsed.code &&
         card.setId.toUpperCase() !== parsed.code &&
@@ -445,15 +433,23 @@ function cardMatchesSearch(
     return true;
   }
 
-  // Full collector id substring e.g. "por 12", "scr12/142"
-  const collector = formatCollectorCardId(
-    card.setId,
-    card.localId,
-    setMeta?.get(card.setId)?.cardCount?.official,
-  ).toLowerCase();
-  const compact = (s: string) => s.replace(/\s+/g, "");
-  if (collector.includes(term) || compact(collector).includes(compact(term))) {
-    return true;
+  // Text / free-text: name only (substring)
+  if (name.includes(term)) return true;
+
+  // Full collector id (e.g. "scr 12") — only when query has letters
+  if (/[a-z]/i.test(term)) {
+    const collector = formatCollectorCardId(
+      card.setId,
+      card.localId,
+      setMeta?.get(card.setId)?.cardCount?.official,
+    ).toLowerCase();
+    const compact = (s: string) => s.replace(/\s+/g, "");
+    if (
+      collector.includes(term) ||
+      compact(collector).includes(compact(term))
+    ) {
+      return true;
+    }
   }
 
   return false;
