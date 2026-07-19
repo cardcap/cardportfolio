@@ -343,11 +343,6 @@ export function SealedView() {
       {/* Primary metrics */}
       <div className="mb-3 grid grid-cols-2 gap-3 xl:grid-cols-4">
         <MetricTile
-          icon="box"
-          label="Produkte gesamt"
-          value={String(metrics.productCount)}
-        />
-        <MetricTile
           icon="chart"
           label="Gesamtwert"
           value={formatCurrency(metrics.totalValue)}
@@ -367,13 +362,21 @@ export function SealedView() {
           positive={metrics.profitLoss >= 0}
           negative={metrics.profitLoss < 0}
         />
+        <MetricTile
+          icon="tag"
+          label="Ø Wert pro Produkt"
+          value={formatCurrency(metrics.avgValue)}
+        />
       </div>
 
       {/* Secondary metrics */}
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <SmallStat label="Ø Wert pro Produkt" value={formatCurrency(metrics.avgValue)} icon="tag" />
+      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <SmallStat
+          label="Produkte gesamt"
+          value={String(metrics.productCount)}
+          icon="box"
+        />
         <SmallStat label="Sets" value={String(metrics.sets)} icon="layers" />
-        <SmallStat label="Stückzahl gesamt" value={String(metrics.totalUnits)} icon="box" />
       </div>
 
       {/* Toolbar: Suche + Filter (Sortierung in der Filtergruppe, Toggle rechts) */}
@@ -920,7 +923,7 @@ function MetricTile({
   positive,
   negative,
 }: {
-  icon: "box" | "chart" | "coins" | "trend";
+  icon: "box" | "chart" | "coins" | "trend" | "tag";
   label: string;
   value: string;
   hint?: string;
@@ -953,6 +956,12 @@ function MetricTile({
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
             <path d="M4 18 10 11l4 3 6-9" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M15 5h5v5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+        {icon === "tag" && (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+            <path d="M20 12 12 4H5v7l8 8 7-7Z" />
+            <circle cx="8.5" cy="8.5" r="1" fill="currentColor" />
           </svg>
         )}
       </span>
