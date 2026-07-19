@@ -42,15 +42,6 @@ const CONDITIONS = [
   "beschädigt",
 ] as const;
 
-const categoryColors: Record<SealedCategory, string> = {
-  Display: "bg-violet-500/15 text-violet-300 ring-violet-400/25",
-  "Elite Trainer Box": "bg-pink-500/15 text-pink-300 ring-pink-400/25",
-  "Booster Bundle": "bg-amber-500/15 text-amber-300 ring-amber-400/25",
-  Kollektion: "bg-sky-500/15 text-sky-300 ring-sky-400/25",
-  Tin: "bg-indigo-500/15 text-indigo-300 ring-indigo-400/25",
-  Blister: "bg-zinc-500/20 text-zinc-300 ring-zinc-400/25",
-};
-
 export function SealedView() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<(typeof CATEGORIES)[number]>("Alle");
