@@ -66,6 +66,8 @@ export function SealedView() {
   const [pageSize, setPageSize] =
     useState<(typeof PAGE_SIZES)[number]>(25);
   const [openProduct, setOpenProduct] = useState<SealedProduct | null>(null);
+  const [confirmProduct, setConfirmProduct] =
+    useState<SealedProduct | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   const setOptions = useMemo(
@@ -202,11 +204,87 @@ export function SealedView() {
             `${result.cards.length} Karten aus „${result.product.name}“ mit EK übernommen` +
               (result.residual
                 ? ` · Restposten ${result.residual.name}`
-                : ""),
+                : "") +
+              " · unter Assets → Karten",
           );
           setTimeout(() => setToast(null), 4000);
         }}
       />
+
+      {confirmProduct && (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-40 bg-black/50"
+            aria-label="Schließen"
+            onClick={() => setConfirmProduct(null)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sealed-open-confirm-title"
+            className="fixed inset-x-4 top-[20%] z-50 mx-auto w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl sm:inset-x-auto"
+          >
+            <h2
+              id="sealed-open-confirm-title"
+              className="text-lg font-semibold"
+            >
+              Sealed wirklich öffnen?
+            </h2>
+            <p className="mt-2 text-sm text-[var(--muted)]">
+              Bist du sicher, dass du{" "}
+              <span className="font-medium text-[var(--foreground)]">
+                „{confirmProduct.name}“
+              </span>{" "}
+              öffnen möchtest?
+            </p>
+            <ul className="mt-3 space-y-1.5 text-sm text-[var(--muted)]">
+              <li className="flex gap-2">
+                <span className="text-[var(--accent)]" aria-hidden>
+                  ·
+                </span>
+                <span>
+                  Das Produkt verschwindet aus der Sealed-Liste.
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <span className="text-[var(--accent)]" aria-hidden>
+                  ·
+                </span>
+                <span>
+                  Die gezogenen Karten erscheinen unter{" "}
+                  <Link
+                    href="/assets/karten"
+                    className="font-medium text-[var(--accent)] hover:underline"
+                  >
+                    Assets → Karten
+                  </Link>
+                  .
+                </span>
+              </li>
+            </ul>
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmProduct(null)}
+                className="h-10 flex-1 rounded-full border border-[var(--border)] text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]"
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpenProduct(confirmProduct);
+                  setConfirmProduct(null);
+                }}
+                className="h-10 flex-1 rounded-full bg-[var(--accent)] text-sm font-medium text-white hover:brightness-110"
+              >
+                Ja, öffnen
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {toast && (
         <div className="mb-4 rounded-xl border border-[var(--positive)]/30 bg-[var(--positive-soft)] px-4 py-3 text-sm text-[var(--positive)]">
@@ -493,7 +571,7 @@ export function SealedView() {
                 <SealedRow
                   key={row.id}
                   product={row}
-                  onOpen={() => setOpenProduct(row)}
+                  onOpen={() => setConfirmProduct(row)}
                 />
               ))}
               {pageRows.length === 0 && (
@@ -509,7 +587,7 @@ export function SealedView() {
               <SealedCard
                 key={row.id}
                 product={row}
-                onOpen={() => setOpenProduct(row)}
+                onOpen={() => setConfirmProduct(row)}
               />
             ))}
           </div>
