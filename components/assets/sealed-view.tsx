@@ -1,16 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { SealedOpenDialog } from "@/components/assets/sealed-open-dialog";
 import { SealedProductImage } from "@/components/ui/sealed-product-image";
 import { formatCurrency, formatPercent } from "@/lib/format";
+import { addToLocalCollectionDetailed } from "@/lib/local-collection";
+import {
+  getLocalSealed,
+  removeLocalSealed,
+  SEALED_CHANGED_EVENT,
+} from "@/lib/local-sealed";
 import {
   getSealedMetrics,
-  sealedProducts,
   type SealedCategory,
   type SealedProduct,
 } from "@/lib/mock-data";
+import type { TcgCard } from "@/lib/pokemon-tcg";
 
 type SortKey =
   | "newest"
@@ -59,19 +65,105 @@ export function SealedView() {
   const [confirmProduct, setConfirmProduct] =
     useState<SealedProduct | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [inventory, setInventory] = useState<SealedProduct[]>([]);
 
-  const setOptions = useMemo(
-    () =>
-      Array.from(new Set(sealedProducts.map((p) => p.setName))).sort((a, b) =>
-        a.localeCompare(b, "de"),
-      ),
+  // Load sealed inventory (localStorage, seeded from demo)
+  useEffect(() => {
+    setInventory(getLocalSealed());
+    const onChange = () => setInventory(getLocalSealed());
+    window.addEventListener(SEALED_CHANGED_EVENT, onChange);
+    window.addEventListener("storage", onChange);
+    return () => {
+      window.removeEventListener(SEALED_CHANGED_EVENT, onChange);
+      window.removeEventListener("storage", onChange);
+    };
+  }, []);
+
+  const handleOpenConfirm = useCallback(
+    (result: {
+      product: SealedProduct;
+      cards: Array<{
+        cardId: string;
+        name: string;
+        setName?: string;
+        collectorId?: string;
+        marketValue: number;
+        quantity: number;
+        costPerUnit: number;
+        costTotal: number;
+        origin: string;
+      }>;
+      residual: { name: string; costTotal: number } | null;
+    }) => {
+      const today = new Date().toISOString().slice(0, 10);
+      const lang =
+        result.product.language === "EN"
+          ? "en"
+          : result.product.language === "JP"
+            ? "ja"
+            : "de";
+
+      // 1) Add pulled cards to Assets → Karten (local collection)
+      for (const c of result.cards) {
+        const tcg: TcgCard = {
+          id: c.cardId,
+          name: c.name,
+          number: c.collectorId ?? "",
+          set: {
+            id: c.cardId.includes("-")
+              ? c.cardId.slice(0, c.cardId.lastIndexOf("-"))
+              : "",
+            name: c.setName ?? result.product.setName,
+          },
+          images: { small: "", large: "" },
+          collectorId: c.collectorId,
+          cardmarket: {
+            prices: {
+              trendPrice: c.marketValue,
+              averageSellPrice: c.marketValue,
+            },
+          },
+        };
+        addToLocalCollectionDetailed(tcg, {
+          language: lang,
+          condition: "Near Mint",
+          quantity: c.quantity,
+          purchasePrice: c.costPerUnit,
+          purchaseDate: today,
+          origin: c.origin,
+        });
+      }
+
+      // 2) Remove sealed product entirely from Sealed list
+      //    (EK-Verteilung nutzt die gesamte Zeile)
+      const next = removeLocalSealed(result.product.id);
+      setInventory(next);
+
+      const cardCount = result.cards.reduce((s, c) => s + c.quantity, 0);
+      setToast(
+        `${cardCount} Karte${cardCount === 1 ? "" : "n"} unter Assets → Karten` +
+          ` · „${result.product.name}“ aus Sealed entfernt` +
+          (result.residual
+            ? ` · Restposten ${result.residual.name}`
+            : ""),
+      );
+      setTimeout(() => setToast(null), 5000);
+    },
     [],
   );
 
-  const metrics = getSealedMetrics(sealedProducts);
+  const setOptions = useMemo(
+    () =>
+      Array.from(new Set(inventory.map((p) => p.setName))).sort((a, b) =>
+        a.localeCompare(b, "de"),
+      ),
+    [inventory],
+  );
+
+  const metrics = useMemo(() => getSealedMetrics(inventory), [inventory]);
 
   const filtered = useMemo(() => {
-    let rows = [...sealedProducts];
+    let rows = [...inventory];
     const q = search.trim().toLowerCase();
     if (q) {
       rows = rows.filter(
@@ -109,11 +201,11 @@ export function SealedView() {
           return profitA - profitB;
         case "newest":
         default:
-          return 0; // newest: keep mock order
+          return 0; // newest: keep inventory order
       }
     });
     return rows;
-  }, [search, category, setFilter, language, condition, sort]);
+  }, [inventory, search, category, setFilter, language, condition, sort]);
 
   const filteredStats = useMemo(() => {
     const products = filtered.length;
@@ -184,16 +276,7 @@ export function SealedView() {
         open={!!openProduct}
         product={openProduct}
         onClose={() => setOpenProduct(null)}
-        onConfirm={(result) => {
-          setToast(
-            `${result.cards.length} Karten aus „${result.product.name}“ mit EK übernommen` +
-              (result.residual
-                ? ` · Restposten ${result.residual.name}`
-                : "") +
-              " · unter Assets → Karten",
-          );
-          setTimeout(() => setToast(null), 4000);
-        }}
+        onConfirm={handleOpenConfirm}
       />
 
       {confirmProduct && (
@@ -882,9 +965,7 @@ function ProductThumb({
 
 function CategoryBadge({ category }: { category: SealedCategory }) {
   return (
-    <span
-      className={`inline-flex w-fit rounded-md px-2 py-0.5 text-[10px] font-medium ring-1 ${categoryColors[category]}`}
-    >
+    <span className="inline-flex w-fit rounded-md bg-[var(--surface-elevated)] px-2 py-0.5 text-[10px] font-medium text-[var(--muted)] ring-1 ring-[var(--border)]">
       {category}
     </span>
   );

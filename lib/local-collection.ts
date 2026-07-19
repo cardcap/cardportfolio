@@ -95,6 +95,17 @@ export function collectionItemFromTcg(
   };
 }
 
+export type AddToCollectionOptions = {
+  language?: CardLanguage | string;
+  condition?: string;
+  quantity?: number;
+  /** Override EK pro Stück (z. B. aus Sealed-Öffnung) */
+  purchasePrice?: number | null;
+  purchaseDate?: string | null;
+  /** Optional note stored in exemplars for multi-copy tracking */
+  origin?: string | null;
+};
+
 /** Add or bump quantity for matching tcgCardId + condition */
 export function addToLocalCollection(
   card: TcgCard,
@@ -102,18 +113,78 @@ export function addToLocalCollection(
   condition = "Near Mint",
   quantity = 1,
 ): LocalCollectionItem {
+  return addToLocalCollectionDetailed(card, {
+    language,
+    condition,
+    quantity,
+  });
+}
+
+/**
+ * Add card with optional EK / date (used when opening sealed products).
+ * Each opened copy is tracked as exemplars with the allocated purchase price.
+ */
+export function addToLocalCollectionDetailed(
+  card: TcgCard,
+  opts: AddToCollectionOptions = {},
+): LocalCollectionItem {
+  const language = opts.language ?? "de";
+  const condition = opts.condition ?? "Near Mint";
+  const quantity = Math.max(1, opts.quantity ?? 1);
+  const marketUnit = getCardPrice(card) ?? 0;
+  const purchaseUnit =
+    opts.purchasePrice !== undefined && opts.purchasePrice !== null
+      ? opts.purchasePrice
+      : marketUnit;
+  const purchaseDate =
+    opts.purchaseDate ?? new Date().toISOString().slice(0, 10);
+
   const items = getLocalCollection();
   const existing = items.find(
     (i) => i.tcgCardId === card.id && i.condition === condition,
   );
+
+  const newExemplars: LocalExemplar[] = Array.from({ length: quantity }, () => ({
+    condition,
+    purchasePrice: purchaseUnit,
+    purchaseDate,
+  }));
+
   if (existing) {
     existing.quantity += quantity;
-    const unit = existing.purchasePrice ?? getCardPrice(card) ?? 0;
-    existing.marketValue = Math.round(unit * existing.quantity * 100) / 100;
+    const prevEx =
+      existing.exemplars && existing.exemplars.length > 0
+        ? existing.exemplars
+        : Array.from({ length: Math.max(0, existing.quantity - quantity) }, () => ({
+            condition: existing.condition,
+            purchasePrice: existing.purchasePrice,
+            purchaseDate: existing.purchaseDate,
+          }));
+    existing.exemplars = [...prevEx, ...newExemplars];
+    // Weighted average EK across all exemplars
+    const invested = existing.exemplars.reduce(
+      (s, e) => s + (e.purchasePrice ?? 0),
+      0,
+    );
+    existing.purchasePrice =
+      existing.quantity > 0
+        ? Math.round((invested / existing.quantity) * 100) / 100
+        : purchaseUnit;
+    existing.marketValue =
+      Math.round(marketUnit * existing.quantity * 100) / 100;
+    existing.profit =
+      Math.round((existing.marketValue - invested) * 100) / 100;
     saveLocalCollection(items);
     return existing;
   }
+
   const created = collectionItemFromTcg(card, language, condition, quantity);
+  created.purchasePrice = purchaseUnit;
+  created.purchaseDate = purchaseDate;
+  created.marketValue = Math.round(marketUnit * quantity * 100) / 100;
+  created.profit =
+    Math.round((created.marketValue - purchaseUnit * quantity) * 100) / 100;
+  created.exemplars = newExemplars;
   items.unshift(created);
   saveLocalCollection(items);
   return created;

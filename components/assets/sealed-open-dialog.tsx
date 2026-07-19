@@ -40,6 +40,9 @@ type SealedOpenDialogProps = {
     cards: Array<{
       cardId: string;
       name: string;
+      setName?: string;
+      collectorId?: string;
+      marketValue: number;
       quantity: number;
       costPerUnit: number;
       costTotal: number;
@@ -397,6 +400,9 @@ export function SealedOpenDialog({
         return {
           cardId: d.cardId,
           name: d.name,
+          setName: d.setName,
+          collectorId: d.collectorId,
+          marketValue: d.marketValue,
           quantity: d.quantity,
           costPerUnit: a?.costPerUnit ?? 0,
           costTotal: a?.costTotal ?? 0,
