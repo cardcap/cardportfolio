@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CardImage } from "@/components/ui/card-image";
+import { ConditionBadge } from "@/components/ui/condition-badge";
 import { InfoTip } from "@/components/ui/metric-card";
 import { useWishlist } from "@/components/wishlist-provider";
 import { formatCurrency, formatDateDE } from "@/lib/format";
@@ -592,12 +593,7 @@ export function SetCardDetailPanel({
                               <span className="text-xs text-[var(--muted)]">
                                 Exemplar {i + 1}
                               </span>
-                              <span className="rounded-md bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-[var(--border)]">
-                                {shortConditionLabel(exCond)}
-                              </span>
-                              <span className="text-[11px] text-[var(--muted)]">
-                                {exCond}
-                              </span>
+                              <ConditionBadge condition={exCond} short />
                             </div>
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs tabular-nums text-[var(--muted)]">
                               <span>EK {formatCurrency(exEk)}</span>

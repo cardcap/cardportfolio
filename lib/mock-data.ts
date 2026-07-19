@@ -853,7 +853,7 @@ function withMoverMeta(rows: DetailedMover[]): DetailedMover[] {
     const langs = ["DE", "DE", "EN", "DE", "JP", "EN", "DE", "DE", "EN", "DE"];
     const conditions =
       row.kind === "Sealed"
-        ? ["OVP", "OVP", "OVP – leichte Mängel", "OVP"]
+        ? ["OVP", "OVP", "leichte Mängel", "OVP"]
         : ["NM", "NM", "EX", "M", "NM", "GD", "NM", "EX", "NM", "NM"];
     return {
       ...row,
@@ -2014,7 +2014,7 @@ export type SealedProduct = {
   setName: string;
   category: SealedCategory;
   language: "DE" | "EN" | "JP";
-  condition: "OVP" | "OVP – leichte Mängel" | "Geöffnet";
+  condition: "OVP" | "leichte Mängel" | "beschädigt";
   quantity: number;
   purchasePrice: number;
   marketValue: number;
@@ -2079,7 +2079,7 @@ const sealedProductsRaw: Omit<SealedProduct, "imageUrl" | "imageFallbacks">[] = 
     setName: "Maskerade im Zwielicht",
     category: "Tin",
     language: "EN",
-    condition: "OVP – leichte Mängel",
+    condition: "leichte Mängel",
     quantity: 3,
     purchasePrice: 12,
     marketValue: 14.5,
@@ -2127,7 +2127,7 @@ const sealedProductsRaw: Omit<SealedProduct, "imageUrl" | "imageFallbacks">[] = 
     setName: "Karmesin & Purpur",
     category: "Elite Trainer Box",
     language: "DE",
-    condition: "OVP",
+    condition: "beschädigt",
     quantity: 3,
     purchasePrice: 42,
     marketValue: 51,
@@ -2151,7 +2151,7 @@ const sealedProductsRaw: Omit<SealedProduct, "imageUrl" | "imageFallbacks">[] = 
     setName: "Obsidianflammen",
     category: "Tin",
     language: "DE",
-    condition: "OVP",
+    condition: "leichte Mängel",
     quantity: 4,
     purchasePrice: 15,
     marketValue: 18,

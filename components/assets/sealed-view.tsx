@@ -12,8 +12,18 @@ import {
   type SealedProduct,
 } from "@/lib/mock-data";
 
-type SortKey = "newest" | "value-desc" | "value-asc" | "name";
+type SortKey =
+  | "newest"
+  | "name"
+  | "name-desc"
+  | "set"
+  | "value-desc"
+  | "value-asc"
+  | "profit-desc"
+  | "profit-asc";
 type ViewMode = "list" | "grid";
+
+const PAGE_SIZES = [25, 50, 100] as const;
 
 const CATEGORIES: Array<SealedCategory | "Alle"> = [
   "Alle",
@@ -25,8 +35,13 @@ const CATEGORIES: Array<SealedCategory | "Alle"> = [
   "Blister",
 ];
 
-const LANGUAGES = ["Alle", "DE", "EN", "JP"] as const;
-const CONDITIONS = ["Alle", "OVP", "OVP – leichte Mängel", "Geöffnet"] as const;
+const LANGUAGES = ["Alle Sprachen", "DE", "EN", "JP"] as const;
+const CONDITIONS = [
+  "Alle Zustände",
+  "OVP",
+  "leichte Mängel",
+  "beschädigt",
+] as const;
 
 const categoryColors: Record<SealedCategory, string> = {
   Display: "bg-violet-500/15 text-violet-300 ring-violet-400/25",
@@ -40,18 +55,24 @@ const categoryColors: Record<SealedCategory, string> = {
 export function SealedView() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<(typeof CATEGORIES)[number]>("Alle");
-  const [setFilter, setSetFilter] = useState("Alle");
-  const [language, setLanguage] = useState<(typeof LANGUAGES)[number]>("Alle");
-  const [condition, setCondition] = useState<(typeof CONDITIONS)[number]>("Alle");
+  const [setFilter, setSetFilter] = useState("Alle Sets");
+  const [language, setLanguage] =
+    useState<(typeof LANGUAGES)[number]>("Alle Sprachen");
+  const [condition, setCondition] =
+    useState<(typeof CONDITIONS)[number]>("Alle Zustände");
   const [sort, setSort] = useState<SortKey>("newest");
   const [view, setView] = useState<ViewMode>("list");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] =
+    useState<(typeof PAGE_SIZES)[number]>(25);
   const [openProduct, setOpenProduct] = useState<SealedProduct | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const pageSize = 6;
 
-  const setNames = useMemo(
-    () => ["Alle", ...Array.from(new Set(sealedProducts.map((p) => p.setName))).sort()],
+  const setOptions = useMemo(
+    () =>
+      Array.from(new Set(sealedProducts.map((p) => p.setName))).sort((a, b) =>
+        a.localeCompare(b, "de"),
+      ),
     [],
   );
 
@@ -69,20 +90,102 @@ export function SealedView() {
       );
     }
     if (category !== "Alle") rows = rows.filter((p) => p.category === category);
-    if (setFilter !== "Alle") rows = rows.filter((p) => p.setName === setFilter);
-    if (language !== "Alle") rows = rows.filter((p) => p.language === language);
-    if (condition !== "Alle") rows = rows.filter((p) => p.condition === condition);
+    if (setFilter !== "Alle Sets")
+      rows = rows.filter((p) => p.setName === setFilter);
+    if (language !== "Alle Sprachen")
+      rows = rows.filter((p) => p.language === language);
+    if (condition !== "Alle Zustände")
+      rows = rows.filter((p) => p.condition === condition);
 
     rows.sort((a, b) => {
-      if (sort === "name") return a.name.localeCompare(b.name, "de");
-      if (sort === "value-desc")
-        return b.marketValue * b.quantity - a.marketValue * a.quantity;
-      if (sort === "value-asc")
-        return a.marketValue * a.quantity - b.marketValue * b.quantity;
-      return 0; // newest: keep mock order
+      const valueA = a.marketValue * a.quantity;
+      const valueB = b.marketValue * b.quantity;
+      const profitA = valueA - a.purchasePrice * a.quantity;
+      const profitB = valueB - b.purchasePrice * b.quantity;
+      switch (sort) {
+        case "name":
+          return a.name.localeCompare(b.name, "de");
+        case "name-desc":
+          return b.name.localeCompare(a.name, "de");
+        case "set":
+          return (
+            a.setName.localeCompare(b.setName, "de") ||
+            a.name.localeCompare(b.name, "de")
+          );
+        case "value-desc":
+          return valueB - valueA;
+        case "value-asc":
+          return valueA - valueB;
+        case "profit-desc":
+          return profitB - profitA;
+        case "profit-asc":
+          return profitA - profitB;
+        case "newest":
+        default:
+          return 0; // newest: keep mock order
+      }
     });
     return rows;
   }, [search, category, setFilter, language, condition, sort]);
+
+  const filteredStats = useMemo(() => {
+    const products = filtered.length;
+    const units = filtered.reduce((s, p) => s + p.quantity, 0);
+    const value = filtered.reduce(
+      (s, p) => s + p.marketValue * p.quantity,
+      0,
+    );
+    return { products, units, value };
+  }, [filtered]);
+
+  const activeChips = useMemo(() => {
+    const chips: Array<{ key: string; label: string; clear: () => void }> = [];
+    if (category !== "Alle") {
+      chips.push({
+        key: "category",
+        label: category,
+        clear: () => setCategory("Alle"),
+      });
+    }
+    if (setFilter !== "Alle Sets") {
+      chips.push({
+        key: "set",
+        label: setFilter,
+        clear: () => setSetFilter("Alle Sets"),
+      });
+    }
+    if (language !== "Alle Sprachen") {
+      chips.push({
+        key: "lang",
+        label: language,
+        clear: () => setLanguage("Alle Sprachen"),
+      });
+    }
+    if (condition !== "Alle Zustände") {
+      chips.push({
+        key: "condition",
+        label: condition,
+        clear: () => setCondition("Alle Zustände"),
+      });
+    }
+    if (search.trim()) {
+      chips.push({
+        key: "search",
+        label: `„${search.trim()}“`,
+        clear: () => setSearch(""),
+      });
+    }
+    return chips;
+  }, [category, setFilter, language, condition, search]);
+
+  const resetFilters = () => {
+    setSearch("");
+    setCategory("Alle");
+    setSetFilter("Alle Sets");
+    setLanguage("Alle Sprachen");
+    setCondition("Alle Zustände");
+    setPage(1);
+  };
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -201,9 +304,9 @@ export function SealedView() {
         <SmallStat label="Stückzahl gesamt" value={String(metrics.totalUnits)} icon="box" />
       </div>
 
-      {/* Filters */}
-      <div className="mb-4 flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center">
-        <label className="relative min-w-0 flex-1 lg:max-w-sm">
+      {/* Toolbar: Suche + Filter wie bei Karten (ohne Seltenheit) */}
+      <div className="mb-3 flex flex-col gap-2 xl:flex-row xl:flex-wrap xl:items-center">
+        <label className="relative min-w-0 flex-1 xl:max-w-sm">
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]">
             <SearchIcon />
           </span>
@@ -215,86 +318,152 @@ export function SealedView() {
               setPage(1);
             }}
             placeholder="Produkt, Set oder Produktnummer suchen"
-            className="h-9 w-full rounded-full border border-[var(--border)] bg-[var(--surface)] py-0 pl-9 pr-3 text-sm outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
+            className="h-10 w-full rounded-full border border-[var(--border)] bg-[var(--surface)] py-0 pl-9 pr-3 text-sm outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
           />
         </label>
 
-        <FilterSelect
+        <select
           value={category}
-          onChange={(v) => {
-            setCategory(v as typeof category);
+          onChange={(e) => {
+            setCategory(e.target.value as typeof category);
             setPage(1);
           }}
-          options={CATEGORIES}
-          label="Kategorie"
-        />
-        <FilterSelect
+          className="h-10 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--muted)] outline-none focus:border-[var(--accent)] focus:text-[var(--foreground)]"
+        >
+          {CATEGORIES.map((c) => (
+            <option key={c} value={c}>
+              {c === "Alle" ? "Alle Kategorien" : c}
+            </option>
+          ))}
+        </select>
+
+        <select
           value={setFilter}
-          onChange={(v) => {
-            setSetFilter(v);
+          onChange={(e) => {
+            setSetFilter(e.target.value);
             setPage(1);
           }}
-          options={setNames}
-          label="Set"
-        />
-        <FilterSelect
+          className="h-10 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--muted)] outline-none focus:border-[var(--accent)] focus:text-[var(--foreground)]"
+        >
+          <option value="Alle Sets">Alle Sets</option>
+          {setOptions.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+
+        <select
           value={language}
-          onChange={(v) => {
-            setLanguage(v as typeof language);
+          onChange={(e) => {
+            setLanguage(e.target.value as typeof language);
             setPage(1);
           }}
-          options={[...LANGUAGES]}
-          label="Sprache"
-        />
-        <FilterSelect
+          className="h-10 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--muted)] outline-none focus:border-[var(--accent)] focus:text-[var(--foreground)]"
+        >
+          {LANGUAGES.map((l) => (
+            <option key={l} value={l}>
+              {l}
+            </option>
+          ))}
+        </select>
+
+        <select
           value={condition}
-          onChange={(v) => {
-            setCondition(v as typeof condition);
+          onChange={(e) => {
+            setCondition(e.target.value as typeof condition);
             setPage(1);
           }}
-          options={[...CONDITIONS]}
-          label="Zustand"
-        />
+          className="h-10 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--muted)] outline-none focus:border-[var(--accent)] focus:text-[var(--foreground)]"
+        >
+          {CONDITIONS.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
 
-        <div className="flex flex-1 items-center justify-end gap-2">
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value as SortKey)}
-            className="h-9 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 text-sm outline-none focus:border-[var(--accent)]"
+        <select
+          value={sort}
+          onChange={(e) => setSort(e.target.value as SortKey)}
+          className="h-10 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 text-sm outline-none focus:border-[var(--accent)]"
+        >
+          <option value="newest">Zuletzt hinzugefügt</option>
+          <option value="name">Name A–Z</option>
+          <option value="name-desc">Name Z–A</option>
+          <option value="set">Set</option>
+          <option value="value-desc">Marktwert: höchster zuerst</option>
+          <option value="value-asc">Marktwert: niedrigster zuerst</option>
+          <option value="profit-desc">Gewinn: höchster zuerst</option>
+          <option value="profit-asc">Gewinn: niedrigster zuerst</option>
+        </select>
+
+        <div className="ml-auto flex h-10 rounded-full border border-[var(--border)] bg-[var(--surface)] p-0.5">
+          <button
+            type="button"
+            onClick={() => setView("list")}
+            className={`inline-flex h-full items-center justify-center rounded-full px-3 ${
+              view === "list"
+                ? "bg-[var(--accent)] text-white"
+                : "text-[var(--muted)] hover:text-[var(--foreground)]"
+            }`}
+            aria-label="Listenansicht"
+            aria-pressed={view === "list"}
           >
-            <option value="newest">Neueste zuerst</option>
-            <option value="value-desc">Wert: höchster zuerst</option>
-            <option value="value-asc">Wert: niedrigster zuerst</option>
-            <option value="name">Name A–Z</option>
-          </select>
-
-          <div className="flex rounded-full border border-[var(--border)] p-0.5">
-            <button
-              type="button"
-              onClick={() => setView("list")}
-              className={`rounded-full p-1.5 ${
-                view === "list"
-                  ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-                  : "text-[var(--muted)]"
-              }`}
-              aria-label="Listenansicht"
-            >
-              <ListIcon />
-            </button>
-            <button
-              type="button"
-              onClick={() => setView("grid")}
-              className={`rounded-full p-1.5 ${
-                view === "grid"
-                  ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-                  : "text-[var(--muted)]"
-              }`}
-              aria-label="Kachelansicht"
-            >
-              <GridIcon />
-            </button>
-          </div>
+            <ListIcon />
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("grid")}
+            className={`inline-flex h-full items-center justify-center rounded-full px-3 ${
+              view === "grid"
+                ? "bg-[var(--accent)] text-white"
+                : "text-[var(--muted)] hover:text-[var(--foreground)]"
+            }`}
+            aria-label="Kachelansicht"
+            aria-pressed={view === "grid"}
+          >
+            <GridIcon />
+          </button>
         </div>
+      </div>
+
+      {/* Active filter chips + summary */}
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-h-[1.75rem] flex-wrap items-center gap-1.5">
+          {activeChips.map((chip) => (
+            <button
+              key={chip.key}
+              type="button"
+              onClick={() => {
+                chip.clear();
+                setPage(1);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-xs font-medium text-[var(--accent)]"
+            >
+              {chip.label}
+              <span aria-hidden className="opacity-70">
+                ×
+              </span>
+            </button>
+          ))}
+          {activeChips.length > 0 && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
+            >
+              Alle zurücksetzen
+            </button>
+          )}
+        </div>
+        <p className="shrink-0 text-xs text-[var(--muted)]">
+          {filteredStats.products.toLocaleString("de-DE")} Produkte
+          <span className="mx-1.5 opacity-40">·</span>
+          {filteredStats.units.toLocaleString("de-DE")} Stück
+          <span className="mx-1.5 opacity-40">·</span>
+          Marktwert {formatCurrency(filteredStats.value)}
+        </p>
       </div>
 
       {/* Table / grid */}
@@ -344,23 +513,93 @@ export function SealedView() {
           </div>
         )}
 
-        <div className="flex flex-col gap-3 border-t border-[var(--border)] px-4 py-3 text-xs text-[var(--muted)] sm:flex-row sm:items-center sm:justify-between sm:px-5">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            <span>
-              {(safePage - 1) * pageSize + 1}–
-              {Math.min(safePage * pageSize, filtered.length)} von{" "}
-              {filtered.length} Produkten
-            </span>
+        <div className="border-t border-[var(--border)] px-4 py-3 sm:px-5">
+          <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
+            <p className="text-xs text-[var(--muted)]">
+              {filtered.length === 0
+                ? "0"
+                : `${((safePage - 1) * pageSize + 1).toLocaleString("de-DE")}–${Math.min(safePage * pageSize, filtered.length).toLocaleString("de-DE")}`}{" "}
+              von {filtered.length.toLocaleString("de-DE")} Produkten
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-1">
+              <button
+                type="button"
+                disabled={safePage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] text-sm text-[var(--muted)] disabled:opacity-40"
+                aria-label="Vorherige Seite"
+              >
+                ‹
+              </button>
+              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                let n: number;
+                if (totalPages <= 5) n = i + 1;
+                else if (safePage <= 3) n = i + 1;
+                else if (safePage >= totalPages - 2) n = totalPages - 4 + i;
+                else n = safePage - 2 + i;
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setPage(n)}
+                    className={`flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-sm ${
+                      n === safePage
+                        ? "bg-[var(--accent)] font-medium text-white"
+                        : "border border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)]"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                );
+              })}
+              {totalPages > 5 && safePage < totalPages - 2 && (
+                <>
+                  <span className="px-1 text-[var(--muted)]">…</span>
+                  <button
+                    type="button"
+                    onClick={() => setPage(totalPages)}
+                    className="flex h-8 min-w-8 items-center justify-center rounded-lg border border-[var(--border)] px-2 text-sm text-[var(--muted)]"
+                  >
+                    {totalPages}
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                disabled={safePage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] text-sm text-[var(--muted)] disabled:opacity-40"
+                aria-label="Nächste Seite"
+              >
+                ›
+              </button>
+            </div>
+            <label className="flex items-center gap-2 text-xs text-[var(--muted)]">
+              Pro Seite
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(
+                    Number(e.target.value) as (typeof PAGE_SIZES)[number],
+                  );
+                  setPage(1);
+                }}
+                className="h-8 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-sm text-[var(--foreground)]"
+              >
+                {PAGE_SIZES.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <p className="mt-2 text-xs text-[var(--muted)]">
             <span className="inline-flex items-center gap-1.5">
               <span aria-hidden>ℹ</span>
               Marktpreise zuletzt aktualisiert: {metrics.pricesUpdatedLabel}
             </span>
-          </div>
-          <Pagination
-            page={safePage}
-            totalPages={totalPages}
-            onChange={setPage}
-          />
+          </p>
         </div>
       </div>
     </div>
@@ -379,7 +618,7 @@ function SealedRow({
   const profit = totalMarket - totalCost;
   const profitPct = totalCost ? (profit / totalCost) * 100 : 0;
   const positive = profit >= 0;
-  const canOpen = product.condition !== "Geöffnet";
+  const canOpen = true;
 
   return (
     <li className="px-4 py-3 transition-colors hover:bg-[var(--surface-elevated)]/50 sm:px-5">
@@ -507,7 +746,7 @@ function SealedCard({
   const profit =
     totalMarket - product.purchasePrice * product.quantity;
   const positive = profit >= 0;
-  const canOpen = product.condition !== "Geöffnet";
+  const canOpen = true;
 
   return (
     <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)]/40 p-4">
@@ -585,17 +824,15 @@ function CategoryBadge({ category }: { category: SealedCategory }) {
 }
 
 function ConditionBadge({ condition }: { condition: SealedProduct["condition"] }) {
-  const warn = condition.includes("Mängel");
-  const open = condition === "Geöffnet";
+  const styles =
+    condition === "beschädigt"
+      ? "bg-red-500/15 text-red-300 ring-red-400/25"
+      : condition === "leichte Mängel"
+        ? "bg-amber-500/15 text-amber-300 ring-amber-400/25"
+        : "bg-emerald-500/15 text-emerald-300 ring-emerald-400/25";
   return (
     <span
-      className={`inline-flex w-fit rounded-md px-2 py-0.5 text-[10px] font-medium ring-1 ${
-        open
-          ? "bg-zinc-500/15 text-zinc-400 ring-zinc-500/25"
-          : warn
-            ? "bg-amber-500/15 text-amber-300 ring-amber-400/25"
-            : "bg-emerald-500/15 text-emerald-300 ring-emerald-400/25"
-      }`}
+      className={`inline-flex w-fit rounded-md px-2 py-0.5 text-[10px] font-medium ring-1 ${styles}`}
     >
       {condition}
     </span>
@@ -707,81 +944,7 @@ function SmallStat({
   );
 }
 
-function FilterSelect({
-  value,
-  onChange,
-  options,
-  label,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: string[];
-  label: string;
-}) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      aria-label={label}
-      className="h-9 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--muted)] outline-none focus:border-[var(--accent)] focus:text-[var(--foreground)]"
-    >
-      {options.map((opt) => (
-        <option key={opt} value={opt}>
-          {opt === "Alle" ? label : opt}
-        </option>
-      ))}
-    </select>
-  );
-}
 
-function Pagination({
-  page,
-  totalPages,
-  onChange,
-}: {
-  page: number;
-  totalPages: number;
-  onChange: (p: number) => void;
-}) {
-  const pages = Array.from({ length: Math.min(totalPages, 5) }, (_, i) => i + 1);
-  return (
-    <div className="flex items-center gap-1">
-      <button
-        type="button"
-        disabled={page <= 1}
-        onClick={() => onChange(page - 1)}
-        className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] disabled:opacity-40"
-        aria-label="Vorherige Seite"
-      >
-        ‹
-      </button>
-      {pages.map((p) => (
-        <button
-          key={p}
-          type="button"
-          onClick={() => onChange(p)}
-          className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-medium ${
-            p === page
-              ? "bg-[var(--accent)] text-white"
-              : "border border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)]"
-          }`}
-        >
-          {p}
-        </button>
-      ))}
-      {totalPages > 5 && <span className="px-1">…</span>}
-      <button
-        type="button"
-        disabled={page >= totalPages}
-        onClick={() => onChange(page + 1)}
-        className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] disabled:opacity-40"
-        aria-label="Nächste Seite"
-      >
-        ›
-      </button>
-    </div>
-  );
-}
 
 function SearchIcon() {
   return (

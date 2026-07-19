@@ -1971,6 +1971,7 @@ export function SammlungView() {
                                           >
                                             <ConditionBadge
                                               condition={exCondition}
+                                              short
                                             />
                                           </td>
                                           <td
