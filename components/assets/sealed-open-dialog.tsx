@@ -147,18 +147,23 @@ export function SealedOpenDialog({
     };
   }, [open, product?.id, product?.setName]);
 
-  // Reset when dialog opens for a product
+  // Always start empty — user adds cards via search only
   useEffect(() => {
-    if (open) {
+    if (!open) {
       setDrafts([]);
       setCardSearch("");
       setApiHits([]);
       setShowResults(false);
-      setMethod("market");
-      setIncludeBulk(true);
-      setBulkEstimate("25");
-      setDone(false);
+      return;
     }
+    setDrafts([]);
+    setCardSearch("");
+    setApiHits([]);
+    setShowResults(false);
+    setMethod("market");
+    setIncludeBulk(true);
+    setBulkEstimate("25");
+    setDone(false);
   }, [open, product?.id]);
 
   // Close search results on outside click
