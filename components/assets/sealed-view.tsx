@@ -16,7 +16,6 @@ type SortKey =
   | "newest"
   | "name"
   | "name-desc"
-  | "set"
   | "value-desc"
   | "value-asc"
   | "profit-desc"
@@ -109,11 +108,6 @@ export function SealedView() {
           return a.name.localeCompare(b.name, "de");
         case "name-desc":
           return b.name.localeCompare(a.name, "de");
-        case "set":
-          return (
-            a.setName.localeCompare(b.setName, "de") ||
-            a.name.localeCompare(b.name, "de")
-          );
         case "value-desc":
           return valueB - valueA;
         case "value-asc":
@@ -470,7 +464,6 @@ export function SealedView() {
             <option value="newest">Neueste zuerst</option>
             <option value="name">Name A–Z</option>
             <option value="name-desc">Name Z–A</option>
-            <option value="set">Set</option>
             <option value="value-desc">Marktwert: höchster zuerst</option>
             <option value="value-asc">Marktwert: niedrigster zuerst</option>
             <option value="profit-desc">Gewinn: höchster zuerst</option>
