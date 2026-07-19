@@ -703,95 +703,94 @@ export function SealedView() {
             ))}
           </div>
         )}
+      </div>
 
-        <div className="border-t border-[var(--border)] px-4 py-3 sm:px-5">
-          <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
-            <p className="text-xs text-[var(--muted)]">
-              {filtered.length === 0
-                ? "0"
-                : `${((safePage - 1) * pageSize + 1).toLocaleString("de-DE")}–${Math.min(safePage * pageSize, filtered.length).toLocaleString("de-DE")}`}{" "}
-              von {filtered.length.toLocaleString("de-DE")} Produkten
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-1">
-              <button
-                type="button"
-                disabled={safePage <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] text-sm text-[var(--muted)] disabled:opacity-40"
-                aria-label="Vorherige Seite"
-              >
-                ‹
-              </button>
-              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                let n: number;
-                if (totalPages <= 5) n = i + 1;
-                else if (safePage <= 3) n = i + 1;
-                else if (safePage >= totalPages - 2) n = totalPages - 4 + i;
-                else n = safePage - 2 + i;
-                return (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setPage(n)}
-                    className={`flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-sm ${
-                      n === safePage
-                        ? "bg-[var(--accent)] font-medium text-white"
-                        : "border border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)]"
-                    }`}
-                  >
-                    {n}
-                  </button>
-                );
-              })}
-              {totalPages > 5 && safePage < totalPages - 2 && (
-                <>
-                  <span className="px-1 text-[var(--muted)]">…</span>
-                  <button
-                    type="button"
-                    onClick={() => setPage(totalPages)}
-                    className="flex h-8 min-w-8 items-center justify-center rounded-lg border border-[var(--border)] px-2 text-sm text-[var(--muted)]"
-                  >
-                    {totalPages}
-                  </button>
-                </>
-              )}
-              <button
-                type="button"
-                disabled={safePage >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] text-sm text-[var(--muted)] disabled:opacity-40"
-                aria-label="Nächste Seite"
-              >
-                ›
-              </button>
-            </div>
-            <label className="flex items-center gap-2 text-xs text-[var(--muted)]">
-              Pro Seite
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(
-                    Number(e.target.value) as (typeof PAGE_SIZES)[number],
-                  );
-                  setPage(1);
-                }}
-                className="h-8 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-sm text-[var(--foreground)]"
-              >
-                {PAGE_SIZES.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <p className="mt-2 text-xs text-[var(--muted)]">
-            <span className="inline-flex items-center gap-1.5">
-              <span aria-hidden>ℹ</span>
-              Marktpreise zuletzt aktualisiert: {metrics.pricesUpdatedLabel}
-            </span>
+      {/* Pagination outside table box (like Assets → Karten) */}
+      <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
+        <div className="text-xs text-[var(--muted)]">
+          <p>
+            {filtered.length === 0
+              ? "0"
+              : `${((safePage - 1) * pageSize + 1).toLocaleString("de-DE")}–${Math.min(safePage * pageSize, filtered.length).toLocaleString("de-DE")}`}{" "}
+            von {filtered.length.toLocaleString("de-DE")} Produkten
+          </p>
+          <p className="mt-1 inline-flex items-center gap-1.5">
+            <span aria-hidden>ℹ</span>
+            Marktpreise zuletzt aktualisiert: {metrics.pricesUpdatedLabel}
           </p>
         </div>
+        <div className="flex flex-wrap items-center justify-center gap-1">
+          <button
+            type="button"
+            disabled={safePage <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] text-sm text-[var(--muted)] disabled:opacity-40"
+            aria-label="Vorherige Seite"
+          >
+            ‹
+          </button>
+          {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+            let n: number;
+            if (totalPages <= 5) n = i + 1;
+            else if (safePage <= 3) n = i + 1;
+            else if (safePage >= totalPages - 2) n = totalPages - 4 + i;
+            else n = safePage - 2 + i;
+            return (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setPage(n)}
+                className={`flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-sm ${
+                  n === safePage
+                    ? "bg-[var(--accent)] font-medium text-white"
+                    : "border border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)]"
+                }`}
+              >
+                {n}
+              </button>
+            );
+          })}
+          {totalPages > 5 && safePage < totalPages - 2 && (
+            <>
+              <span className="px-1 text-[var(--muted)]">…</span>
+              <button
+                type="button"
+                onClick={() => setPage(totalPages)}
+                className="flex h-8 min-w-8 items-center justify-center rounded-lg border border-[var(--border)] px-2 text-sm text-[var(--muted)]"
+              >
+                {totalPages}
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            disabled={safePage >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] text-sm text-[var(--muted)] disabled:opacity-40"
+            aria-label="Nächste Seite"
+          >
+            ›
+          </button>
+        </div>
+        <label className="flex items-center gap-2 text-xs text-[var(--muted)]">
+          Pro Seite
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(
+                Number(e.target.value) as (typeof PAGE_SIZES)[number],
+              );
+              setPage(1);
+            }}
+            className="h-8 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 text-sm text-[var(--foreground)]"
+          >
+            {PAGE_SIZES.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
     </div>
   );
