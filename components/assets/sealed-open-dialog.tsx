@@ -19,6 +19,8 @@ type DraftCard = {
   collectorId?: string;
   marketValue: number;
   quantity: number;
+  /** Full DB card when added from API search */
+  tcgCard?: TcgCard;
 };
 
 type SearchHit = {
@@ -28,6 +30,20 @@ type SearchHit = {
   number?: string;
   collectorId?: string;
   marketValue: number;
+  tcgCard?: TcgCard;
+};
+
+export type SealedOpenCardResult = {
+  cardId: string;
+  name: string;
+  setName?: string;
+  collectorId?: string;
+  marketValue: number;
+  quantity: number;
+  costPerUnit: number;
+  costTotal: number;
+  origin: string;
+  tcgCard?: TcgCard;
 };
 
 type SealedOpenDialogProps = {
@@ -37,17 +53,7 @@ type SealedOpenDialogProps = {
   onConfirm?: (result: {
     product: SealedProduct;
     method: AllocationMethod;
-    cards: Array<{
-      cardId: string;
-      name: string;
-      setName?: string;
-      collectorId?: string;
-      marketValue: number;
-      quantity: number;
-      costPerUnit: number;
-      costTotal: number;
-      origin: string;
-    }>;
+    cards: SealedOpenCardResult[];
     residual: { name: string; costTotal: number } | null;
   }) => void;
 };
@@ -280,6 +286,7 @@ export function SealedOpenDialog({
             number: c.number,
             collectorId: c.collectorId ?? c.number,
             marketValue: getCardPrice(c) ?? 0,
+            tcgCard: c,
           }));
         // Exact number first, then name
         hits.sort((a, b) => {
@@ -337,6 +344,7 @@ export function SealedOpenDialog({
           collectorId: hit.collectorId,
           marketValue: hit.marketValue || 0.5,
           quantity: 1,
+          tcgCard: hit.tcgCard,
         },
       ];
     });
@@ -407,6 +415,7 @@ export function SealedOpenDialog({
           costPerUnit: a?.costPerUnit ?? 0,
           costTotal: a?.costTotal ?? 0,
           origin,
+          tcgCard: d.tcgCard,
         };
       }),
       residual: allocation.residual

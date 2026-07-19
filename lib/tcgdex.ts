@@ -433,7 +433,15 @@ function cardMatchesSearch(
     return true;
   }
 
-  // Text / free-text: name only (substring)
+  const id = card.id.toLowerCase();
+  const local = card.localId.toLowerCase();
+
+  // Exact / prefix id lookup (e.g. "sv07-12")
+  if (id === term || id.startsWith(term) || id.endsWith(`-${term}`)) {
+    return true;
+  }
+
+  // Text: name substring
   if (name.includes(term)) return true;
 
   // Full collector id (e.g. "scr 12") — only when query has letters
@@ -446,7 +454,8 @@ function cardMatchesSearch(
     const compact = (s: string) => s.replace(/\s+/g, "");
     if (
       collector.includes(term) ||
-      compact(collector).includes(compact(term))
+      compact(collector).includes(compact(term)) ||
+      local === term
     ) {
       return true;
     }

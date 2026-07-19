@@ -80,7 +80,7 @@ export function SealedView() {
   }, []);
 
   const handleOpenConfirm = useCallback(
-    (result: {
+    async (result: {
       product: SealedProduct;
       cards: Array<{
         cardId: string;
@@ -92,6 +92,7 @@ export function SealedView() {
         costPerUnit: number;
         costTotal: number;
         origin: string;
+        tcgCard?: TcgCard;
       }>;
       residual: { name: string; costTotal: number } | null;
     }) => {
@@ -103,39 +104,79 @@ export function SealedView() {
             ? "ja"
             : "de";
 
-      // 1) Add pulled cards to Assets → Karten (local collection)
-      for (const c of result.cards) {
-        const tcg: TcgCard = {
-          id: c.cardId,
-          name: c.name,
-          number: c.collectorId ?? "",
-          set: {
-            id: c.cardId.includes("-")
-              ? c.cardId.slice(0, c.cardId.lastIndexOf("-"))
-              : "",
-            name: c.setName ?? result.product.setName,
-          },
-          images: { small: "", large: "" },
-          collectorId: c.collectorId,
-          cardmarket: {
-            prices: {
-              trendPrice: c.marketValue,
-              averageSellPrice: c.marketValue,
-            },
-          },
-        };
-        addToLocalCollectionDetailed(tcg, {
-          language: lang,
-          condition: "Near Mint",
-          quantity: c.quantity,
-          purchasePrice: c.costPerUnit,
-          purchaseDate: today,
-          origin: c.origin,
-        });
-      }
+      // 1) Resolve full DB cards (image, rarity, market) then add to collection
+      await Promise.all(
+        result.cards.map(async (c) => {
+          let tcg = c.tcgCard;
+          const needsFetch =
+            !tcg ||
+            !tcg.images?.large ||
+            !tcg.rarity ||
+            !(tcg.cardmarket?.prices?.trendPrice ||
+              tcg.cardmarket?.prices?.averageSellPrice);
 
-      // 2) Remove sealed product entirely from Sealed list
-      //    (EK-Verteilung nutzt die gesamte Zeile)
+          if (needsFetch && c.cardId) {
+            try {
+              const params = new URLSearchParams({
+                search: c.cardId,
+                pageSize: "10",
+                page: "1",
+                lang,
+              });
+              // Prefer set-scoped lookup when id has set prefix
+              const dash = c.cardId.lastIndexOf("-");
+              if (dash > 0) {
+                params.set("set", c.cardId.slice(0, dash));
+              }
+              const res = await fetch(`/api/cards?${params}`);
+              if (res.ok) {
+                const json = (await res.json()) as { data?: TcgCard[] };
+                const match =
+                  (json.data ?? []).find((x) => x.id === c.cardId) ??
+                  (json.data ?? [])[0];
+                if (match) tcg = match;
+              }
+            } catch {
+              /* keep partial card */
+            }
+          }
+
+          if (!tcg) {
+            tcg = {
+              id: c.cardId,
+              name: c.name,
+              number: c.collectorId ?? "",
+              rarity: undefined,
+              set: {
+                id:
+                  c.cardId.includes("-")
+                    ? c.cardId.slice(0, c.cardId.lastIndexOf("-"))
+                    : "",
+                name: c.setName ?? result.product.setName,
+              },
+              images: { small: "", large: "" },
+              collectorId: c.collectorId,
+              cardmarket: {
+                prices: {
+                  trendPrice: c.marketValue,
+                  averageSellPrice: c.marketValue,
+                },
+              },
+            };
+          }
+
+          addToLocalCollectionDetailed(tcg, {
+            language: lang,
+            condition: "Near Mint",
+            quantity: c.quantity,
+            purchasePrice: c.costPerUnit,
+            purchaseDate: today,
+            origin: c.origin,
+          });
+        }),
+      );
+
+      // 2) Remove sealed product from Sealed list
       const next = removeLocalSealed(result.product.id);
       setInventory(next);
 
