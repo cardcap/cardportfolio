@@ -7,7 +7,8 @@ import {
   type AllocationMethod,
 } from "@/lib/cost-allocation";
 import { formatCurrency } from "@/lib/format";
-import { cards, getCard, type SealedProduct } from "@/lib/mock-data";
+import { getDemoSealedSetId } from "@/lib/sealed-images";
+import { cards, type SealedProduct } from "@/lib/mock-data";
 import { getCardPrice, type TcgCard } from "@/lib/pokemon-tcg";
 
 type DraftCard = {
@@ -15,6 +16,7 @@ type DraftCard = {
   cardId: string;
   name: string;
   setName?: string;
+  collectorId?: string;
   marketValue: number;
   quantity: number;
 };
@@ -24,8 +26,8 @@ type SearchHit = {
   name: string;
   setName: string;
   number?: string;
+  collectorId?: string;
   marketValue: number;
-  inSet: boolean;
 };
 
 type SealedOpenDialogProps = {
@@ -47,28 +49,6 @@ type SealedOpenDialogProps = {
   }) => void;
 };
 
-const DEMO_PULLS = [
-  { cardId: "charizard-ex", qty: 1 },
-  { cardId: "mew-ex", qty: 1 },
-  { cardId: "umbreon-v", qty: 1 },
-  { cardId: "giratina-v", qty: 2 },
-  { cardId: "pikachu-151", qty: 4 },
-] as const;
-
-function initialDrafts(): DraftCard[] {
-  return DEMO_PULLS.map((p, i) => {
-    const card = getCard(p.cardId);
-    return {
-      id: `pull-${i}-${p.cardId}`,
-      cardId: p.cardId,
-      name: card?.name ?? p.cardId,
-      setName: card?.setName,
-      marketValue: card?.price ?? 0,
-      quantity: p.qty,
-    };
-  });
-}
-
 function setMatches(cardSet: string, productSet: string): boolean {
   const a = cardSet.toLowerCase().trim();
   const b = productSet.toLowerCase().trim();
@@ -82,6 +62,38 @@ function setMatches(cardSet: string, productSet: string): boolean {
   return false;
 }
 
+/** Match name or collector number: "Pikachu", "12", "12/175", "SCR 12/142", "POR 12/88" */
+function matchesNameOrNumber(
+  hit: {
+    name: string;
+    number?: string;
+    collectorId?: string;
+    setName?: string;
+  },
+  query: string,
+): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return false;
+  if (hit.name.toLowerCase().includes(q)) return true;
+
+  const collector = (hit.collectorId ?? "").toLowerCase();
+  const compact = (s: string) => s.replace(/\s+/g, "");
+  if (collector && (collector.includes(q) || compact(collector).includes(compact(q)))) {
+    return true;
+  }
+
+  const num = (hit.number ?? "").toLowerCase();
+  const numNorm = num.replace(/^0+(\d)/, "$1");
+  // pure number or "12/175"
+  const m = q.match(/^(?:[a-z0-9]{1,6}\s+)?(\d+[a-z]?)(?:\s*\/\s*(\d+))?$/i);
+  if (m) {
+    const qNum = m[1].replace(/^0+(\d)/, "$1").toLowerCase();
+    if (numNorm === qNum || num === m[1].toLowerCase()) return true;
+  }
+  if (num.includes(q) || numNorm === q) return true;
+  return false;
+}
+
 export function SealedOpenDialog({
   open,
   product,
@@ -92,18 +104,53 @@ export function SealedOpenDialog({
   const [includeBulk, setIncludeBulk] = useState(true);
   const [bulkEstimate, setBulkEstimate] = useState("25");
   const [done, setDone] = useState(false);
-  const [drafts, setDrafts] = useState<DraftCard[]>(initialDrafts);
+  const [drafts, setDrafts] = useState<DraftCard[]>([]);
   const [cardSearch, setCardSearch] = useState("");
   const [apiHits, setApiHits] = useState<SearchHit[]>([]);
   const [searching, setSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [resolvedSetId, setResolvedSetId] = useState<string | null>(null);
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const searchIdRef = useRef(0);
+
+  // Resolve TCGdex set id for this sealed product (demo map + name fallback)
+  useEffect(() => {
+    if (!open || !product) {
+      setResolvedSetId(null);
+      return;
+    }
+    const fromDemo = getDemoSealedSetId(product.id);
+    if (fromDemo) {
+      setResolvedSetId(fromDemo);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/sets");
+        if (!res.ok) return;
+        const json = (await res.json()) as {
+          data?: Array<{ id: string; name: string }>;
+        };
+        if (cancelled) return;
+        const sets = json.data ?? [];
+        const match = sets.find((s) =>
+          setMatches(s.name, product.setName),
+        );
+        setResolvedSetId(match?.id ?? null);
+      } catch {
+        if (!cancelled) setResolvedSetId(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, product?.id, product?.setName]);
 
   // Reset when dialog opens for a product
   useEffect(() => {
     if (open) {
-      setDrafts(initialDrafts());
+      setDrafts([]);
       setCardSearch("");
       setApiHits([]);
       setShowResults(false);
@@ -129,48 +176,61 @@ export function SealedOpenDialog({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [showResults]);
 
+  // Only mock cards that belong to this sealed product's set
   const catalogHits = useMemo((): SearchHit[] => {
-    const q = cardSearch.trim().toLowerCase();
-    if (q.length < 1) return [];
-    const productSet = product?.setName ?? "";
+    const q = cardSearch.trim();
+    if (q.length < 1 || !product) return [];
     return Object.values(cards)
-      .filter(
-        (c) =>
-          c.name.toLowerCase().includes(q) ||
-          c.number.toLowerCase().includes(q) ||
-          c.setName.toLowerCase().includes(q) ||
-          c.id.toLowerCase().includes(q),
+      .filter((c) => setMatches(c.setName, product.setName))
+      .filter((c) =>
+        matchesNameOrNumber(
+          {
+            name: c.name,
+            number: c.number,
+            collectorId: c.number,
+            setName: c.setName,
+          },
+          q,
+        ),
       )
       .map((c) => ({
         cardId: c.id,
         name: c.name,
         setName: c.setName,
         number: c.number,
+        collectorId: c.number,
         marketValue: c.price,
-        inSet: setMatches(c.setName, productSet),
       }))
-      .sort((a, b) => {
-        if (a.inSet !== b.inSet) return a.inSet ? -1 : 1;
-        return a.name.localeCompare(b.name, "de");
-      })
-      .slice(0, 8);
-  }, [cardSearch, product?.setName]);
+      .sort((a, b) => a.name.localeCompare(b.name, "de"))
+      .slice(0, 10);
+  }, [cardSearch, product]);
 
-  // Live API search (debounced) for fuller set catalog
+  // Live API search — strictly within the product's set
   useEffect(() => {
     const q = cardSearch.trim();
-    if (q.length < 2) {
+    if (q.length < 1) {
       setApiHits([]);
       setSearching(false);
       return;
     }
+    // Need set id for strict filter (wait until resolved when possible)
+    if (!resolvedSetId && product?.setName) {
+      // still allow brief wait; once resolved effect re-runs
+      setSearching(true);
+    }
+    if (!resolvedSetId) {
+      setApiHits([]);
+      return;
+    }
+
     const id = ++searchIdRef.current;
     setSearching(true);
     const t = setTimeout(async () => {
       try {
         const params = new URLSearchParams({
           search: q,
-          pageSize: "12",
+          set: resolvedSetId,
+          pageSize: "20",
           page: "1",
         });
         const res = await fetch(`/api/cards?${params}`);
@@ -178,42 +238,41 @@ export function SealedOpenDialog({
         const json = (await res.json()) as { data?: TcgCard[] };
         if (id !== searchIdRef.current) return;
         const productSet = product?.setName ?? "";
-        const hits: SearchHit[] = (json.data ?? []).map((c) => ({
-          cardId: c.id,
-          name: c.name,
-          setName: c.set?.name ?? c.set?.id ?? "",
-          number: c.number,
-          marketValue: getCardPrice(c) ?? 0,
-          inSet: setMatches(c.set?.name ?? "", productSet),
-        }));
-        hits.sort((a, b) => {
-          if (a.inSet !== b.inSet) return a.inSet ? -1 : 1;
-          return a.name.localeCompare(b.name, "de");
-        });
-        setApiHits(hits.slice(0, 10));
+        const hits: SearchHit[] = (json.data ?? [])
+          .filter(
+            (c) =>
+              c.set?.id === resolvedSetId ||
+              setMatches(c.set?.name ?? "", productSet),
+          )
+          .map((c) => ({
+            cardId: c.id,
+            name: c.name,
+            setName: c.set?.name ?? c.set?.id ?? "",
+            number: c.number,
+            collectorId: c.collectorId ?? c.number,
+            marketValue: getCardPrice(c) ?? 0,
+          }));
+        hits.sort((a, b) => a.name.localeCompare(b.name, "de"));
+        setApiHits(hits.slice(0, 12));
       } catch {
         if (id === searchIdRef.current) setApiHits([]);
       } finally {
         if (id === searchIdRef.current) setSearching(false);
       }
-    }, 280);
+    }, 250);
     return () => clearTimeout(t);
-  }, [cardSearch, product?.setName]);
+  }, [cardSearch, resolvedSetId, product?.setName]);
 
   const searchResults = useMemo(() => {
-    // Merge catalog + API, prefer in-set, dedupe by cardId/name+set
     const map = new Map<string, SearchHit>();
-    for (const h of [...catalogHits, ...apiHits]) {
-      const key = h.cardId || `${h.name}|${h.setName}`;
-      const existing = map.get(key);
-      if (!existing || (h.inSet && !existing.inSet)) map.set(key, h);
+    // API first (full set catalog), then mock fallbacks
+    for (const h of [...apiHits, ...catalogHits]) {
+      const key = h.cardId || `${h.name}|${h.number}`;
+      if (!map.has(key)) map.set(key, h);
     }
     return [...map.values()]
-      .sort((a, b) => {
-        if (a.inSet !== b.inSet) return a.inSet ? -1 : 1;
-        return a.name.localeCompare(b.name, "de");
-      })
-      .slice(0, 10);
+      .sort((a, b) => a.name.localeCompare(b.name, "de"))
+      .slice(0, 12);
   }, [catalogHits, apiHits]);
 
   const addCard = useCallback((hit: SearchHit) => {
@@ -233,6 +292,7 @@ export function SealedOpenDialog({
           cardId: hit.cardId,
           name: hit.name,
           setName: hit.setName,
+          collectorId: hit.collectorId,
           marketValue: hit.marketValue || 0.5,
           quantity: 1,
         },
@@ -445,8 +505,8 @@ export function SealedOpenDialog({
                   onFocus={() => setShowResults(true)}
                   placeholder={
                     product.setName
-                      ? `Karte suchen (z. B. aus ${product.setName})…`
-                      : "Karte suchen und hinzufügen…"
+                      ? `Name oder Nummer (z. B. Pikachu, 12/142)…`
+                      : "Name oder Nummer suchen…"
                   }
                   className="h-10 w-full rounded-full border border-[var(--border)] bg-[var(--background)] py-0 pl-9 pr-3 text-sm outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)]"
                   autoComplete="off"
@@ -484,13 +544,10 @@ export function SealedOpenDialog({
                           <div className="min-w-0">
                             <p className="truncate font-medium">{hit.name}</p>
                             <p className="truncate text-[11px] text-[var(--muted)]">
-                              {hit.setName}
-                              {hit.number ? ` · #${hit.number}` : ""}
-                              {hit.inSet && (
-                                <span className="ml-1.5 text-[var(--accent)]">
-                                  · aus diesem Set
-                                </span>
-                              )}
+                              {hit.collectorId ||
+                                (hit.number
+                                  ? `#${hit.number}`
+                                  : hit.setName)}
                             </p>
                           </div>
                           <span className="shrink-0 text-xs font-medium text-[var(--accent)]">
@@ -503,11 +560,12 @@ export function SealedOpenDialog({
                 </ul>
               )}
               <p className="mt-1.5 text-[11px] text-[var(--muted)]">
-                Name tippen → Treffer anklicken. Set{" "}
-                <span className="text-[var(--foreground)]">
+                Nur Karten aus{" "}
+                <span className="font-medium text-[var(--foreground)]">
                   {product.setName}
-                </span>{" "}
-                wird bevorzugt.
+                </span>
+                . Suche nach Name oder Nummer (z. B.{" "}
+                <span className="tabular-nums">SCR 12/142</span>).
               </p>
             </div>
 

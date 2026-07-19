@@ -33,9 +33,43 @@ function loadSetCodes(): Record<string, SetCodeEntry> {
   }
 }
 
+/** TCGdex ids (sv07) → set-codes keys (sv7) and common aliases */
+function setCodeLookupKeys(setId: string): string[] {
+  const id = setId.trim();
+  const keys = [id];
+  // sv07 → sv7, sv03.5 → sv3pt5, me02.5 → me2pt5
+  const m = id.match(/^(sv|me|swsh)0*(\d+)(?:\.(\d+))?$/i);
+  if (m) {
+    const serie = m[1].toLowerCase();
+    const n = m[2];
+    const frac = m[3];
+    if (frac) {
+      keys.push(`${serie}${n}pt${frac}`);
+      keys.push(`${serie}${n}.${frac}`);
+    } else {
+      keys.push(`${serie}${n}`);
+      if (n.length === 1) keys.push(`${serie}0${n}`);
+    }
+  }
+  return keys;
+}
+
+function resolveSetCodeEntry(setId: string): SetCodeEntry | undefined {
+  const codes = loadSetCodes();
+  for (const key of setCodeLookupKeys(setId)) {
+    if (codes[key]) return codes[key];
+  }
+  return undefined;
+}
+
 export function getSetCollectorCode(setId: string): string {
-  const entry = loadSetCodes()[setId];
+  const entry = resolveSetCodeEntry(setId);
   return entry?.code ?? setId.toUpperCase();
+}
+
+export function getSetPrintedTotal(setId: string): number | null {
+  const entry = resolveSetCodeEntry(setId);
+  return entry?.printedTotal ?? null;
 }
 
 export function formatCardNumber(localId: string): string {

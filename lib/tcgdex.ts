@@ -7,7 +7,11 @@ import {
   isAllColorsFilter as isAllColorsFilterValue,
   resolveColorForTcgdexApi,
 } from "@/lib/card-colors";
-import { formatCollectorCardId, getSetCollectorCode } from "@/lib/collector-id";
+import {
+  formatCollectorCardId,
+  getSetCollectorCode,
+  getSetPrintedTotal,
+} from "@/lib/collector-id";
 import {
   cardMatchesEnglishRarity,
   isAllRaritiesFilter,
@@ -352,6 +356,109 @@ function compareCards(
   return a.id.localeCompare(b.id);
 }
 
+/** Parse free-text search: name and/or collector number e.g. "POR 12/88", "12/88", "025" */
+function parseCardSearchTerm(raw: string): {
+  term: string;
+  code?: string;
+  number?: string;
+  total?: string;
+} {
+  const term = raw.trim().toLowerCase();
+  // "POR 12/88" | "por12/88" | "SCR 025" | "12/175" | "12"
+  const m = term.match(
+    /^(?:([a-z0-9]{1,6})\s+)?(\d+[a-z]?)(?:\s*\/\s*(\d+))?$/i,
+  );
+  if (m) {
+    return {
+      term,
+      code: m[1]?.toUpperCase(),
+      number: m[2].replace(/^0+(\d)/, "$1"),
+      total: m[3],
+    };
+  }
+  // "POR-12" style
+  const m2 = term.match(/^([a-z0-9]{1,6})[-\s]+(\d+[a-z]?)$/i);
+  if (m2) {
+    return {
+      term,
+      code: m2[1].toUpperCase(),
+      number: m2[2].replace(/^0+(\d)/, "$1"),
+    };
+  }
+  return { term };
+}
+
+function normalizeLocalId(localId: string): string {
+  const t = localId.trim();
+  if (/^\d+$/.test(t)) return String(parseInt(t, 10));
+  return t.toLowerCase();
+}
+
+function cardMatchesSearch(
+  card: TcgdexCachedCard,
+  rawSearch: string,
+  setMeta?: Map<string, TcgdexCachedSet>,
+): boolean {
+  const parsed = parseCardSearchTerm(rawSearch);
+  const term = parsed.term;
+  if (!term) return true;
+
+  const name = card.name.toLowerCase();
+  const local = card.localId.toLowerCase();
+  const localNorm = normalizeLocalId(card.localId);
+  const id = card.id.toLowerCase();
+  const setId = card.setId.toLowerCase();
+
+  // Name / id / set id substring
+  if (
+    name.includes(term) ||
+    local.includes(term) ||
+    id.includes(term) ||
+    setId.includes(term)
+  ) {
+    return true;
+  }
+
+  // Collector number match: "12", "12/88", "POR 12/88"
+  if (parsed.number) {
+    const numMatch = localNorm === parsed.number.toLowerCase();
+    if (!numMatch) return false;
+    if (parsed.code) {
+      const code = getSetCollectorCode(card.setId).toUpperCase();
+      // also accept setId variants (sv07 / SV07)
+      if (
+        code !== parsed.code &&
+        card.setId.toUpperCase() !== parsed.code &&
+        card.setId.replace(".", "").toUpperCase() !== parsed.code
+      ) {
+        return false;
+      }
+    }
+    if (parsed.total) {
+      const official = setMeta?.get(card.setId)?.cardCount?.official;
+      const printed = getSetPrintedTotal(card.setId);
+      const total = official ?? printed;
+      if (total != null && String(total) !== parsed.total) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // Full collector id substring e.g. "por 12", "scr12/142"
+  const collector = formatCollectorCardId(
+    card.setId,
+    card.localId,
+    setMeta?.get(card.setId)?.cardCount?.official,
+  ).toLowerCase();
+  const compact = (s: string) => s.replace(/\s+/g, "");
+  if (collector.includes(term) || compact(collector).includes(compact(term))) {
+    return true;
+  }
+
+  return false;
+}
+
 function filterCachedCards(
   cards: TcgdexCachedCard[],
   params: {
@@ -360,23 +467,20 @@ function filterCachedCards(
     rarity?: string;
     color?: string;
     lang?: CardLanguage;
+    setMeta?: Map<string, TcgdexCachedSet>;
   },
 ): TcgdexCachedCard[] {
   let result = cards;
 
-  if (params.search?.trim()) {
-    const term = params.search.trim().toLowerCase();
-    result = result.filter(
-      (c) =>
-        c.name.toLowerCase().includes(term) ||
-        c.localId.toLowerCase().includes(term) ||
-        c.id.toLowerCase().includes(term) ||
-        c.setId.toLowerCase().includes(term),
-    );
-  }
-
   if (params.setId) {
     result = result.filter((c) => c.setId === params.setId);
+  }
+
+  if (params.search?.trim()) {
+    const raw = params.search.trim();
+    result = result.filter((c) =>
+      cardMatchesSearch(c, raw, params.setMeta),
+    );
   }
 
   if (params.rarity && params.lang && !isAllRaritiesFilter(params.rarity)) {
@@ -476,6 +580,7 @@ export async function fetchCardsFromTcgdex(params: {
       rarity,
       color,
       lang,
+      setMeta,
     }).sort((a, b) => compareCards(a, b, releaseOrder));
 
     const start = (page - 1) * pageSize;

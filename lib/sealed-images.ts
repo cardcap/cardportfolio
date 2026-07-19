@@ -125,6 +125,11 @@ const DEMO_SEALED_META: Record<
   },
 };
 
+/** TCGdex set id for a demo sealed product (e.g. sp1 → sv07). */
+export function getDemoSealedSetId(productId: string): string | null {
+  return DEMO_SEALED_META[productId]?.setId ?? null;
+}
+
 export function getDemoSealedImages(productId: string): SealedImageSet {
   const meta = DEMO_SEALED_META[productId];
   if (!meta) {
