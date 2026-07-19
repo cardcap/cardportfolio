@@ -19,6 +19,13 @@ import { wishlistItemFromTcg } from "@/lib/wishlist";
 
 type PriceRange = "7T" | "30T" | "1J";
 
+/** Per-copy snapshot for multi-exemplar cards */
+export type CollectionExemplarDetail = {
+  condition: string;
+  purchasePrice: number | null;
+  purchaseDate?: string | null;
+};
+
 /** Real collection snapshot (Assets) — overrides demo EK/Gewinn/Zustand */
 export type CollectionDetails = {
   condition: string;
@@ -26,6 +33,8 @@ export type CollectionDetails = {
   profit: number;
   purchaseDate?: string | null;
   marketValue?: number;
+  /** Individual exemplars (condition / EK / Kaufdatum) */
+  exemplars?: CollectionExemplarDetail[];
 };
 
 type SetCardDetailPanelProps = {
@@ -129,9 +138,21 @@ export function SetCardDetailPanel({
       : qty > 0 && hasPrice
         ? Math.round((price - purchasePrice) * 100) / 100
         : 0;
-  const conditionLabel = collectionDetails?.condition
-    ? shortConditionLabel(collectionDetails.condition)
-    : "NM";
+  const exemplars = collectionDetails?.exemplars ?? [];
+  const uniqueConditions = new Set(
+    (exemplars.length > 0
+      ? exemplars.map((e) => e.condition)
+      : collectionDetails?.condition
+        ? [collectionDetails.condition]
+        : []
+    ).filter(Boolean),
+  );
+  const multiConditions = uniqueConditions.size > 1;
+  const conditionLabel = multiConditions
+    ? `${uniqueConditions.size} Zustände`
+    : collectionDetails?.condition
+      ? shortConditionLabel(collectionDetails.condition)
+      : "NM";
   const change30 = hasPrice && collectionDetails == null ? 5.3 : hasPrice ? 0 : 0;
 
   const history = useMemo(
@@ -425,7 +446,8 @@ export function SetCardDetailPanel({
                 label="Kategorie"
                 value={card.category ?? typeLabel ?? "Pokémon"}
               />
-              {collectionDetails?.purchaseDate &&
+              {qty <= 1 &&
+                collectionDetails?.purchaseDate &&
                 collectionDetails.purchaseDate !== "—" && (
                   <DataRow
                     label="Kaufdatum"
@@ -463,15 +485,21 @@ export function SetCardDetailPanel({
                       Zustand
                     </p>
                     <p
-                      className="mt-0.5 font-medium"
-                      title={collectionDetails?.condition}
+                      className={`mt-0.5 font-medium ${
+                        multiConditions ? "text-[var(--accent)]" : ""
+                      }`}
+                      title={
+                        multiConditions
+                          ? [...uniqueConditions].join(", ")
+                          : collectionDetails?.condition
+                      }
                     >
                       {conditionLabel}
                     </p>
                   </div>
                   <div className="rounded-lg bg-[var(--surface)] px-2 py-2">
                     <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
-                      EK
+                      EK{qty > 1 ? " Ø" : ""}
                     </p>
                     <p className="tabular-nums mt-0.5 font-medium">
                       {formatCurrency(purchasePrice)}
@@ -497,7 +525,10 @@ export function SetCardDetailPanel({
                 </div>
 
                 {qty > 1 && (
-                  <details className="group mt-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] open:pb-1">
+                  <details
+                    className="group mt-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] open:pb-1"
+                    open
+                  >
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-sm font-medium marker:content-none [&::-webkit-details-marker]:hidden">
                       <span>
                         Deine Exemplare
@@ -513,24 +544,46 @@ export function SetCardDetailPanel({
                       </span>
                     </summary>
                     <ul className="space-y-1.5 px-2 pb-2">
-                      {Array.from({ length: qty }, (_, i) => (
-                        <li
-                          key={i}
-                          className="flex items-center justify-between gap-2 rounded-md bg-[var(--background)] px-2.5 py-2 text-sm"
-                        >
-                          <div className="flex min-w-0 items-center gap-2">
-                            <span className="text-xs text-[var(--muted)]">
-                              Exemplar {i + 1}
-                            </span>
-                            <span className="rounded-md bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-[var(--border)]">
-                              {conditionLabel}
-                            </span>
-                          </div>
-                          <span className="tabular-nums text-xs text-[var(--muted)]">
-                            EK {formatCurrency(purchasePrice)}
-                          </span>
-                        </li>
-                      ))}
+                      {Array.from({ length: qty }, (_, i) => {
+                        const ex = exemplars[i];
+                        const exCond =
+                          ex?.condition ||
+                          collectionDetails?.condition ||
+                          "Near Mint";
+                        const exEk =
+                          ex?.purchasePrice ??
+                          collectionDetails?.purchasePrice ??
+                          purchasePrice;
+                        const exDate = ex?.purchaseDate;
+                        const dateLabel =
+                          exDate && exDate !== "—"
+                            ? /^\d{4}-\d{2}-\d{2}/.test(exDate)
+                              ? formatDateDE(exDate)
+                              : exDate
+                            : "—";
+                        return (
+                          <li
+                            key={i}
+                            className="flex flex-col gap-1 rounded-md bg-[var(--background)] px-2.5 py-2 text-sm sm:flex-row sm:items-center sm:justify-between"
+                          >
+                            <div className="flex min-w-0 flex-wrap items-center gap-2">
+                              <span className="text-xs text-[var(--muted)]">
+                                Exemplar {i + 1}
+                              </span>
+                              <span className="rounded-md bg-[var(--surface-elevated)] px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-[var(--border)]">
+                                {shortConditionLabel(exCond)}
+                              </span>
+                              <span className="text-[11px] text-[var(--muted)]">
+                                {exCond}
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs tabular-nums text-[var(--muted)]">
+                              <span>EK {formatCurrency(exEk)}</span>
+                              <span>Kauf {dateLabel}</span>
+                            </div>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </details>
                 )}

@@ -8,10 +8,11 @@ import type { TcgCard } from "@/lib/pokemon-tcg";
 import { getCardPrice, getCardImageUrl, getCardImageFallbacks } from "@/lib/pokemon-tcg";
 import type { CardLanguage } from "@/lib/tcgdex-constants";
 
-/** Per-copy condition + EK (when qty > 1 with different prices) */
+/** Per-copy condition + EK + Kaufdatum */
 export type LocalExemplar = {
   condition: string;
   purchasePrice: number | null;
+  purchaseDate?: string | null;
 };
 
 export type LocalCollectionItem = {
@@ -164,11 +165,17 @@ export function updateLocalCollectionItem(
   const marketUnit = unitMarket > 0 ? unitMarket : unit;
   item.marketValue = Math.round(marketUnit * item.quantity * 100) / 100;
 
-  // Keep exemplars in sync when simple update (uniform condition/price)
-  if (patch.quantity !== undefined || patch.condition !== undefined || patch.purchasePrice !== undefined) {
+  // Keep exemplars in sync when simple update (uniform condition/price/date)
+  if (
+    patch.quantity !== undefined ||
+    patch.condition !== undefined ||
+    patch.purchasePrice !== undefined ||
+    patch.purchaseDate !== undefined
+  ) {
     item.exemplars = Array.from({ length: item.quantity }, () => ({
       condition: item.condition,
       purchasePrice: item.purchasePrice,
+      purchaseDate: item.purchaseDate,
     }));
   }
 
@@ -191,6 +198,7 @@ export function removeLocalCollectionItem(id: string): boolean {
 export type CollectionCopyInput = {
   condition: string;
   purchasePrice: number | null;
+  purchaseDate?: string | null;
 };
 
 function sumInvested(copies: CollectionCopyInput[]): number {
@@ -225,6 +233,7 @@ export function replaceLocalCollectionByCopies(
     list.push({
       condition: c,
       purchasePrice: copy.purchasePrice,
+      purchaseDate: copy.purchaseDate ?? purchaseDate ?? orig.purchaseDate,
     });
     byCondition.set(c, list);
   }
@@ -249,7 +258,11 @@ export function replaceLocalCollectionByCopies(
     const exemplars: LocalExemplar[] = groupCopies.map((c) => ({
       condition: c.condition,
       purchasePrice: c.purchasePrice,
+      purchaseDate: c.purchaseDate ?? date ?? null,
     }));
+    // Row-level purchaseDate: first exemplar date or fallback
+    const rowDate =
+      exemplars.find((e) => e.purchaseDate)?.purchaseDate ?? date ?? null;
 
     // Prefer updating original id when single group (keeps selection stable)
     const reuseId = onlyOneGroup ? orig.id : uid();
@@ -270,6 +283,7 @@ export function replaceLocalCollectionByCopies(
           : Array.from({ length: existing.quantity }, () => ({
               condition: existing.condition,
               purchasePrice: existing.purchasePrice,
+              purchaseDate: existing.purchaseDate,
             }));
       const mergedExemplars = [...prevExemplars, ...exemplars];
       const newQty = mergedExemplars.length;
@@ -278,7 +292,10 @@ export function replaceLocalCollectionByCopies(
         Math.round((newInvested / Math.max(1, newQty)) * 100) / 100;
       existing.quantity = newQty;
       existing.purchasePrice = blended;
-      existing.purchaseDate = date ?? existing.purchaseDate;
+      existing.purchaseDate =
+        mergedExemplars.find((e) => e.purchaseDate)?.purchaseDate ??
+        date ??
+        existing.purchaseDate;
       existing.marketValue = Math.round(unitMarket * newQty * 100) / 100;
       existing.profit =
         Math.round((existing.marketValue - newInvested) * 100) / 100;
@@ -294,7 +311,7 @@ export function replaceLocalCollectionByCopies(
       condition,
       quantity,
       purchasePrice,
-      purchaseDate: date ?? null,
+      purchaseDate: rowDate,
       marketValue,
       profit,
       exemplars,
@@ -335,7 +352,12 @@ export function replaceLocalCollectionForCard(
   for (const copy of copies) {
     const c = (copy.condition || "Near Mint").trim() || "Near Mint";
     const list = byCondition.get(c) ?? [];
-    list.push({ condition: c, purchasePrice: copy.purchasePrice });
+    list.push({
+      condition: c,
+      purchasePrice: copy.purchasePrice,
+      purchaseDate:
+        copy.purchaseDate ?? options.purchaseDate ?? template.purchaseDate,
+    });
     byCondition.set(c, list);
   }
 
@@ -363,19 +385,23 @@ export function replaceLocalCollectionForCard(
       Math.round((invested / Math.max(1, quantity)) * 100) / 100;
     const marketValue = Math.round(marketUnit * quantity * 100) / 100;
     const profit = Math.round((marketValue - invested) * 100) / 100;
+    const exemplars: LocalExemplar[] = groupCopies.map((c) => ({
+      condition: c.condition,
+      purchasePrice: c.purchasePrice,
+      purchaseDate: c.purchaseDate ?? date ?? null,
+    }));
+    const rowDate =
+      exemplars.find((e) => e.purchaseDate)?.purchaseDate ?? date ?? null;
     const created: LocalCollectionItem = {
       ...template,
       id: uid(),
       condition,
       quantity,
       purchasePrice,
-      purchaseDate: date ?? null,
+      purchaseDate: rowDate,
       marketValue,
       profit,
-      exemplars: groupCopies.map((c) => ({
-        condition: c.condition,
-        purchasePrice: c.purchasePrice,
-      })),
+      exemplars,
     };
     next.unshift(created);
     result.push(created);

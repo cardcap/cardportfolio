@@ -171,11 +171,15 @@ function rowToExemplars(row: DisplayRow): LocalExemplar[] {
     return row.exemplars.map((e) => ({
       condition: e.condition || row.condition,
       purchasePrice: e.purchasePrice,
+      purchaseDate: e.purchaseDate ?? row.purchaseDate ?? null,
     }));
   }
+  const date =
+    row.purchaseDate && row.purchaseDate !== "—" ? row.purchaseDate : null;
   return Array.from({ length: Math.max(1, row.quantity) }, () => ({
     condition: row.condition,
     purchasePrice: row.purchasePrice,
+    purchaseDate: date,
   }));
 }
 
@@ -478,6 +482,8 @@ export function SammlungView() {
   /** One EK (DE format string) per exemplar when qty > 1 */
   const [editPrices, setEditPrices] = useState<string[]>([""]);
   const [editPrice, setEditPrice] = useState("");
+  /** One purchase date (yyyy-mm-dd) per exemplar when qty > 1 */
+  const [editDates, setEditDates] = useState<string[]>([""]);
   const [editDate, setEditDate] = useState("");
   const [saving, setSaving] = useState(false);
   /** Expanded multi-copy rows in the table */
@@ -920,8 +926,14 @@ export function SammlungView() {
         ? ex.map((e) => formatPriceInput(e.purchasePrice))
         : Array.from({ length: qty }, () => priceStr),
     );
+    const dateStr = toDateInputValue(selectedRow.purchaseDate);
+    setEditDates(
+      ex
+        ? ex.map((e) => toDateInputValue(e.purchaseDate ?? dateStr))
+        : Array.from({ length: qty }, () => dateStr),
+    );
     setEditPrice(priceStr);
-    setEditDate(toDateInputValue(selectedRow.purchaseDate));
+    setEditDate(dateStr);
     setEditing(true);
   }, [selectedRow]);
 
@@ -940,6 +952,12 @@ export function SammlungView() {
       if (qty === prev.length) return prev;
       if (qty < prev.length) return prev.slice(0, qty);
       const fill = prev[prev.length - 1] || editPrice || "";
+      return [...prev, ...Array.from({ length: qty - prev.length }, () => fill)];
+    });
+    setEditDates((prev) => {
+      if (qty === prev.length) return prev;
+      if (qty < prev.length) return prev.slice(0, qty);
+      const fill = prev[prev.length - 1] || editDate || "";
       return [...prev, ...Array.from({ length: qty - prev.length }, () => fill)];
     });
   };
@@ -962,6 +980,15 @@ export function SammlungView() {
     if (editQty === 1) setEditPrice(value);
   };
 
+  const setExemplarDate = (index: number, value: string) => {
+    setEditDates((prev) => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+    if (editQty === 1) setEditDate(value);
+  };
+
   const saveEdit = useCallback(async () => {
     if (!selectedRow) return;
     setSaving(true);
@@ -974,13 +1001,19 @@ export function SammlungView() {
         purchasePrice: parseEuroInput(
           editPrices[i] ?? editPrice ?? "",
         ),
+        purchaseDate:
+          (editDates[i] ?? editDate ?? "").trim() || purchaseDate,
       }));
       const conditions = perCopy.map((c) => c.condition);
       const prices = perCopy.map((c) => c.purchasePrice);
+      const dates = perCopy.map((c) => c.purchaseDate ?? null);
       const uniqueConditions = new Set(conditions);
       const uniquePrices = new Set(prices.map((p) => p ?? "null"));
+      const uniqueDates = new Set(dates.map((d) => d ?? "null"));
       const needsSplit =
-        uniqueConditions.size > 1 || uniquePrices.size > 1;
+        uniqueConditions.size > 1 ||
+        uniquePrices.size > 1 ||
+        uniqueDates.size > 1;
 
       const singlePrice = prices[0] ?? parseEuroInput(editPrice);
 
@@ -1108,6 +1141,7 @@ export function SammlungView() {
     editPrice,
     editPrices,
     editDate,
+    editDates,
     editQty,
     editCondition,
     editConditions,
@@ -1768,7 +1802,7 @@ export function SammlungView() {
                                       "header",
                                     )}
                                   >
-                                    {expanded && conditionCount > 1 ? (
+                                    {conditionCount > 1 ? (
                                       <span className="inline-flex rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-xs font-medium text-[var(--accent)]">
                                         {conditionCount} Zustände
                                       </span>
@@ -2141,6 +2175,11 @@ export function SammlungView() {
             profit: selectedRow.profit,
             purchaseDate: selectedRow.purchaseDate,
             marketValue: selectedRow.marketValue,
+            exemplars: (selectedRow.exemplars ?? []).map((e) => ({
+              condition: e.condition || selectedRow.condition,
+              purchasePrice: e.purchasePrice,
+              purchaseDate: e.purchaseDate ?? selectedRow.purchaseDate,
+            })),
           }}
         />
       )}
@@ -2239,12 +2278,24 @@ export function SammlungView() {
                         className="h-10 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 tabular-nums"
                       />
                     </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[var(--muted)]">Kaufdatum</span>
+                      <input
+                        type="date"
+                        value={editDates[0] ?? editDate}
+                        onChange={(e) => {
+                          setEditDate(e.target.value);
+                          setEditDates([e.target.value]);
+                        }}
+                        className="h-10 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3"
+                      />
+                    </label>
                   </>
                 ) : (
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="text-[var(--muted)]">
-                        Zustand &amp; EK pro Exemplar
+                        Zustand, EK &amp; Kaufdatum pro Exemplar
                       </span>
                       <div className="flex flex-wrap gap-2">
                         <button
@@ -2272,65 +2323,86 @@ export function SammlungView() {
                         >
                           EK für alle
                         </button>
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-[var(--accent)] hover:opacity-80"
+                          onClick={() => {
+                            const all = editDates[0] || editDate || "";
+                            setEditDates(
+                              Array.from({ length: editQty }, () => all),
+                            );
+                            setEditDate(all);
+                          }}
+                        >
+                          Datum für alle
+                        </button>
                       </div>
                     </div>
                     <p className="text-[11px] text-[var(--muted)]">
                       Unterschiedliche Zustände werden als getrennte Einträge
-                      gespeichert. EK gilt je Exemplar.
+                      gespeichert. EK und Kaufdatum gelten je Exemplar.
                     </p>
-                    <ul className="max-h-64 space-y-2 overflow-y-auto pr-0.5">
+                    <ul className="max-h-72 space-y-2 overflow-y-auto pr-0.5">
                       {Array.from({ length: editQty }, (_, i) => (
                         <li
                           key={i}
-                          className="flex flex-col gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2.5 py-2 sm:flex-row sm:items-center sm:gap-2"
+                          className="flex flex-col gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2.5 py-2"
                         >
-                          <span className="w-20 shrink-0 text-xs text-[var(--muted)]">
+                          <span className="text-xs font-medium text-[var(--muted)]">
                             Exemplar {i + 1}
                           </span>
-                          <select
-                            value={
-                              editConditions[i] || editCondition || "Near Mint"
-                            }
-                            onChange={(e) =>
-                              setExemplarCondition(i, e.target.value)
-                            }
-                            className="h-9 min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 text-sm"
-                          >
-                            {EDIT_CONDITIONS.map((c) => (
-                              <option key={c} value={c}>
-                                {c}
-                              </option>
-                            ))}
-                          </select>
-                          <label className="flex min-w-0 flex-1 items-center gap-1.5">
-                            <span className="shrink-0 text-[10px] uppercase tracking-wider text-[var(--muted)]">
-                              EK €
-                            </span>
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={editPrices[i] ?? ""}
-                              onChange={(e) =>
-                                setExemplarPrice(i, e.target.value)
+                          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+                            <select
+                              value={
+                                editConditions[i] ||
+                                editCondition ||
+                                "Near Mint"
                               }
-                              placeholder="0,00"
-                              className="h-9 min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 text-sm tabular-nums"
-                            />
-                          </label>
+                              onChange={(e) =>
+                                setExemplarCondition(i, e.target.value)
+                              }
+                              className="h-9 min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 text-sm"
+                            >
+                              {EDIT_CONDITIONS.map((c) => (
+                                <option key={c} value={c}>
+                                  {c}
+                                </option>
+                              ))}
+                            </select>
+                            <label className="flex min-w-0 flex-1 items-center gap-1.5">
+                              <span className="shrink-0 text-[10px] uppercase tracking-wider text-[var(--muted)]">
+                                EK €
+                              </span>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={editPrices[i] ?? ""}
+                                onChange={(e) =>
+                                  setExemplarPrice(i, e.target.value)
+                                }
+                                placeholder="0,00"
+                                className="h-9 min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 text-sm tabular-nums"
+                              />
+                            </label>
+                            <label className="flex min-w-0 flex-1 items-center gap-1.5">
+                              <span className="shrink-0 text-[10px] uppercase tracking-wider text-[var(--muted)]">
+                                Kauf
+                              </span>
+                              <input
+                                type="date"
+                                value={editDates[i] ?? ""}
+                                onChange={(e) =>
+                                  setExemplarDate(i, e.target.value)
+                                }
+                                className="h-9 min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 text-sm"
+                              />
+                            </label>
+                          </div>
                         </li>
                       ))}
                     </ul>
                   </div>
                 )}
-                <label className="flex flex-col gap-1">
-                  <span className="text-[var(--muted)]">Kaufdatum</span>
-                  <input
-                    type="date"
-                    value={editDate}
-                    onChange={(e) => setEditDate(e.target.value)}
-                    className="h-10 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3"
-                  />
-                </label>
               </div>
 
               <div className="mt-6 space-y-2">
