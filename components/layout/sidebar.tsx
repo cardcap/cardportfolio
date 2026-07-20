@@ -24,7 +24,7 @@ function isGroupActive(pathname: string, group: NavGroup): boolean {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { isAuthenticated, isDemo, user } = useAuthMode();
+  const { isAuthenticated, isDemo, isAdmin, user } = useAuthMode();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -83,6 +83,19 @@ export function Sidebar() {
       </nav>
 
       <div className="space-y-0.5 border-t border-[var(--border)] px-3 py-4">
+        {isAdmin && (
+          <Link
+            href="/admin"
+            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+              isActive(pathname, "/admin")
+                ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+                : "text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            <NavIcon type="database" />
+            Admin
+          </Link>
+        )}
         <Link
           href="/einstellungen"
           className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
