@@ -36,6 +36,10 @@ export function AuthForm({ mode }: AuthFormProps) {
         if (!res.ok) {
           throw new Error(data.error ?? "Registrierung fehlgeschlagen");
         }
+        if (data.emailSent === false) {
+          // Account is created either way; surface SMTP issues in console / API
+          console.warn("Welcome email not sent:", data.emailError);
+        }
       }
 
       const result = await signIn("credentials", {

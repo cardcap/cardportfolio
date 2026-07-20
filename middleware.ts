@@ -16,6 +16,7 @@ const PUBLIC_PATHS = [
   "/passwort-vergessen",
   "/passwort-zuruecksetzen",
   "/api/auth",
+  "/api/debug/smtp",
 ];
 
 function isPublicPath(pathname: string): boolean {

@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { sendWelcomeEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 
+export const maxDuration = 30;
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -55,6 +57,13 @@ export async function POST(request: NextRequest) {
       to: user.email!,
       name: user.name,
     });
+    if (!mail.ok) {
+      console.error("register: welcome mail failed", {
+        email: user.email,
+        skipped: mail.skipped,
+        error: mail.error,
+      });
+    }
 
     return NextResponse.json({
       id: user.id,
@@ -62,6 +71,8 @@ export async function POST(request: NextRequest) {
       name: user.name,
       emailSent: mail.ok,
       emailSkipped: mail.skipped ?? false,
+      // Surface non-sensitive failure reason (helps debugging SMTP)
+      emailError: mail.ok ? undefined : mail.error,
     });
   } catch (error) {
     console.error("Register error:", error);

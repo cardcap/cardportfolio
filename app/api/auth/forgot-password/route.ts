@@ -3,6 +3,8 @@ import { createPasswordResetToken } from "@/lib/auth-tokens";
 import { isEmailConfigured, sendPasswordResetEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 
+export const maxDuration = 30;
+
 /**
  * Always returns a generic success message (no email enumeration).
  */
@@ -32,11 +34,29 @@ export async function POST(request: NextRequest) {
     const user = await prisma.user.findUnique({ where: { email } });
     if (user?.password) {
       const token = await createPasswordResetToken(email);
-      await sendPasswordResetEmail({
+      const mail = await sendPasswordResetEmail({
         to: email,
         name: user.name,
         token,
       });
+      if (!mail.ok) {
+        console.error("forgot-password: mail failed", {
+          email,
+          skipped: mail.skipped,
+          error: mail.error,
+        });
+        // Do not leak existence; still tell client that delivery failed
+        // when SMTP is broken so admins/users aren't left guessing.
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "E-Mail konnte nicht gesendet werden. Bitte später erneut versuchen oder den Admin kontaktieren.",
+            emailError: mail.error,
+          },
+          { status: 502 },
+        );
+      }
     }
 
     return NextResponse.json({

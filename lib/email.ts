@@ -1,48 +1,134 @@
 import "server-only";
 
 import nodemailer from "nodemailer";
+import type SMTPTransport from "nodemailer/lib/smtp-transport";
+
+/** Read env and strip accidental surrounding quotes / whitespace */
+function env(name: string): string {
+  let v = process.env[name]?.trim() ?? "";
+  if (
+    (v.startsWith('"') && v.endsWith('"')) ||
+    (v.startsWith("'") && v.endsWith("'"))
+  ) {
+    v = v.slice(1, -1).trim();
+  }
+  return v;
+}
 
 function appUrl(): string {
   return (
-    process.env.AUTH_URL?.replace(/\/$/, "") ||
-    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
+    env("AUTH_URL").replace(/\/$/, "") ||
+    env("NEXT_PUBLIC_APP_URL").replace(/\/$/, "") ||
     "https://cardcap.de"
   );
 }
 
 export function isEmailConfigured(): boolean {
-  return Boolean(
-    process.env.SMTP_HOST?.trim() &&
-      process.env.SMTP_USER?.trim() &&
-      process.env.SMTP_PASS?.trim(),
-  );
+  return Boolean(env("SMTP_HOST") && env("SMTP_USER") && env("SMTP_PASS"));
+}
+
+/** Non-secret status for /api/health and admin diagnostics */
+export function getEmailConfigStatus() {
+  const host = env("SMTP_HOST");
+  const user = env("SMTP_USER");
+  const pass = env("SMTP_PASS");
+  const port = env("SMTP_PORT") || "587";
+  return {
+    configured: Boolean(host && user && pass),
+    hostSet: Boolean(host),
+    hostHint: host ? host.replace(/^(.{3}).*(.{4})$/, "$1…$2") : null,
+    userSet: Boolean(user),
+    userHint: user
+      ? user.includes("@")
+        ? `${user.slice(0, 2)}…@${user.split("@")[1]}`
+        : `${user.slice(0, 2)}…`
+      : null,
+    passSet: Boolean(pass),
+    passLength: pass.length,
+    port,
+    secure: env("SMTP_SECURE") === "true" || port === "465",
+    from: env("EMAIL_FROM") || null,
+    authUrl: env("AUTH_URL") || null,
+  };
 }
 
 function fromAddress(): string {
   return (
-    process.env.EMAIL_FROM?.trim() ||
-    `CardCap <${process.env.SMTP_USER?.trim() || "info@cardcap.de"}>`
+    env("EMAIL_FROM") ||
+    `CardCap <${env("SMTP_USER") || "info@cardcap.de"}>`
   );
 }
 
 function createTransport() {
-  const host = process.env.SMTP_HOST?.trim();
-  const user = process.env.SMTP_USER?.trim();
-  const pass = process.env.SMTP_PASS?.trim();
+  const host = env("SMTP_HOST");
+  const user = env("SMTP_USER");
+  const pass = env("SMTP_PASS");
   if (!host || !user || !pass) {
     throw new Error("SMTP ist nicht konfiguriert (SMTP_HOST/USER/PASS).");
   }
 
-  const port = Number(process.env.SMTP_PORT || "587");
-  const secure = process.env.SMTP_SECURE === "true" || port === 465;
+  const port = Number(env("SMTP_PORT") || "587");
+  const secure = env("SMTP_SECURE") === "true" || port === 465;
 
-  return nodemailer.createTransport({
+  const options: SMTPTransport.Options = {
     host,
     port,
     secure,
     auth: { user, pass },
     requireTLS: !secure && port === 587,
-  });
+    // Fail before Vercel Hobby function timeout (~10s)
+    connectionTimeout: 8_000,
+    greetingTimeout: 8_000,
+    socketTimeout: 12_000,
+    tls: {
+      minVersion: "TLSv1.2",
+      // IONOS certs are valid; keep verification on
+      rejectUnauthorized: true,
+    },
+  };
+
+  return nodemailer.createTransport(options);
+}
+
+function formatSmtpError(error: unknown): string {
+  if (!error || typeof error !== "object") {
+    return error instanceof Error ? error.message : String(error);
+  }
+  const e = error as Error & {
+    code?: string;
+    response?: string;
+    responseCode?: number;
+    command?: string;
+  };
+  const parts = [
+    e.message,
+    e.code ? `code=${e.code}` : null,
+    e.responseCode != null ? `smtp=${e.responseCode}` : null,
+    e.command ? `cmd=${e.command}` : null,
+    e.response ? `response=${e.response}` : null,
+  ].filter(Boolean);
+  return parts.join(" | ");
+}
+
+/** SMTP handshake test (no mail sent) */
+export async function verifySmtp(): Promise<{
+  ok: boolean;
+  error?: string;
+  config: ReturnType<typeof getEmailConfigStatus>;
+}> {
+  const config = getEmailConfigStatus();
+  if (!config.configured) {
+    return { ok: false, error: "SMTP nicht konfiguriert", config };
+  }
+  try {
+    const transport = createTransport();
+    await transport.verify();
+    return { ok: true, config };
+  } catch (error) {
+    const msg = formatSmtpError(error);
+    console.error("verifySmtp error:", msg);
+    return { ok: false, error: msg, config };
+  }
 }
 
 /** Simple CardCap-branded HTML shell (email-safe inline styles) */
@@ -126,20 +212,31 @@ export async function sendMail(params: {
 
   try {
     const transport = createTransport();
-    await transport.sendMail({
+    const info = await transport.sendMail({
       from: fromAddress(),
       to: params.to,
       subject: params.subject,
       text: params.text,
       html: params.html ?? params.text.replace(/\n/g, "<br/>"),
     });
+    console.info(
+      "sendMail ok:",
+      params.subject,
+      "→",
+      params.to,
+      "id=",
+      info.messageId,
+    );
     return { ok: true };
   } catch (error) {
-    console.error("sendMail error:", error);
+    const msg = formatSmtpError(error);
+    console.error("sendMail error:", msg, {
+      subject: params.subject,
+      to: params.to,
+    });
     return {
       ok: false,
-      error:
-        error instanceof Error ? error.message : "Mail-Versand fehlgeschlagen",
+      error: msg,
     };
   }
 }

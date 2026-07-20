@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getEmailConfigStatus } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +34,7 @@ export async function GET() {
     }
   }
 
+  const email = getEmailConfigStatus();
   const ok = db === "ok" || db === "skipped";
   return NextResponse.json(
     {
@@ -48,6 +50,19 @@ export async function GET() {
       },
       auth: {
         secretConfigured: Boolean(process.env.AUTH_SECRET?.trim()),
+      },
+      email: {
+        configured: email.configured,
+        hostSet: email.hostSet,
+        hostHint: email.hostHint,
+        userSet: email.userSet,
+        userHint: email.userHint,
+        passSet: email.passSet,
+        passLength: email.passLength,
+        port: email.port,
+        secure: email.secure,
+        fromSet: Boolean(email.from),
+        authUrlSet: Boolean(email.authUrl),
       },
     },
     { status: ok ? 200 : 503 },
