@@ -9,6 +9,11 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+enum UserRole {
+  USER
+  ADMIN
+}
+
 model User {
   id               String            @id @default(cuid())
   name             String?
@@ -16,6 +21,8 @@ model User {
   emailVerified    DateTime?
   password         String?
   image            String?
+  /// USER = normal, ADMIN = Benutzerverwaltung
+  role             UserRole          @default(USER)
   accounts         Account[]
   sessions         Session[]
   wishlistItems    WishlistItem[]
@@ -23,6 +30,8 @@ model User {
   sealedItems      SealedItem[]
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
+
+  @@index([role])
 }
 
 model Account {

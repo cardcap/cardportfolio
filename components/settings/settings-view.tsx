@@ -1,7 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import { useAuthMode } from "@/components/auth/use-auth-mode";
 import { ThemeToggleButton } from "@/components/theme-toggle";
+import { isAdminRole } from "@/lib/user-roles";
 
 const fieldClass =
   "h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 text-sm outline-none focus:border-[var(--accent)]";
@@ -42,8 +46,20 @@ const sections: { id: SectionId; label: string; desc: string }[] = [
 ];
 
 export function SettingsView() {
+  const { isAuthenticated, isDemo, user } = useAuthMode();
+  const { update: updateSession } = useSession();
   const [section, setSection] = useState<SectionId>("allgemein");
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+
+  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<string>("USER");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [pwSaving, setPwSaving] = useState(false);
 
   // Demo local settings state
   const [language, setLanguage] = useState("de");
@@ -58,9 +74,105 @@ export function SettingsView() {
   const [notifyInApp, setNotifyInApp] = useState(true);
   const [notifyEmail, setNotifyEmail] = useState(false);
 
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setDisplayName(user?.name ?? "Demo");
+      setEmail(user?.email ?? "");
+      setRole("USER");
+      return;
+    }
+    let cancelled = false;
+    setLoadingProfile(true);
+    void (async () => {
+      try {
+        const res = await fetch("/api/user/me");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        setDisplayName(data.name ?? "");
+        setEmail(data.email ?? "");
+        setRole(data.role ?? "USER");
+      } finally {
+        if (!cancelled) setLoadingProfile(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, user?.name, user?.email]);
+
   function flashSaved() {
     setSaved(true);
+    setError(null);
     setTimeout(() => setSaved(false), 2000);
+  }
+
+  async function saveProfile() {
+    setError(null);
+    if (!isAuthenticated) {
+      flashSaved();
+      return;
+    }
+    try {
+      const res = await fetch("/api/user/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: displayName }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(
+          typeof data.error === "string" ? data.error : "Speichern fehlgeschlagen",
+        );
+        return;
+      }
+      await updateSession?.({ name: data.name });
+      flashSaved();
+    } catch {
+      setError("Netzwerkfehler");
+    }
+  }
+
+  async function changePassword() {
+    setError(null);
+    if (!isAuthenticated) {
+      setError("Bitte anmelden, um das Passwort zu ändern.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("Neue Passwörter stimmen nicht überein.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      setError("Mindestens 8 Zeichen.");
+      return;
+    }
+    setPwSaving(true);
+    try {
+      const res = await fetch("/api/user/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(
+          typeof data.error === "string" ? data.error : "Passwort ändern fehlgeschlagen",
+        );
+        return;
+      }
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      flashSaved();
+    } catch {
+      setError("Netzwerkfehler");
+    } finally {
+      setPwSaving(false);
+    }
   }
 
   return (
@@ -105,19 +217,42 @@ export function SettingsView() {
         <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
           {section === "allgemein" && (
             <Section title="Allgemein">
+              {isDemo && (
+                <p className="rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-xs text-[var(--muted)]">
+                  Demo-Modus — Profil wird lokal angezeigt.{" "}
+                  <Link href="/login" className="text-[var(--accent)] hover:underline">
+                    Anmelden
+                  </Link>{" "}
+                  für Speicherung in der Datenbank.
+                </p>
+              )}
+              {isAdminRole(role) && (
+                <p className="rounded-xl border border-[var(--accent)]/30 bg-[var(--accent-soft)] px-3 py-2 text-xs text-[var(--accent)]">
+                  Admin-Konto ·{" "}
+                  <Link href="/admin/benutzer" className="font-medium underline">
+                    Benutzerverwaltung öffnen
+                  </Link>
+                </p>
+              )}
               <Field label="Profil">
                 <input
                   type="text"
-                  defaultValue="Admin"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
                   className={fieldClass}
                   placeholder="Anzeigename"
+                  disabled={loadingProfile}
                 />
                 <input
                   type="email"
-                  defaultValue="admin@cardcap.de"
-                  className={`${fieldClass} mt-2`}
+                  value={email}
+                  readOnly
+                  className={`${fieldClass} mt-2 opacity-80`}
                   placeholder="E-Mail"
                 />
+                <p className="mt-1 text-[11px] text-[var(--muted)]">
+                  E-Mail ist die Login-Kennung und kann hier nicht geändert werden.
+                </p>
               </Field>
               <Field label="Sprache">
                 <select
@@ -171,7 +306,10 @@ export function SettingsView() {
                   <option value="96">96</option>
                 </select>
               </Field>
-              <SaveButton onClick={flashSaved} />
+              {error && section === "allgemein" && (
+                <p className="text-sm text-[var(--negative)]">{error}</p>
+              )}
+              <SaveButton onClick={() => void saveProfile()} />
             </Section>
           )}
 
@@ -267,27 +405,47 @@ export function SettingsView() {
 
           {section === "sicherheit" && (
             <Section title="Sicherheit">
-              <ActionRow
-                title="Passwort ändern"
-                desc="Neues Passwort für dein Konto festlegen"
-                action="Ändern"
+              <Field label="Aktuelles Passwort">
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className={fieldClass}
+                  autoComplete="current-password"
+                  disabled={!isAuthenticated}
+                />
+              </Field>
+              <Field label="Neues Passwort">
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className={fieldClass}
+                  autoComplete="new-password"
+                  disabled={!isAuthenticated}
+                  placeholder="Mind. 8 Zeichen"
+                />
+              </Field>
+              <Field label="Neues Passwort bestätigen">
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className={fieldClass}
+                  autoComplete="new-password"
+                  disabled={!isAuthenticated}
+                />
+              </Field>
+              {error && section === "sicherheit" && (
+                <p className="text-sm text-[var(--negative)]">{error}</p>
+              )}
+              <SaveButton
+                onClick={() => void changePassword()}
+                label={pwSaving ? "Wird gespeichert…" : "Passwort ändern"}
               />
-              <ActionRow
-                title="Aktive Sitzungen"
-                desc="Angemeldete Geräte verwalten und abmelden"
-                action="Anzeigen"
-              />
-              <ActionRow
-                title="2-Faktor-Authentifizierung"
-                desc="Zusätzlichen Schutz für dein Konto aktivieren"
-                action="Einrichten"
-              />
-              <ActionRow
-                title="Konto löschen"
-                desc="Konto und alle zugehörigen Daten unwiderruflich entfernen"
-                action="Löschen"
-                danger
-              />
+              <p className="text-xs text-[var(--muted)]">
+                2FA und Sitzungsverwaltung folgen in einem späteren Schritt.
+              </p>
             </Section>
           )}
         </div>
@@ -399,14 +557,20 @@ function ActionRow({
   );
 }
 
-function SaveButton({ onClick }: { onClick: () => void }) {
+function SaveButton({
+  onClick,
+  label = "Speichern",
+}: {
+  onClick: () => void;
+  label?: string;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
       className="inline-flex h-10 items-center rounded-full bg-[var(--accent)] px-5 text-sm font-medium text-white hover:brightness-110"
     >
-      Speichern
+      {label}
     </button>
   );
 }

@@ -8,6 +8,7 @@ import {
   resolveAdminLoginIdentifier,
 } from "@/lib/admin-account";
 import { prisma } from "@/lib/prisma";
+import type { AppUserRole } from "@/lib/user-roles";
 
 function matchesSiteGateLogin(input: string, password: string): boolean {
   const gateUser = process.env.SITE_GATE_USER?.trim().toLowerCase() || "admin";
@@ -20,6 +21,10 @@ function matchesSiteGateLogin(input: string, password: string): boolean {
     login === "admin" ||
     login === ADMIN_ACCOUNT_EMAIL.toLowerCase()
   );
+}
+
+function roleOf(user: { role?: string | null }): AppUserRole {
+  return user.role === "ADMIN" ? "ADMIN" : "USER";
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -45,7 +50,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const normalizedEmail = resolveAdminLoginIdentifier(email);
 
         try {
-          const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+          const user = await prisma.user.findUnique({
+            where: { email: normalizedEmail },
+          });
           if (user?.password) {
             const valid = await bcrypt.compare(password, user.password);
             if (valid) {
@@ -54,6 +61,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                 email: user.email,
                 name: user.name,
                 image: user.image,
+                role: roleOf(user),
               };
             }
           }
@@ -68,21 +76,29 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               where: { email: ADMIN_ACCOUNT_EMAIL },
             });
             if (admin) {
+              // Ensure admin role
+              if (admin.role !== "ADMIN") {
+                await prisma.user.update({
+                  where: { id: admin.id },
+                  data: { role: "ADMIN" },
+                });
+              }
               return {
                 id: admin.id,
                 email: admin.email,
                 name: admin.name ?? ADMIN_ACCOUNT_NAME,
                 image: admin.image,
+                role: "ADMIN" as AppUserRole,
               };
             }
           } catch (error) {
             console.error("Auth admin lookup error:", error);
           }
-          // Ohne DB: Session möglich, aber keine persistente Collection
           return {
             id: "site-gate-admin",
             email: ADMIN_ACCOUNT_EMAIL,
             name: ADMIN_ACCOUNT_NAME,
+            role: "ADMIN" as AppUserRole,
           };
         }
 
@@ -91,15 +107,36 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user?.id) {
         token.sub = user.id;
+        token.role = (user.role as AppUserRole) || "USER";
+      }
+      // Refresh role from DB occasionally / on update
+      if (trigger === "update" && session?.name) {
+        token.name = session.name;
+      }
+      if (token.sub && token.sub !== "site-gate-admin" && !token.role) {
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.sub },
+            select: { role: true, name: true },
+          });
+          if (dbUser) {
+            token.role = roleOf(dbUser);
+            if (dbUser.name) token.name = dbUser.name;
+          }
+        } catch {
+          /* ignore */
+        }
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user && token.sub) {
         session.user.id = token.sub;
+        session.user.role = (token.role as AppUserRole) || "USER";
+        if (token.name) session.user.name = token.name as string;
       }
       return session;
     },

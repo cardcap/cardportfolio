@@ -29,9 +29,10 @@ async function main() {
         data: {
           name: ADMIN_NAME,
           password: hashed,
+          role: "ADMIN",
         },
       });
-      console.log("ensure-admin: Admin-Konto aktualisiert.");
+      console.log("ensure-admin: Admin-Konto aktualisiert (role=ADMIN).");
       return;
     }
 
@@ -40,9 +41,10 @@ async function main() {
         email: ADMIN_EMAIL,
         name: ADMIN_NAME,
         password: hashed,
+        role: "ADMIN",
       },
     });
-    console.log("ensure-admin: Admin-Konto erstellt.");
+    console.log("ensure-admin: Admin-Konto erstellt (role=ADMIN).");
   } finally {
     await prisma.$disconnect();
   }
