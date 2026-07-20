@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 280" width="1000" height="280">
+  <!-- Icon -->
+  <g transform="translate(30, 30)">
+    <!-- Pink fill -->
+    <path d="M18 175
+             Q18 198 42 198
+             L148 198
+             L148 105
+             L120 60
+             L88 115
+             L52 70
+             L18 135
+             Z" fill="#E48D98"/>
+    
+    <!-- Card outline white -->
+    <path d="M18 135
+             L18 28
+             Q18 6 40 6
+             L162 6
+             Q184 6 184 28
+             L184 148"
+          fill="none" stroke="#FFFFFF" stroke-width="13.5" stroke-linecap="round" stroke-linejoin="round"/>
+    
+    <!-- Chart line -->
+    <path d="M8 150
+             L52 70
+             L88 115
+             L135 35
+             L165 15"
+          fill="none" stroke="#FFFFFF" stroke-width="13.5" stroke-linecap="round" stroke-linejoin="round"/>
+    
+    <!-- Arrow -->
+    <path d="M148 2
+             L165 15
+             L152 35"
+          fill="none" stroke="#FFFFFF" stroke-width="13.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  
+  <!-- Text -->
+  <text x="255" y="185"
+        font-family="Arial Black, 'Arial', Helvetica, sans-serif"
+        font-weight="900"
+        font-size="130"
+        letter-spacing="-2.5">
+    <tspan fill="#FFFFFF">Card</tspan><tspan fill="#E48D98">Cap</tspan>
+  </text>
+</svg>

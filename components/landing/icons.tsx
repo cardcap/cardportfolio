@@ -199,12 +199,48 @@ export function IconSettings({ className = "h-4 w-4" }: IconProps) {
   );
 }
 
+/** @deprecated Prefer CardCapMark / CardCapLogo from @/components/brand/cardcap-logo */
 export function BrandMark({ className = "h-8 w-8" }: IconProps) {
+  // Re-export mark styling for any remaining callers
   return (
-    <span
-      className={`inline-flex items-center justify-center rounded-xl border border-pink-400/30 bg-pink-500/10 text-pink-300 ${className}`}
-    >
-      <IconChart className="h-[55%] w-[55%]" />
+    <span className={`inline-flex items-center justify-center text-current ${className}`}>
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 200 200"
+        className="h-full w-full"
+        aria-hidden
+      >
+        <g transform="translate(8, 8)">
+          <path
+            d="M18 175 Q18 198 42 198 L148 198 L148 105 L120 60 L88 115 L52 70 L18 135 Z"
+            fill="#E48D98"
+          />
+          <path
+            d="M18 135 L18 28 Q18 6 40 6 L162 6 Q184 6 184 28 L184 148"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="13.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M8 150 L52 70 L88 115 L135 35 L165 15"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="13.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M148 2 L165 15 L152 35"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="13.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </g>
+      </svg>
     </span>
   );
 }

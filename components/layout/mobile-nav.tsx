@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { useAuthMode } from "@/components/auth/use-auth-mode";
-import { BrandMark } from "@/components/landing/icons";
+import { CardCapLogo } from "@/components/brand/cardcap-logo";
 import { NavIcon } from "@/components/layout/nav-icon";
 import { ThemeToggleButton } from "@/components/theme-toggle";
 import {
@@ -67,13 +67,11 @@ export function MobileNav() {
       <header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-4 lg:hidden">
         <Link
           href="/dashboard"
-          className="flex min-w-0 items-center gap-2"
+          className="flex min-w-0 items-center"
           onClick={() => setMenuOpen(false)}
+          aria-label="CardCap"
         >
-          <BrandMark className="h-7 w-7 shrink-0" />
-          <span className="truncate text-sm font-semibold tracking-tight">
-            Card<span className="text-[var(--accent)]">Cap</span>
-          </span>
+          <CardCapLogo className="h-7 w-auto max-w-[140px] shrink-0 text-[var(--foreground)]" />
         </Link>
         <div className="flex items-center gap-1.5">
           {/* Same role as desktop AppShell toggle: always top-right in chrome */}

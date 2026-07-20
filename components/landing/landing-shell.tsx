@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BrandMark } from "@/components/landing/icons";
+import { CardCapLogo, CardCapMark } from "@/components/brand/cardcap-logo";
 import { BRAND_NAME, landingNav } from "@/lib/landing-nav";
 
 type LandingShellProps = {
@@ -20,12 +20,10 @@ export function LandingShell({ children }: LandingShellProps) {
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-5 sm:px-8">
           <Link
             href="/"
-            className="flex items-center gap-2.5 transition-opacity hover:opacity-80"
+            className="flex items-center transition-opacity hover:opacity-80"
+            aria-label="CardCap"
           >
-            <BrandMark className="h-8 w-8" />
-            <span className="text-[15px] font-semibold tracking-tight">
-              Card<span className="text-pink-300">Cap</span>
-            </span>
+            <CardCapLogo className="h-8 w-auto max-w-[168px] text-zinc-100" />
           </Link>
 
           <nav className="flex flex-wrap items-center justify-end gap-1 sm:gap-2">
@@ -61,7 +59,7 @@ export function LandingShell({ children }: LandingShellProps) {
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <BrandMark className="h-7 w-7" />
+                <CardCapMark className="h-7 w-7 text-zinc-100" />
                 <p className="text-sm font-semibold">{BRAND_NAME}</p>
               </div>
               <p className="mt-2 max-w-xs text-sm text-zinc-500">

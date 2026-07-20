@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { useAuthMode } from "@/components/auth/use-auth-mode";
-import { BrandMark } from "@/components/landing/icons";
+import { CardCapLogo } from "@/components/brand/cardcap-logo";
 import { NavIcon } from "@/components/layout/nav-icon";
 import { ThemeToggleButton } from "@/components/theme-toggle";
 import { mainNav, type NavEntry, type NavGroup } from "@/lib/nav-config";
@@ -49,12 +49,10 @@ export function Sidebar() {
       <div className="flex items-center gap-2 border-b border-[var(--border)] px-3 py-3.5">
         <Link
           href="/dashboard"
-          className="flex min-w-0 flex-1 items-center gap-2.5 px-2 transition-opacity hover:opacity-80"
+          className="flex min-w-0 flex-1 items-center px-1 transition-opacity hover:opacity-80"
+          aria-label="CardCap"
         >
-          <BrandMark className="h-8 w-8 shrink-0" />
-          <span className="truncate text-sm font-semibold tracking-tight">
-            Card<span className="text-[var(--accent)]">Cap</span>
-          </span>
+          <CardCapLogo className="h-7 w-auto max-w-[148px] shrink-0 text-[var(--foreground)]" />
         </Link>
         <ThemeToggleButton className="!h-9 !w-9 shrink-0" />
       </div>
