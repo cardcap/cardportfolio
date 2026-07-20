@@ -49,8 +49,50 @@ const CONDITIONS = [
   "beschädigt",
 ] as const;
 
+type ApiSealedItem = {
+  id: string;
+  productKey: string;
+  name: string;
+  setId: string | null;
+  setName: string;
+  category: string;
+  language: string;
+  condition: string;
+  quantity: number;
+  purchasePrice: number;
+  marketValue: number;
+  imageUrl?: string;
+  imageFallbacks?: string[];
+  ean?: string;
+};
+
+function mapApiSealed(item: ApiSealedItem): SealedProduct {
+  const lang =
+    item.language === "EN" || item.language === "JP" || item.language === "DE"
+      ? item.language
+      : "DE";
+  const cond =
+    item.condition === "leichte Mängel" || item.condition === "beschädigt"
+      ? item.condition
+      : "OVP";
+  return {
+    id: item.id,
+    name: item.name,
+    setName: item.setName,
+    category: (item.category as SealedCategory) || "Display",
+    language: lang,
+    condition: cond,
+    quantity: item.quantity,
+    purchasePrice: item.purchasePrice,
+    marketValue: item.marketValue,
+    imageUrl: item.imageUrl,
+    imageFallbacks: item.imageFallbacks,
+    ean: item.ean,
+  };
+}
+
 export function SealedView() {
-  const { isAuthenticated } = useAuthMode();
+  const { isAuthenticated, isLoading: authLoading } = useAuthMode();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<(typeof CATEGORIES)[number]>("Alle");
   const [setFilter, setSetFilter] = useState("Alle Sets");
@@ -68,10 +110,42 @@ export function SealedView() {
     useState<SealedProduct | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [inventory, setInventory] = useState<SealedProduct[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Load sealed inventory (localStorage, seeded from demo)
+  const loadInventory = useCallback(async () => {
+    if (authLoading) return;
+
+    if (!isAuthenticated) {
+      setInventory(getLocalSealed());
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // seed=1: empty user inventory gets demo products once
+      const res = await fetch("/api/sealed?seed=1");
+      if (!res.ok) {
+        setInventory([]);
+        return;
+      }
+      const data = await res.json();
+      const items = (data.items ?? []) as ApiSealedItem[];
+      setInventory(items.map(mapApiSealed));
+    } catch {
+      setInventory([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [isAuthenticated, authLoading]);
+
   useEffect(() => {
-    setInventory(getLocalSealed());
+    void loadInventory();
+  }, [loadInventory]);
+
+  // Demo: keep listening to localStorage changes
+  useEffect(() => {
+    if (isAuthenticated) return;
     const onChange = () => setInventory(getLocalSealed());
     window.addEventListener(SEALED_CHANGED_EVENT, onChange);
     window.addEventListener("storage", onChange);
@@ -79,7 +153,7 @@ export function SealedView() {
       window.removeEventListener(SEALED_CHANGED_EVENT, onChange);
       window.removeEventListener("storage", onChange);
     };
-  }, []);
+  }, [isAuthenticated]);
 
   const handleOpenConfirm = useCallback(
     async (result: {
@@ -215,10 +289,34 @@ export function SealedView() {
         }),
       );
 
-      // 2) Remove sealed product from local Sealed list
-      //    (DB-Sealed-API folgt in Phase 3)
-      const next = removeLocalSealed(result.product.id);
-      setInventory(next);
+      // 2) Remove sealed product from inventory (DB or local)
+      if (isAuthenticated) {
+        try {
+          // Full row was cost-allocated → delete entire row
+          const del = await fetch("/api/sealed", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: result.product.id }),
+          });
+          if (!del.ok) {
+            // fallback: open one unit
+            await fetch("/api/sealed", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action: "open",
+                id: result.product.id,
+              }),
+            });
+          }
+          await loadInventory();
+        } catch {
+          errors.push("Sealed-Eintrag");
+        }
+      } else {
+        const next = removeLocalSealed(result.product.id);
+        setInventory(next);
+      }
 
       const cardCount = result.cards.reduce((s, c) => s + c.quantity, 0);
       const target = isAuthenticated
@@ -235,7 +333,7 @@ export function SealedView() {
       );
       setTimeout(() => setToast(null), 5000);
     },
-    [isAuthenticated],
+    [isAuthenticated, loadInventory],
   );
 
   const setOptions = useMemo(
@@ -732,7 +830,11 @@ export function SealedView() {
               ))}
               {pageRows.length === 0 && (
                 <li className="px-5 py-12 text-center text-sm text-[var(--muted)]">
-                  Keine Produkte für diese Filter.
+                  {loading
+                    ? "Sealed-Inventar wird geladen…"
+                    : isAuthenticated
+                      ? "Keine Sealed-Produkte. Füge Produkte hinzu oder öffne die Demo-Seed."
+                      : "Keine Produkte für diese Filter."}
                 </li>
               )}
             </ul>

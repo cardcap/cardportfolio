@@ -60,9 +60,9 @@ Passwort = `SITE_GATE_PASSWORD`.
 ## Phasen
 
 2. **Sammlung** nur noch über DB wenn eingeloggt (localStorage nur Demo) ✅
-3. **SealedItem** API + UI an DB
-4. **Sealed öffnen** Sealed-Bestand in DB (Karten gehen schon in DB)
-5. **Import** localStorage → Account beim ersten Login
+3. **SealedItem** API + UI an DB ✅ (`/api/sealed`, Seed beim ersten Login)
+4. **Sealed öffnen** entfernt Sealed aus DB + Karten in Collection ✅
+5. **Import** localStorage → Account beim ersten Login (optional)
 
 ## Schema-Überblick
 
