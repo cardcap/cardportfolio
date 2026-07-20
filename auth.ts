@@ -61,7 +61,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           console.error("Auth database error:", error);
         }
 
+        // Site-Gate-Login → echten DB-Admin nutzen (FK für Collection/Sealed)
         if (matchesSiteGateLogin(email, password)) {
+          try {
+            const admin = await prisma.user.findUnique({
+              where: { email: ADMIN_ACCOUNT_EMAIL },
+            });
+            if (admin) {
+              return {
+                id: admin.id,
+                email: admin.email,
+                name: admin.name ?? ADMIN_ACCOUNT_NAME,
+                image: admin.image,
+              };
+            }
+          } catch (error) {
+            console.error("Auth admin lookup error:", error);
+          }
+          // Ohne DB: Session möglich, aber keine persistente Collection
           return {
             id: "site-gate-admin",
             email: ADMIN_ACCOUNT_EMAIL,

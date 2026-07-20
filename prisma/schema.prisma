@@ -18,6 +18,7 @@ model User {
   sessions         Session[]
   wishlistItems    WishlistItem[]
   collectionItems  CollectionItem[]
+  sealedItems      SealedItem[]
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 }
@@ -89,9 +90,41 @@ model CollectionItem {
   quantity       Int      @default(1)
   purchasePrice  Float?
   purchaseDate   String?
+  /// JSON: [{ condition, purchasePrice, purchaseDate }] pro Exemplar
+  exemplars      Json?
+  /// Herkunft z. B. „Geöffnet aus Display …“
+  origin         String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
+  @@index([userId, tcgCardId])
   @@unique([userId, tcgCardId, condition])
+}
+
+/// Sealed-Inventar pro User (Displays, ETBs, …)
+model SealedItem {
+  id            String   @id @default(cuid())
+  userId        String
+  /// Stabiler Produkt-Key (Katalog-ID oder Demo-ID)
+  productKey    String
+  name          String
+  setId         String?
+  setName       String
+  category      String
+  language      String   @default("DE")
+  condition     String   @default("OVP")
+  quantity      Int      @default(1)
+  purchasePrice Float
+  marketValue   Float?
+  imageUrl      String?
+  imageFallbacks String?
+  ean           String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, productKey])
 }
