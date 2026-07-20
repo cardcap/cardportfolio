@@ -107,9 +107,19 @@ export function AuthForm({ mode }: AuthFormProps) {
         </div>
 
         <div>
-          <label htmlFor="password" className="mb-1.5 block text-sm font-medium">
-            Passwort
-          </label>
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <label htmlFor="password" className="block text-sm font-medium">
+              Passwort
+            </label>
+            {!isRegister && (
+              <Link
+                href="/passwort-vergessen"
+                className="text-xs text-[var(--accent)] hover:underline"
+              >
+                Passwort vergessen?
+              </Link>
+            )}
+          </div>
           <input
             id="password"
             type="password"

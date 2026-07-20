@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import { requireSessionUserId } from "@/lib/api-auth";
+import { sendPasswordChangedEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -55,6 +56,10 @@ export async function POST(request: NextRequest) {
       where: { id: userId },
       data: { password: hashed },
     });
+
+    if (user.email) {
+      await sendPasswordChangedEmail({ to: user.email, name: user.name });
+    }
 
     return NextResponse.json({ ok: true });
   } catch (error) {

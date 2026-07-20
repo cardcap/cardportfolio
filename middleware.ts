@@ -6,7 +6,17 @@ import {
   verifySiteGateToken,
 } from "@/lib/site-gate";
 
-const PUBLIC_PATHS = ["/zugang", "/api/site-gate", "/api/health"];
+const PUBLIC_PATHS = [
+  "/zugang",
+  "/api/site-gate",
+  "/api/health",
+  // Auth-Flows müssen ohne Site-Gate erreichbar sein (Reset-Links aus E-Mails)
+  "/login",
+  "/register",
+  "/passwort-vergessen",
+  "/passwort-zuruecksetzen",
+  "/api/auth",
+];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(

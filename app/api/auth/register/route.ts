@@ -1,17 +1,26 @@
 import bcrypt from "bcryptjs";
 import { NextRequest, NextResponse } from "next/server";
+import { sendWelcomeEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const name = typeof body.name === "string" ? body.name.trim() : "";
-    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    const email =
+      typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     const password = typeof body.password === "string" ? body.password : "";
 
     if (!email || !password) {
       return NextResponse.json(
         { error: "E-Mail und Passwort sind erforderlich." },
+        { status: 400 },
+      );
+    }
+
+    if (!email.includes("@")) {
+      return NextResponse.json(
+        { error: "Bitte eine gültige E-Mail-Adresse angeben." },
         { status: 400 },
       );
     }
@@ -32,18 +41,27 @@ export async function POST(request: NextRequest) {
     }
 
     const hashed = await bcrypt.hash(password, 12);
+    const displayName = name || email.split("@")[0];
     const user = await prisma.user.create({
       data: {
-        name: name || email.split("@")[0],
+        name: displayName,
         email,
         password: hashed,
       },
+    });
+
+    // Welcome mail (never includes plaintext password)
+    const mail = await sendWelcomeEmail({
+      to: user.email!,
+      name: user.name,
     });
 
     return NextResponse.json({
       id: user.id,
       email: user.email,
       name: user.name,
+      emailSent: mail.ok,
+      emailSkipped: mail.skipped ?? false,
     });
   } catch (error) {
     console.error("Register error:", error);
