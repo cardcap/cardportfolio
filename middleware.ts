@@ -6,7 +6,7 @@ import {
   verifySiteGateToken,
 } from "@/lib/site-gate";
 
-const PUBLIC_PATHS = ["/zugang", "/api/site-gate"];
+const PUBLIC_PATHS = ["/zugang", "/api/site-gate", "/api/health"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(
