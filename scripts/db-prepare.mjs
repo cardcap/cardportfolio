@@ -2,13 +2,20 @@ import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 
-const databaseUrl = process.env.DATABASE_URL?.trim() ?? "";
+// Prefer direct (non-pooled) URL for migrations (Neon)
+const databaseUrl =
+  process.env.DIRECT_URL?.trim() || process.env.DATABASE_URL?.trim() || "";
 
 if (!databaseUrl.startsWith("postgres")) {
   console.log(
     "db-prepare: Keine PostgreSQL-URL, Schema-Migration übersprungen.",
   );
   process.exit(0);
+}
+
+// Ensure Prisma migrate uses the direct connection when available
+if (process.env.DIRECT_URL?.trim()) {
+  process.env.DATABASE_URL = process.env.DIRECT_URL.trim();
 }
 
 const migrationsDir = path.join(process.cwd(), "prisma", "migrations");
