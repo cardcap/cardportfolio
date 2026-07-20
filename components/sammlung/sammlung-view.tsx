@@ -382,6 +382,9 @@ type CollectionItemDto = {
   colors?: string[];
   types?: string[];
   category?: string;
+  setId?: string;
+  origin?: string | null;
+  exemplars?: LocalExemplar[];
 };
 
 type CollectionMetrics = {
@@ -430,7 +433,7 @@ function mapApiItem(item: CollectionItemDto): DisplayRow {
   return {
     id: item.id,
     tcgCardId: item.tcgCardId,
-    setId: "",
+    setId: item.setId ?? "",
     name: item.name,
     setName: item.setName,
     number: item.number,
@@ -448,6 +451,7 @@ function mapApiItem(item: CollectionItemDto): DisplayRow {
     rarity: item.rarity,
     language: item.language || DEFAULT_LANGUAGE,
     variant: detectVariant(item.rarity, item.category),
+    exemplars: item.exemplars,
   };
 }
 
@@ -540,17 +544,30 @@ export function SammlungView() {
   });
 
   const loadLocal = useCallback(() => {
+    if (isAuthenticated) {
+      setLocalItems([]);
+      return;
+    }
     setLocalItems(getLocalCollection());
-  }, []);
+  }, [isAuthenticated]);
 
   const loadCollection = useCallback(async () => {
-    loadLocal();
-    if (!isAuthenticated) return;
+    if (!isAuthenticated) {
+      setItems([]);
+      setMetrics(null);
+      loadLocal();
+      return;
+    }
 
     setLoading(true);
+    setLocalItems([]);
     try {
       const res = await fetch("/api/collection");
-      if (!res.ok) return;
+      if (!res.ok) {
+        setItems([]);
+        setMetrics(null);
+        return;
+      }
       const data = await res.json();
       const loaded: CollectionItemDto[] = data.items ?? [];
       setItems(loaded);
@@ -563,14 +580,16 @@ export function SammlungView() {
 
   useEffect(() => {
     void loadCollection();
-    const onLocal = () => loadLocal();
+    const onLocal = () => {
+      if (!isAuthenticated) loadLocal();
+    };
     window.addEventListener("cardcap-collection-changed", onLocal);
     window.addEventListener("storage", onLocal);
     return () => {
       window.removeEventListener("cardcap-collection-changed", onLocal);
       window.removeEventListener("storage", onLocal);
     };
-  }, [loadCollection, loadLocal]);
+  }, [loadCollection, loadLocal, isAuthenticated]);
 
   // Restore filters / page size after mount (SSR-safe). Search is never restored.
   useEffect(() => {
@@ -628,16 +647,9 @@ export function SammlungView() {
 
   const usingDemo = isDemo || !isAuthenticated;
 
-  // Prefer cards the user actually added (local and/or API) over static demo seed
+  // Logged in → only DB. Demo → only localStorage.
   const displayItems: DisplayRow[] = useMemo(() => {
-    const fromApi = items.map(mapApiItem);
-    if (isAuthenticated) {
-      const apiTcg = new Set(items.map((i) => i.tcgCardId));
-      const extra = localItems
-        .filter((l) => !apiTcg.has(l.tcgCardId))
-        .map(mapLocalItem);
-      return [...fromApi, ...extra];
-    }
+    if (isAuthenticated) return items.map(mapApiItem);
     return localItems.map(mapLocalItem);
   }, [items, localItems, isAuthenticated]);
 

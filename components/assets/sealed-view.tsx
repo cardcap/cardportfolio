@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAuthMode } from "@/components/auth/use-auth-mode";
 import { SealedOpenDialog } from "@/components/assets/sealed-open-dialog";
 import { SealedProductImage } from "@/components/ui/sealed-product-image";
 import { formatCurrency, formatPercent } from "@/lib/format";
@@ -49,6 +50,7 @@ const CONDITIONS = [
 ] as const;
 
 export function SealedView() {
+  const { isAuthenticated } = useAuthMode();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<(typeof CATEGORIES)[number]>("Alle");
   const [setFilter, setSetFilter] = useState("Alle Sets");
@@ -104,7 +106,8 @@ export function SealedView() {
             ? "ja"
             : "de";
 
-      // 1) Resolve full DB cards (image, rarity, market) then add to collection
+      // 1) Resolve full catalog cards, then save to DB (login) or localStorage (demo)
+      const errors: string[] = [];
       await Promise.all(
         result.cards.map(async (c) => {
           let tcg = c.tcgCard;
@@ -112,8 +115,10 @@ export function SealedView() {
             !tcg ||
             !tcg.images?.large ||
             !tcg.rarity ||
-            !(tcg.cardmarket?.prices?.trendPrice ||
-              tcg.cardmarket?.prices?.averageSellPrice);
+            !(
+              tcg.cardmarket?.prices?.trendPrice ||
+              tcg.cardmarket?.prices?.averageSellPrice
+            );
 
           if (needsFetch && c.cardId) {
             try {
@@ -123,7 +128,6 @@ export function SealedView() {
                 page: "1",
                 lang,
               });
-              // Prefer set-scoped lookup when id has set prefix
               const dash = c.cardId.lastIndexOf("-");
               if (dash > 0) {
                 params.set("set", c.cardId.slice(0, dash));
@@ -137,7 +141,7 @@ export function SealedView() {
                 if (match) tcg = match;
               }
             } catch {
-              /* keep partial card */
+              /* keep partial */
             }
           }
 
@@ -146,12 +150,10 @@ export function SealedView() {
               id: c.cardId,
               name: c.name,
               number: c.collectorId ?? "",
-              rarity: undefined,
               set: {
-                id:
-                  c.cardId.includes("-")
-                    ? c.cardId.slice(0, c.cardId.lastIndexOf("-"))
-                    : "",
+                id: c.cardId.includes("-")
+                  ? c.cardId.slice(0, c.cardId.lastIndexOf("-"))
+                  : "",
                 name: c.setName ?? result.product.setName,
               },
               images: { small: "", large: "" },
@@ -165,32 +167,75 @@ export function SealedView() {
             };
           }
 
-          addToLocalCollectionDetailed(tcg, {
-            language: lang,
-            condition: "Near Mint",
-            quantity: c.quantity,
-            purchasePrice: c.costPerUnit,
-            purchaseDate: today,
-            origin: c.origin,
-          });
+          if (isAuthenticated) {
+            try {
+              const res = await fetch("/api/collection", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  tcgCardId: tcg.id,
+                  language: lang,
+                  condition: "Near Mint",
+                  quantity: c.quantity,
+                  purchasePrice: c.costPerUnit,
+                  purchaseDate: today,
+                  origin: c.origin,
+                  snapshot: {
+                    name: tcg.name,
+                    setId: tcg.set?.id,
+                    setName: tcg.set?.name,
+                    number: tcg.collectorId ?? tcg.number,
+                    imageUrl: tcg.images?.large || tcg.images?.small || "",
+                    imageFallbacks: tcg.imageFallbacks,
+                    rarity: tcg.rarity ?? null,
+                  },
+                }),
+              });
+              if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                errors.push(
+                  typeof data.error === "string"
+                    ? data.error
+                    : tcg.name,
+                );
+              }
+            } catch {
+              errors.push(tcg.name);
+            }
+          } else {
+            addToLocalCollectionDetailed(tcg, {
+              language: lang,
+              condition: "Near Mint",
+              quantity: c.quantity,
+              purchasePrice: c.costPerUnit,
+              purchaseDate: today,
+              origin: c.origin,
+            });
+          }
         }),
       );
 
-      // 2) Remove sealed product from Sealed list
+      // 2) Remove sealed product from local Sealed list
+      //    (DB-Sealed-API folgt in Phase 3)
       const next = removeLocalSealed(result.product.id);
       setInventory(next);
 
       const cardCount = result.cards.reduce((s, c) => s + c.quantity, 0);
+      const target = isAuthenticated
+        ? "Assets → Karten (Datenbank)"
+        : "Assets → Karten (Demo)";
       setToast(
-        `${cardCount} Karte${cardCount === 1 ? "" : "n"} unter Assets → Karten` +
-          ` · „${result.product.name}“ aus Sealed entfernt` +
-          (result.residual
-            ? ` · Restposten ${result.residual.name}`
-            : ""),
+        errors.length > 0
+          ? `${cardCount - errors.length}/${cardCount} Karten gespeichert · Fehler bei: ${errors.slice(0, 3).join(", ")}`
+          : `${cardCount} Karte${cardCount === 1 ? "" : "n"} unter ${target}` +
+              ` · „${result.product.name}“ aus Sealed entfernt` +
+              (result.residual
+                ? ` · Restposten ${result.residual.name}`
+                : ""),
       );
       setTimeout(() => setToast(null), 5000);
     },
-    [],
+    [isAuthenticated],
   );
 
   const setOptions = useMemo(

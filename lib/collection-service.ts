@@ -12,6 +12,12 @@ import {
 import { DEFAULT_LANGUAGE, type CardLanguage } from "@/lib/tcgdex-constants";
 import { prisma } from "@/lib/prisma";
 
+export type CollectionExemplarDto = {
+  condition: string;
+  purchasePrice: number | null;
+  purchaseDate?: string | null;
+};
+
 export type CollectionItemDto = {
   id: string;
   tcgCardId: string;
@@ -32,6 +38,8 @@ export type CollectionItemDto = {
   purchaseDate: string | null;
   marketValue: number;
   profit: number | null;
+  origin?: string | null;
+  exemplars?: CollectionExemplarDto[];
 };
 
 export type CollectionMetrics = {
@@ -50,6 +58,24 @@ function findCachedCard(
   return cards?.find((card) => card.id === tcgCardId) ?? null;
 }
 
+function parseExemplars(raw: unknown): CollectionExemplarDto[] | undefined {
+  if (!raw) return undefined;
+  if (Array.isArray(raw)) {
+    return raw.map((e) => {
+      const row = e as CollectionExemplarDto;
+      return {
+        condition: row.condition || "Near Mint",
+        purchasePrice:
+          row.purchasePrice === undefined || row.purchasePrice === null
+            ? null
+            : Number(row.purchasePrice),
+        purchaseDate: row.purchaseDate ?? null,
+      };
+    });
+  }
+  return undefined;
+}
+
 function enrichItem(
   item: {
     id: string;
@@ -66,6 +92,8 @@ function enrichItem(
     quantity: number;
     purchasePrice: number | null;
     purchaseDate: string | null;
+    origin?: string | null;
+    exemplars?: unknown;
   },
   cachedCard: TcgdexCachedCard | null,
   setName: string,
@@ -83,10 +111,18 @@ function enrichItem(
   const marketValue =
     unitPrice != null ? Math.round(unitPrice * item.quantity * 100) / 100 : 0;
 
-  const invested =
-    item.purchasePrice != null
-      ? Math.round(item.purchasePrice * item.quantity * 100) / 100
+  const exemplars = parseExemplars(item.exemplars);
+  const investedFromExemplars =
+    exemplars && exemplars.length > 0
+      ? exemplars.reduce((s, e) => s + (e.purchasePrice ?? 0), 0)
       : null;
+
+  const invested =
+    investedFromExemplars != null
+      ? Math.round(investedFromExemplars * 100) / 100
+      : item.purchasePrice != null
+        ? Math.round(item.purchasePrice * item.quantity * 100) / 100
+        : null;
 
   const profit =
     invested != null ? Math.round((marketValue - invested) * 100) / 100 : null;
@@ -109,6 +145,15 @@ function enrichItem(
     imageFallbacks = images.fallbacks.length ? images.fallbacks : imageFallbacks;
   }
 
+  const purchasePrice =
+    exemplars && exemplars.length > 0 && item.quantity > 0
+      ? Math.round(
+          (exemplars.reduce((s, e) => s + (e.purchasePrice ?? 0), 0) /
+            item.quantity) *
+            100,
+        ) / 100
+      : item.purchasePrice;
+
   return {
     id: item.id,
     tcgCardId: item.tcgCardId,
@@ -119,18 +164,18 @@ function enrichItem(
     imageUrl,
     imageFallbacks,
     rarity: item.rarity,
-    colors: cachedCard
-      ? getCardColors(cachedCard, lang)
-      : [],
+    colors: cachedCard ? getCardColors(cachedCard, lang) : [],
     types: cachedCard?.types ?? [],
     category: cachedCard?.category,
     language: item.language,
     condition: item.condition,
     quantity: item.quantity,
-    purchasePrice: item.purchasePrice,
+    purchasePrice,
     purchaseDate: item.purchaseDate,
     marketValue,
     profit,
+    origin: item.origin ?? null,
+    exemplars,
   };
 }
 
@@ -186,29 +231,78 @@ export type ConfirmImportRow = {
   language: string;
 };
 
+export type AddCardParams = {
+  tcgCardId: string;
+  language?: CardLanguage;
+  condition?: string;
+  quantity?: number;
+  purchasePrice?: number | null;
+  purchaseDate?: string | null;
+  origin?: string | null;
+  exemplars?: CollectionExemplarDto[];
+  /** Fallback when card is not in local TCGdex cache */
+  snapshot?: {
+    name: string;
+    setId?: string;
+    setName?: string;
+    number?: string;
+    imageUrl?: string;
+    imageFallbacks?: string[];
+    rarity?: string | null;
+  };
+};
+
 export async function addCardToCollection(
   userId: string,
-  params: {
-    tcgCardId: string;
-    language?: CardLanguage;
-    condition?: string;
-    quantity?: number;
-  },
+  params: AddCardParams,
 ): Promise<CollectionItemDto | null> {
   const lang = params.language ?? DEFAULT_LANGUAGE;
   const condition = params.condition?.trim() || "Near Mint";
   const quantity = Math.max(1, params.quantity ?? 1);
+  const purchaseDate =
+    params.purchaseDate ?? new Date().toISOString().slice(0, 10);
 
   const cachedCards = loadCachedCards(lang);
   const cachedSets = loadCachedSets(lang);
   const cachedCard = findCachedCard(cachedCards, params.tcgCardId);
-  if (!cachedCard) return null;
 
+  if (!cachedCard && !params.snapshot) return null;
+
+  const setId = cachedCard?.setId ?? params.snapshot?.setId ?? "";
   const setName =
-    cachedSets?.find((set) => set.id === cachedCard.setId)?.name ??
-    cachedCard.setId;
-  const setMeta = cachedSets?.find((set) => set.id === cachedCard.setId);
-  const images = resolveCardImages(cachedCard, lang, setMeta);
+    cachedSets?.find((set) => set.id === setId)?.name ??
+    params.snapshot?.setName ??
+    cachedCard?.setId ??
+    setId;
+  const setMeta = cachedSets?.find((set) => set.id === setId);
+  const images = cachedCard
+    ? resolveCardImages(cachedCard, lang, setMeta)
+    : {
+        large: params.snapshot?.imageUrl ?? "",
+        small: params.snapshot?.imageUrl ?? "",
+        fallbacks: params.snapshot?.imageFallbacks ?? [],
+      };
+
+  const name = cachedCard?.name ?? params.snapshot!.name;
+  const number =
+    cachedCard?.localId ?? params.snapshot?.number ?? params.tcgCardId;
+  const rarity = cachedCard?.rarity ?? params.snapshot?.rarity ?? null;
+  const imageUrl = images.large || images.small || params.snapshot?.imageUrl || "";
+  const imageFallbacks = JSON.stringify(
+    images.fallbacks?.length
+      ? images.fallbacks
+      : (params.snapshot?.imageFallbacks ?? []),
+  );
+
+  const newExemplars: CollectionExemplarDto[] =
+    params.exemplars && params.exemplars.length > 0
+      ? params.exemplars
+      : Array.from({ length: quantity }, () => ({
+          condition,
+          purchasePrice:
+            params.purchasePrice === undefined ? null : params.purchasePrice,
+          purchaseDate,
+        }));
 
   const existing = await prisma.collectionItem.findUnique({
     where: {
@@ -221,27 +315,49 @@ export async function addCardToCollection(
   });
 
   if (existing) {
+    const prevEx = parseExemplars(existing.exemplars) ?? [];
+    const mergedEx = [...prevEx, ...newExemplars];
+    const nextQty = existing.quantity + quantity;
+    const invested = mergedEx.reduce((s, e) => s + (e.purchasePrice ?? 0), 0);
+    const avgEk =
+      nextQty > 0 ? Math.round((invested / nextQty) * 100) / 100 : null;
+
     const updated = await prisma.collectionItem.update({
       where: { id: existing.id },
-      data: { quantity: existing.quantity + quantity },
+      data: {
+        quantity: nextQty,
+        purchasePrice: avgEk,
+        purchaseDate: params.purchaseDate ?? existing.purchaseDate,
+        origin: params.origin ?? existing.origin,
+        exemplars: mergedEx,
+      },
     });
     return enrichItem(updated, cachedCard, setName, lang);
   }
+
+  const invested = newExemplars.reduce((s, e) => s + (e.purchasePrice ?? 0), 0);
+  const avgEk =
+    quantity > 0 ? Math.round((invested / quantity) * 100) / 100 : null;
 
   const created = await prisma.collectionItem.create({
     data: {
       userId,
       tcgCardId: params.tcgCardId,
-      name: cachedCard.name,
-      setId: cachedCard.setId,
+      name,
+      setId,
       setName,
-      number: cachedCard.localId,
-      imageUrl: images.large || images.small || "",
-      imageFallbacks: JSON.stringify(images.fallbacks),
-      rarity: cachedCard.rarity ?? null,
+      number,
+      imageUrl,
+      imageFallbacks,
+      rarity,
       language: lang,
       condition,
       quantity,
+      purchasePrice:
+        params.purchasePrice !== undefined ? params.purchasePrice : avgEk,
+      purchaseDate,
+      origin: params.origin ?? null,
+      exemplars: newExemplars,
     },
   });
 

@@ -11,6 +11,15 @@ import { getCollectionTcgIds } from "@/lib/collection-ids";
 import type { TcgCard } from "@/lib/pokemon-tcg";
 import type { CardLanguage } from "@/lib/tcgdex-constants";
 
+export type AddCardOptions = {
+  language?: CardLanguage | string;
+  condition?: string;
+  quantity?: number;
+  purchasePrice?: number | null;
+  purchaseDate?: string | null;
+  origin?: string | null;
+};
+
 export function useCollectionIds() {
   const { isAuthenticated } = useAuthMode();
   const [ownedIds, setOwnedIds] = useState<Set<string>>(() => {
@@ -32,55 +41,62 @@ export function useCollectionIds() {
     try {
       const res = await fetch("/api/collection");
       if (!res.ok) {
-        // Fallback: still include local ids
-        setOwnedIds(
-          new Set([...getCollectionTcgIds(), ...getLocalCollectionIds()]),
-        );
+        setOwnedIds(new Set());
         return;
       }
       const data = await res.json();
-      const ids = new Set<string>([
-        ...(data.items ?? []).map(
-          (item: { tcgCardId: string }) => item.tcgCardId,
-        ),
-        ...getLocalCollectionIds(),
-      ]);
-      setOwnedIds(ids);
-    } catch {
       setOwnedIds(
-        new Set([...getCollectionTcgIds(), ...getLocalCollectionIds()]),
+        new Set(
+          (data.items ?? []).map(
+            (item: { tcgCardId: string }) => item.tcgCardId,
+          ),
+        ),
       );
+    } catch {
+      setOwnedIds(new Set());
     }
   }, [isAuthenticated]);
 
   useEffect(() => {
     void refresh();
-    const onLocal = () => void refresh();
+    const onLocal = () => {
+      if (!isAuthenticated) void refresh();
+    };
     window.addEventListener("cardcap-collection-changed", onLocal);
     window.addEventListener("storage", onLocal);
     return () => {
       window.removeEventListener("cardcap-collection-changed", onLocal);
       window.removeEventListener("storage", onLocal);
     };
-  }, [refresh]);
+  }, [refresh, isAuthenticated]);
 
   const addOwnedId = useCallback((tcgCardId: string) => {
     setOwnedIds((current) => new Set([...current, tcgCardId]));
   }, []);
 
   /**
-   * Add a card to the collection (API when logged in, localStorage in demo).
+   * Add a card: API only when logged in, localStorage only in demo.
    */
   const addCard = useCallback(
     async (
       card: TcgCard,
-      language: CardLanguage | string = "de",
+      languageOrOpts: CardLanguage | string | AddCardOptions = "de",
       condition = "Near Mint",
     ): Promise<{ ok: boolean; error?: string }> => {
-      const cond = getEffectiveCondition(condition);
+      const opts: AddCardOptions =
+        typeof languageOrOpts === "object" && languageOrOpts !== null
+          ? languageOrOpts
+          : {
+              language: languageOrOpts as string,
+              condition,
+            };
+
+      const lang = opts.language ?? "de";
+      const cond = getEffectiveCondition(opts.condition ?? "Near Mint");
+      const quantity = Math.max(1, opts.quantity ?? 1);
 
       if (!isAuthenticated) {
-        addToLocalCollection(card, language, cond, 1);
+        addToLocalCollection(card, lang, cond, quantity);
         addOwnedId(card.id);
         return { ok: true };
       }
@@ -91,32 +107,40 @@ export function useCollectionIds() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             tcgCardId: card.id,
-            language,
+            language: lang,
             condition: cond,
-            quantity: 1,
+            quantity,
+            purchasePrice: opts.purchasePrice,
+            purchaseDate: opts.purchaseDate,
+            origin: opts.origin,
+            snapshot: {
+              name: card.name,
+              setId: card.set?.id,
+              setName: card.set?.name,
+              number: card.collectorId ?? card.number,
+              imageUrl: card.images?.large || card.images?.small || "",
+              imageFallbacks: card.imageFallbacks,
+              rarity: card.rarity ?? null,
+            },
           }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          // If API fails (e.g. no DB), still keep a local copy so UI works
-          addToLocalCollection(card, language, cond, 1);
-          addOwnedId(card.id);
           return {
-            ok: true,
+            ok: false,
             error:
               typeof data.error === "string"
-                ? `Server: ${data.error} — lokal gespeichert`
-                : undefined,
+                ? data.error
+                : "Karte konnte nicht gespeichert werden.",
           };
         }
         addOwnedId(card.id);
-        // Also mirror locally so Assets works even if session/API flakes
-        addToLocalCollection(card, language, cond, 1);
         return { ok: true };
       } catch {
-        addToLocalCollection(card, language, cond, 1);
-        addOwnedId(card.id);
-        return { ok: true };
+        return {
+          ok: false,
+          error: "Netzwerkfehler — Karte nicht in der Datenbank gespeichert.",
+        };
       }
     },
     [isAuthenticated, addOwnedId],

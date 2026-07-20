@@ -42,6 +42,23 @@ export async function POST(request: NextRequest) {
       language?: string;
       condition?: string;
       quantity?: number;
+      purchasePrice?: number | null;
+      purchaseDate?: string | null;
+      origin?: string | null;
+      exemplars?: Array<{
+        condition: string;
+        purchasePrice: number | null;
+        purchaseDate?: string | null;
+      }>;
+      snapshot?: {
+        name: string;
+        setId?: string;
+        setName?: string;
+        number?: string;
+        imageUrl?: string;
+        imageFallbacks?: string[];
+        rarity?: string | null;
+      };
     };
 
     if (!body.tcgCardId?.trim()) {
@@ -63,6 +80,11 @@ export async function POST(request: NextRequest) {
       language: lang,
       condition: condition === "Alle Zustände" ? "Near Mint" : condition,
       quantity: body.quantity,
+      purchasePrice: body.purchasePrice,
+      purchaseDate: body.purchaseDate,
+      origin: body.origin,
+      exemplars: body.exemplars,
+      snapshot: body.snapshot,
     });
 
     if (!item) {

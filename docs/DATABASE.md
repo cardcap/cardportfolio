@@ -57,11 +57,11 @@ Passwort = `SITE_GATE_PASSWORD`.
 | `npm run db:studio` | Prisma Studio UI |
 | `GET /api/health` | JSON Health inkl. DB |
 
-## Nächste Phasen
+## Phasen
 
-2. **Sammlung** nur noch über DB wenn eingeloggt (localStorage nur Demo)
+2. **Sammlung** nur noch über DB wenn eingeloggt (localStorage nur Demo) ✅
 3. **SealedItem** API + UI an DB
-4. **Sealed öffnen** als DB-Transaktion (Karten anlegen, Sealed entfernen)
+4. **Sealed öffnen** Sealed-Bestand in DB (Karten gehen schon in DB)
 5. **Import** localStorage → Account beim ersten Login
 
 ## Schema-Überblick
