@@ -131,6 +131,37 @@ export function PortfolioView() {
     ];
   }, [live]);
 
+  /** Monthly buy bars from live assets (sells 0 until sales are tracked). */
+  const liveCashflow = useMemo(() => {
+    const map = new Map<string, { buys: number; sells: number }>();
+    // Last 12 calendar months as buckets
+    const now = new Date();
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      map.set(key, { buys: 0, sells: 0 });
+    }
+    for (const p of live.positions) {
+      if (!p.purchaseDate || p.invested <= 0) continue;
+      const key = p.purchaseDate.slice(0, 7);
+      if (!map.has(key)) continue;
+      const row = map.get(key)!;
+      row.buys += p.invested;
+    }
+    return [...map.entries()].map(([key, v]) => {
+      const [y, mo] = key.split("-");
+      const d = new Date(Number(y), Number(mo) - 1, 1);
+      return {
+        label: d.toLocaleDateString("de-DE", {
+          month: "short",
+          year: "2-digit",
+        }),
+        buys: Math.round(v.buys * 100) / 100,
+        sells: Math.round(v.sells * 100) / 100,
+      };
+    });
+  }, [live.positions]);
+
   // Keep chart series toggle in sync with header scope
   useEffect(() => {
     setChartSeries(scope);
@@ -410,48 +441,188 @@ export function PortfolioView() {
             </div>
           </div>
 
-          {/* Performance + positions */}
-          <div className="mb-5 grid gap-5 xl:grid-cols-2">
+          {/* Row 1: Wertvollste Positionen | Letzte Transaktionen */}
+          <div className="mb-5 grid items-start gap-5 xl:grid-cols-2">
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
-              <div className="mb-3">
-                <h2 className="text-sm font-medium">Performance nach Asset-Typ</h2>
+              <div className="mb-2.5 flex items-center justify-between">
+                <h2 className="text-sm font-medium">Wertvollste Positionen</h2>
+                <Link
+                  href="/portfolio/positionen"
+                  className="text-xs font-medium text-[var(--accent)] hover:opacity-80"
+                >
+                  Alle →
+                </Link>
+              </div>
+              <ul className="space-y-0.5">
+                {live.topPositions.map((pos, i) => (
+                  <li key={pos.id}>
+                    <Link
+                      href={pos.href}
+                      className="flex items-center gap-2.5 rounded-lg px-1 py-1.5 transition-colors hover:bg-[var(--surface-elevated)]/60"
+                    >
+                      <span className="tabular-nums w-4 shrink-0 text-xs text-[var(--muted)]">
+                        {i + 1}
+                      </span>
+                      <CardImage
+                        src={pos.imageUrl ?? ""}
+                        fallbacks={pos.imageFallbacks}
+                        alt={pos.name}
+                        size="sm"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{pos.name}</p>
+                        <p className="truncate text-xs text-[var(--muted)]">
+                          {pos.setName}
+                        </p>
+                      </div>
+                      <span
+                        className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-medium ${
+                          pos.kind === "Sealed"
+                            ? "bg-violet-500/15 text-violet-300"
+                            : "bg-[var(--accent-soft)] text-[var(--accent)]"
+                        }`}
+                      >
+                        {pos.kind}
+                      </span>
+                      <p className="tabular-nums w-[5.5rem] shrink-0 text-right text-sm font-medium">
+                        {formatCurrency(pos.market)}
+                      </p>
+                    </Link>
+                  </li>
+                ))}
+                {live.topPositions.length === 0 && (
+                  <li className="px-1 py-3 text-xs text-[var(--muted)]">
+                    Noch keine Assets in Karten oder Sealed.
+                  </li>
+                )}
+              </ul>
+            </div>
+
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
+              <div className="mb-2.5 flex items-center justify-between">
+                <h2 className="text-sm font-medium">Letzte Transaktionen</h2>
+                <button
+                  type="button"
+                  onClick={() => setTab("transaktionen")}
+                  className="text-xs font-medium text-[var(--accent)] hover:opacity-80"
+                >
+                  Alle Transaktionen →
+                </button>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[640px] table-fixed text-left text-sm">
+                <table className="w-full min-w-[360px] text-sm">
+                  <thead>
+                    <tr className="border-b border-[var(--border)] text-[10px] uppercase tracking-wider text-[var(--muted)]">
+                      <th className="pb-2 pr-2 text-left font-medium">Datum</th>
+                      <th className="pb-2 pr-2 text-left font-medium">Typ</th>
+                      <th className="pb-2 pr-2 text-left font-medium">
+                        Position
+                      </th>
+                      <th className="pb-2 pr-2 text-right font-medium">Anz.</th>
+                      <th className="pb-2 text-right font-medium">Gesamt</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border)]">
+                    {[...live.positions]
+                      .filter((p) => p.invested > 0 || p.market > 0)
+                      .sort((a, b) => {
+                        const da = a.purchaseDate ?? "";
+                        const db = b.purchaseDate ?? "";
+                        return db.localeCompare(da);
+                      })
+                      .slice(0, 5)
+                      .map((pos) => (
+                        <tr key={pos.id}>
+                          <td className="whitespace-nowrap py-2 pr-2 text-xs text-[var(--muted)]">
+                            {pos.purchaseDate
+                              ? new Date(pos.purchaseDate).toLocaleDateString(
+                                  "de-DE",
+                                )
+                              : "—"}
+                          </td>
+                          <td className="py-2 pr-2">
+                            <span className="rounded-md bg-[var(--accent-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--accent)]">
+                              Kauf
+                            </span>
+                          </td>
+                          <td className="py-2 pr-2">
+                            <Link
+                              href={pos.href}
+                              className="flex min-w-0 max-w-[11rem] items-center gap-2 hover:opacity-90"
+                            >
+                              <CardImage
+                                src={pos.imageUrl ?? ""}
+                                fallbacks={pos.imageFallbacks}
+                                alt={pos.name}
+                                size="sm"
+                              />
+                              <span className="truncate text-sm">
+                                {pos.name}
+                              </span>
+                            </Link>
+                          </td>
+                          <td className="tabular-nums py-2 pr-2 text-right">
+                            {pos.quantity}
+                          </td>
+                          <td className="tabular-nums py-2 text-right font-medium">
+                            {formatCurrency(pos.invested || pos.market)}
+                          </td>
+                        </tr>
+                      ))}
+                    {live.positions.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="py-4 text-center text-xs text-[var(--muted)]"
+                        >
+                          Noch keine Assets in Karten oder Sealed.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 2: Performance | Käufe & Verkäufe — compact, no stretch */}
+          <div className="mb-5 grid items-start gap-5 xl:grid-cols-2">
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
+              <h2 className="mb-2.5 text-sm font-medium">
+                Performance nach Asset-Typ
+              </h2>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[520px] table-fixed text-left text-sm">
                   <colgroup>
-                    <col className="w-[16%]" />
-                    <col className="w-[14%]" />
-                    <col className="w-[14%]" />
+                    <col className="w-[15%]" />
+                    <col className="w-[15%]" />
+                    <col className="w-[15%]" />
                     <col className="w-[16%]" />
                     <col className="w-[12%]" />
-                    <col className="w-[28%]" />
+                    <col className="w-[27%]" />
                   </colgroup>
                   <thead>
                     <tr className="border-b border-[var(--border)] text-[10px] uppercase tracking-wider text-[var(--muted)]">
-                      <th className="px-2 pb-2.5 pt-0.5 font-medium">
-                        Asset-Typ
-                      </th>
-                      <th className="px-2 pb-2.5 pt-0.5 text-right font-medium">
+                      <th className="px-1.5 pb-2 pt-0 font-medium">Asset-Typ</th>
+                      <th className="px-1.5 pb-2 pt-0 text-right font-medium">
                         Marktwert
                       </th>
-                      <th className="px-2 pb-2.5 pt-0.5 text-right font-medium">
+                      <th className="px-1.5 pb-2 pt-0 text-right font-medium">
                         Investiert
                       </th>
-                      <th className="px-2 pb-2.5 pt-0.5 text-right font-medium">
-                        Gewinn / Verlust
+                      <th className="px-1.5 pb-2 pt-0 text-right font-medium">
+                        G/V
                       </th>
-                      <th className="px-2 pb-2.5 pt-0.5 text-right font-medium">
+                      <th className="px-1.5 pb-2 pt-0 text-right font-medium">
                         Rendite
                       </th>
-                      <th className="px-2 pb-2.5 pt-0.5 font-medium">
-                        Portfolio-Anteil
-                      </th>
+                      <th className="px-1.5 pb-2 pt-0 font-medium">Anteil</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border)]">
                     {assetPerformance.map((row) => (
                       <tr key={row.type}>
-                        <td className="px-2 py-3.5">
+                        <td className="px-1.5 py-2.5">
                           <span className="inline-flex items-center gap-2">
                             <span
                               className="h-2 w-2 shrink-0 rounded-full"
@@ -460,21 +631,35 @@ export function PortfolioView() {
                             {row.type}
                           </span>
                         </td>
-                        <td className="tabular-nums px-2 py-3.5 text-right">
+                        <td className="tabular-nums px-1.5 py-2.5 text-right">
                           {formatCurrency(row.market)}
                         </td>
-                        <td className="tabular-nums px-2 py-3.5 text-right text-[var(--muted)]">
+                        <td className="tabular-nums px-1.5 py-2.5 text-right text-[var(--muted)]">
                           {formatCurrency(row.invested)}
                         </td>
-                        <td className="tabular-nums px-2 py-3.5 text-right text-[var(--positive)]">
-                          +{formatCurrency(row.profit)}
+                        <td
+                          className={`tabular-nums px-1.5 py-2.5 text-right ${
+                            row.profit >= 0
+                              ? "text-[var(--positive)]"
+                              : "text-[var(--negative)]"
+                          }`}
+                        >
+                          {row.profit >= 0 ? "+" : ""}
+                          {formatCurrency(row.profit)}
                         </td>
-                        <td className="tabular-nums px-2 py-3.5 text-right text-[var(--positive)]">
-                          +{row.returnPct.toLocaleString("de-DE")} %
+                        <td
+                          className={`tabular-nums px-1.5 py-2.5 text-right ${
+                            row.returnPct >= 0
+                              ? "text-[var(--positive)]"
+                              : "text-[var(--negative)]"
+                          }`}
+                        >
+                          {row.returnPct >= 0 ? "+" : ""}
+                          {row.returnPct.toLocaleString("de-DE")} %
                         </td>
-                        <td className="px-2 py-3.5">
-                          <div className="flex min-w-0 items-center gap-3">
-                            <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--border)]">
+                        <td className="px-1.5 py-2.5">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--border)]">
                               <div
                                 className="h-full rounded-full"
                                 style={{
@@ -483,7 +668,7 @@ export function PortfolioView() {
                                 }}
                               />
                             </div>
-                            <span className="tabular-nums w-10 shrink-0 text-right text-xs text-[var(--muted)]">
+                            <span className="tabular-nums w-9 shrink-0 text-right text-xs text-[var(--muted)]">
                               {row.share} %
                             </span>
                           </div>
@@ -491,27 +676,39 @@ export function PortfolioView() {
                       </tr>
                     ))}
                     <tr className="font-medium">
-                      <td className="px-2 py-3.5">Gesamt</td>
-                      <td className="tabular-nums px-2 py-3.5 text-right">
+                      <td className="px-1.5 py-2.5">Gesamt</td>
+                      <td className="tabular-nums px-1.5 py-2.5 text-right">
                         {formatCurrency(live.totalValue)}
                       </td>
-                      <td className="tabular-nums px-2 py-3.5 text-right text-[var(--muted)]">
+                      <td className="tabular-nums px-1.5 py-2.5 text-right text-[var(--muted)]">
                         {formatCurrency(live.invested)}
                       </td>
-                      <td className={`tabular-nums px-2 py-3.5 text-right ${live.unrealized >= 0 ? "text-[var(--positive)]" : "text-[var(--negative)]"}`}>
+                      <td
+                        className={`tabular-nums px-1.5 py-2.5 text-right ${
+                          live.unrealized >= 0
+                            ? "text-[var(--positive)]"
+                            : "text-[var(--negative)]"
+                        }`}
+                      >
                         {live.unrealized >= 0 ? "+" : ""}
                         {formatCurrency(live.unrealized)}
                       </td>
-                      <td className={`tabular-nums px-2 py-3.5 text-right ${live.returnRate >= 0 ? "text-[var(--positive)]" : "text-[var(--negative)]"}`}>
+                      <td
+                        className={`tabular-nums px-1.5 py-2.5 text-right ${
+                          live.returnRate >= 0
+                            ? "text-[var(--positive)]"
+                            : "text-[var(--negative)]"
+                        }`}
+                      >
                         {live.returnRate >= 0 ? "+" : ""}
                         {live.returnRate.toLocaleString("de-DE")} %
                       </td>
-                      <td className="px-2 py-3.5">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--border)]">
+                      <td className="px-1.5 py-2.5">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--border)]">
                             <div className="h-full w-full rounded-full bg-[var(--accent)]" />
                           </div>
-                          <span className="tabular-nums w-10 shrink-0 text-right text-xs text-[var(--muted)]">
+                          <span className="tabular-nums w-9 shrink-0 text-right text-xs text-[var(--muted)]">
                             100 %
                           </span>
                         </div>
@@ -523,142 +720,20 @@ export function PortfolioView() {
             </div>
 
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-medium">Wertvollste Positionen</h2>
-                <Link
-                  href="/portfolio/positionen"
-                  className="text-xs font-medium text-[var(--accent)] hover:opacity-80"
-                >
-                  Alle anzeigen
-                </Link>
+              <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-sm font-medium">Käufe &amp; Verkäufe</h2>
+                <div className="flex gap-3 text-[11px] text-[var(--muted)]">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-sm bg-pink-400/80" />
+                    Käufe
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-sm bg-emerald-400/80" />
+                    Verkäufe
+                  </span>
+                </div>
               </div>
-              <ul className="space-y-1">
-                {live.topPositions.map((pos, i) => (
-                    <li key={pos.id}>
-                      <Link
-                        href={pos.href}
-                        className="flex items-center gap-3 rounded-lg px-1 py-1.5 transition-colors hover:bg-[var(--surface-elevated)]/60"
-                      >
-                        <span className="tabular-nums w-4 text-xs text-[var(--muted)]">
-                          {i + 1}
-                        </span>
-                        <CardImage
-                          src={pos.imageUrl ?? ""}
-                          fallbacks={pos.imageFallbacks}
-                          alt={pos.name}
-                          size="sm"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">{pos.name}</p>
-                          <p className="truncate text-xs text-[var(--muted)]">
-                            {pos.setName}
-                          </p>
-                        </div>
-                        <span
-                          className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-medium ${
-                            pos.kind === "Sealed"
-                              ? "bg-violet-500/15 text-violet-300"
-                              : "bg-[var(--accent-soft)] text-[var(--accent)]"
-                          }`}
-                        >
-                          {pos.kind}
-                        </span>
-                        <p className="tabular-nums w-[5.75rem] shrink-0 text-right text-sm font-medium leading-snug">
-                          {formatCurrency(pos.market)}
-                        </p>
-                      </Link>
-                    </li>
-                  ))}
-                {live.topPositions.length === 0 && (
-                  <li className="px-1 py-4 text-xs text-[var(--muted)]">
-                    Noch keine Assets in Karten oder Sealed.
-                  </li>
-                )}
-              </ul>
-            </div>
-          </div>
-
-          {/* Recent purchases from live assets (no mock transactions) */}
-          <div className="grid gap-5 xl:grid-cols-1">
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-medium">Letzte Käufe aus Assets</h2>
-                <Link
-                  href="/assets/karten"
-                  className="text-xs font-medium text-[var(--accent)] hover:opacity-80"
-                >
-                  Assets öffnen →
-                </Link>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[400px] text-sm">
-                  <thead>
-                    <tr className="border-b border-[var(--border)] text-[10px] uppercase tracking-wider text-[var(--muted)]">
-                      <th className="pb-2 text-left font-medium">Datum</th>
-                      <th className="pb-2 text-left font-medium">Typ</th>
-                      <th className="pb-2 text-left font-medium">Position</th>
-                      <th className="pb-2 text-right font-medium">Anzahl</th>
-                      <th className="pb-2 text-right font-medium">Investiert</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--border)]">
-                    {[...live.positions]
-                      .filter((p) => p.invested > 0 || p.market > 0)
-                      .sort((a, b) => {
-                        const da = a.purchaseDate ?? "";
-                        const db = b.purchaseDate ?? "";
-                        return db.localeCompare(da);
-                      })
-                      .slice(0, 8)
-                      .map((pos) => (
-                        <tr key={pos.id}>
-                          <td className="py-2.5 text-[var(--muted)]">
-                            {pos.purchaseDate
-                              ? new Date(pos.purchaseDate).toLocaleDateString(
-                                  "de-DE",
-                                )
-                              : "—"}
-                          </td>
-                          <td className="py-2.5">
-                            <span className="rounded-md bg-[var(--accent-soft)] px-2 py-0.5 text-[10px] font-medium text-[var(--accent)]">
-                              Kauf
-                            </span>
-                          </td>
-                          <td className="py-2.5">
-                            <Link
-                              href={pos.href}
-                              className="flex min-w-0 items-center gap-2 hover:opacity-90"
-                            >
-                              <CardImage
-                                src={pos.imageUrl ?? ""}
-                                fallbacks={pos.imageFallbacks}
-                                alt={pos.name}
-                                size="sm"
-                              />
-                              <span className="truncate">{pos.name}</span>
-                            </Link>
-                          </td>
-                          <td className="tabular-nums py-2.5 text-right">
-                            {pos.quantity}
-                          </td>
-                          <td className="tabular-nums py-2.5 text-right font-medium">
-                            {formatCurrency(pos.invested)}
-                          </td>
-                        </tr>
-                      ))}
-                    {live.positions.length === 0 && (
-                      <tr>
-                        <td
-                          colSpan={5}
-                          className="py-6 text-center text-xs text-[var(--muted)]"
-                        >
-                          Noch keine Assets in Karten oder Sealed.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <CashflowChart data={liveCashflow} />
             </div>
           </div>
         </>
