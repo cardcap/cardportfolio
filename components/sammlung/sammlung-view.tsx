@@ -2180,7 +2180,7 @@ export function SammlungView() {
                                             className={frameTd(
                                               "first",
                                               edge,
-                                              "px-2 py-2.5",
+                                              "w-10 px-2 py-2.5 text-center align-middle",
                                               "child",
                                             )}
                                           />
