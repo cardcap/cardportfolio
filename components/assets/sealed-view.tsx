@@ -1,11 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { useAuthMode } from "@/components/auth/use-auth-mode";
 import { SealedOpenDialog } from "@/components/assets/sealed-open-dialog";
 import { SealedProductImage } from "@/components/ui/sealed-product-image";
-import { formatCurrency, formatPercent } from "@/lib/format";
+import { formatCurrency } from "@/lib/format";
 import { addToLocalCollectionDetailed } from "@/lib/local-collection";
 import {
   getLocalSealed,
@@ -700,44 +706,8 @@ export function SealedView() {
         </div>
       </div>
 
-      {/* Metrics — full content width */}
-      <div className="mb-5 grid w-full grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-        <MetricTile
-          icon="chart"
-          label="Gesamtwert"
-          value={formatCurrency(metrics.totalValue)}
-          hint={`+${metrics.weeklyChange.toLocaleString("de-DE")} % (7 Tage)`}
-          positive
-        />
-        <MetricTile
-          icon="coins"
-          label="Investiert"
-          value={formatCurrency(metrics.invested)}
-        />
-        <MetricTile
-          icon="trend"
-          label="Gewinn / Verlust"
-          value={`${metrics.profitLoss >= 0 ? "+" : ""}${formatCurrency(metrics.profitLoss)}`}
-          hint={formatPercent(metrics.returnRate)}
-          positive={metrics.profitLoss >= 0}
-          negative={metrics.profitLoss < 0}
-        />
-        <MetricTile
-          icon="tag"
-          label="Ø Wert pro Produkt"
-          value={formatCurrency(metrics.avgValue)}
-        />
-        <MetricTile
-          icon="box"
-          label="Produkte gesamt"
-          value={String(metrics.productCount)}
-        />
-        <MetricTile
-          icon="layers"
-          label="Sets"
-          value={String(metrics.sets)}
-        />
-      </div>
+      {/* Metrics (Screenshot-Layout, ohne alte 6er-Unterteilung) */}
+      <SealedMetricsPanel inventory={inventory} metrics={metrics} />
 
       {/* Toolbar: Suche + Filter (Sortierung in der Filtergruppe, Toggle rechts) */}
       <div className="mb-3 flex flex-col gap-2 xl:flex-row xl:flex-wrap xl:items-center">
@@ -1441,41 +1411,270 @@ function ConditionBadge({ condition }: { condition: SealedProduct["condition"] }
   );
 }
 
-function MetricTile({
+type SealedMetrics = ReturnType<typeof getSealedMetrics>;
+
+/** Top KPI row + Bestand / Preisabdeckung (Screenshot-Layout) */
+function SealedMetricsPanel({
+  inventory,
+  metrics,
+}: {
+  inventory: SealedProduct[];
+  metrics: SealedMetrics;
+}) {
+  const weeklyAbs =
+    Math.round(metrics.totalValue * (metrics.weeklyChange / 100) * 100) / 100;
+  const avgPurchase =
+    metrics.totalUnits > 0
+      ? Math.round((metrics.invested / metrics.totalUnits) * 100) / 100
+      : 0;
+  const profitPositive = metrics.profitLoss >= 0;
+
+  const byType = (() => {
+    const buckets = {
+      Displays: 0,
+      "Elite Trainer Boxen": 0,
+      Tins: 0,
+      Bundles: 0,
+    };
+    for (const p of inventory) {
+      const q = Math.max(0, p.quantity);
+      if (p.category === "Display") buckets.Displays += q;
+      else if (p.category === "Elite Trainer Box")
+        buckets["Elite Trainer Boxen"] += q;
+      else if (p.category === "Tin") buckets.Tins += q;
+      else buckets.Bundles += q;
+    }
+    return buckets;
+  })();
+
+  const typeTotal =
+    byType.Displays +
+    byType["Elite Trainer Boxen"] +
+    byType.Tins +
+    byType.Bundles;
+
+  const typeSegments = [
+    { key: "Displays", label: "Displays", count: byType.Displays, color: "#f9a8d4" },
+    { key: "etb", label: "Elite Trainer Boxen", count: byType["Elite Trainer Boxen"], color: "#f472b6" },
+    { key: "Tins", label: "Tins", count: byType.Tins, color: "#ec4899" },
+    { key: "Bundles", label: "Bundles", count: byType.Bundles, color: "#be185d" },
+  ];
+
+  const pricedCount = inventory.filter((p) => p.marketValue > 0).length;
+  const productCount = inventory.length;
+  const coveragePct =
+    productCount > 0 ? Math.round((pricedCount / productCount) * 100) : 0;
+  const missingPrices = Math.max(0, productCount - pricedCount);
+
+  const r = 36;
+  const circ = 2 * Math.PI * r;
+  const dash = (coveragePct / 100) * circ;
+
+  return (
+    <div className="mb-5 w-full min-w-0 space-y-3">
+      <div className="grid w-full grid-cols-2 gap-3 xl:grid-cols-4">
+        <MetricCard
+          icon="chart"
+          label="Gesamtwert"
+          value={formatCurrency(metrics.totalValue)}
+          hint={
+            <>
+              <span className="text-[var(--positive)]">
+                {weeklyAbs >= 0 ? "+" : ""}
+                {formatCurrency(weeklyAbs)}
+              </span>
+              <span className="mx-1 opacity-50">·</span>
+              <span className="text-[var(--positive)]">
+                {metrics.weeklyChange >= 0 ? "+" : ""}
+                {metrics.weeklyChange.toLocaleString("de-DE", {
+                  maximumFractionDigits: 1,
+                })}{" "}
+                % (7 Tage)
+              </span>
+            </>
+          }
+        />
+        <MetricCard
+          icon="wallet"
+          label="Investiert"
+          value={formatCurrency(metrics.invested)}
+          hint={
+            <span className="text-[var(--muted)]">
+              Ø {formatCurrency(avgPurchase)} Einkaufspreis
+            </span>
+          }
+        />
+        <MetricCard
+          icon="trend"
+          label="Unrealisierter Gewinn"
+          value={`${profitPositive ? "+" : ""}${formatCurrency(metrics.profitLoss)}`}
+          valueClass={
+            profitPositive ? "text-[var(--positive)]" : "text-[var(--negative)]"
+          }
+          hint={
+            <span
+              className={
+                profitPositive
+                  ? "text-[var(--positive)]"
+                  : "text-[var(--negative)]"
+              }
+            >
+              {profitPositive ? "+" : ""}
+              {metrics.returnRate.toLocaleString("de-DE", {
+                maximumFractionDigits: 1,
+              })}{" "}
+              % Rendite
+            </span>
+          }
+        />
+        <MetricCard
+          icon="cube"
+          label="Exemplare gesamt"
+          value={String(metrics.totalUnits)}
+          hint={
+            <span className="text-[var(--muted)]">
+              {metrics.productCount} verschiedene Produkt
+              {metrics.productCount === 1 ? "" : "e"}
+            </span>
+          }
+        />
+      </div>
+
+      <div className="grid w-full grid-cols-1 gap-3 lg:grid-cols-2">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-[var(--muted)]">
+            Bestand nach Produkttyp
+          </p>
+          <div className="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-[var(--border)]">
+            <div className="flex h-full w-full">
+              {typeTotal > 0 ? (
+                typeSegments.map((s) => (
+                  <div
+                    key={s.key}
+                    className="h-full first:rounded-l-full last:rounded-r-full"
+                    style={{
+                      width: `${(s.count / typeTotal) * 100}%`,
+                      backgroundColor: s.color,
+                      minWidth: s.count > 0 ? 4 : 0,
+                    }}
+                    title={`${s.label}: ${s.count}`}
+                  />
+                ))
+              ) : (
+                <div className="h-full w-full rounded-full bg-[var(--border-strong)]/40" />
+              )}
+            </div>
+          </div>
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {(
+              [
+                { label: "Displays", count: byType.Displays, icon: "display" as const },
+                {
+                  label: "Elite Trainer Boxen",
+                  count: byType["Elite Trainer Boxen"],
+                  icon: "etb" as const,
+                },
+                { label: "Tins", count: byType.Tins, icon: "tin" as const },
+                { label: "Bundles", count: byType.Bundles, icon: "bundle" as const },
+              ] as const
+            ).map((item) => (
+              <div key={item.label} className="flex flex-col items-start gap-1.5">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--surface-elevated)] text-[var(--muted)] ring-1 ring-[var(--border)]">
+                  <TypeIcon kind={item.icon} />
+                </span>
+                <p className="text-[11px] text-[var(--muted)]">{item.label}</p>
+                <p className="tabular-nums text-lg font-semibold leading-none">
+                  {item.count}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-[var(--muted)]">
+            Preisabdeckung
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-5">
+            <div className="relative h-[5.5rem] w-[5.5rem] shrink-0">
+              <svg viewBox="0 0 96 96" className="h-full w-full -rotate-90" aria-hidden>
+                <circle cx="48" cy="48" r={r} fill="none" stroke="var(--border)" strokeWidth="8" />
+                <circle
+                  cx="48"
+                  cy="48"
+                  r={r}
+                  fill="none"
+                  stroke="#f472b6"
+                  strokeWidth="8"
+                  strokeLinecap="round"
+                  strokeDasharray={`${dash} ${circ - dash}`}
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="tabular-nums text-xl font-semibold">
+                  {coveragePct} %
+                </span>
+              </div>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">
+                {pricedCount} von {productCount} Produkten bewertet
+              </p>
+              {missingPrices > 0 ? (
+                <p className="mt-1.5 flex items-start gap-1.5 text-xs text-[var(--muted)]">
+                  <span className="mt-0.5 text-[var(--accent)]" aria-hidden>
+                    ⚠
+                  </span>
+                  {missingPrices} Produkt{missingPrices === 1 ? "" : "e"} ohne Marktpreis
+                </p>
+              ) : (
+                <p className="mt-1.5 text-xs text-[var(--positive)]">
+                  Alle Produkte mit Marktpreis
+                </p>
+              )}
+              {missingPrices > 0 && (
+                <Link
+                  href="/kartendatenbank"
+                  className="mt-2 inline-flex text-xs font-medium text-[var(--accent)] hover:underline"
+                >
+                  Fehlenden Marktpreis ergänzen →
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({
   icon,
   label,
   value,
   hint,
-  positive,
-  negative,
+  valueClass = "",
 }: {
-  icon: "box" | "chart" | "coins" | "trend" | "tag" | "layers";
+  icon: "chart" | "wallet" | "trend" | "cube";
   label: string;
   value: string;
-  hint?: string;
-  positive?: boolean;
-  negative?: boolean;
+  hint?: ReactNode;
+  valueClass?: string;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
-      <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">
-        {icon === "box" && (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-            <path d="M12 3 4 7v10l8 4 8-4V7l-8-4Z" />
-            <path d="M12 12 4 7M12 12l8-5M12 12v10" />
-          </svg>
-        )}
+    <div className="flex items-start gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
+      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--surface-elevated)] text-[var(--muted)] ring-1 ring-[var(--border)]">
         {icon === "chart" && (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
             <path d="M4 19V5M4 19h16" />
             <path d="M7 15l4-5 3 3 5-7" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         )}
-        {icon === "coins" && (
+        {icon === "wallet" && (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-            <ellipse cx="12" cy="7" rx="7" ry="3" />
-            <path d="M5 7v5c0 1.7 3.1 3 7 3s7-1.3 7-3V7" />
-            <path d="M5 12v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5" />
+            <rect x="3" y="6" width="18" height="13" rx="2" />
+            <path d="M3 10h18" />
+            <circle cx="16" cy="14" r="1.25" fill="currentColor" />
           </svg>
         )}
         {icon === "trend" && (
@@ -1484,82 +1683,58 @@ function MetricTile({
             <path d="M15 5h5v5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         )}
-        {icon === "tag" && (
+        {icon === "cube" && (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-            <path d="M20 12 12 4H5v7l8 8 7-7Z" />
-            <circle cx="8.5" cy="8.5" r="1" fill="currentColor" />
-          </svg>
-        )}
-        {icon === "layers" && (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-            <path d="M12 3.5 3.5 8 12 12.5 20.5 8 12 3.5Z" strokeLinejoin="round" />
-            <path d="M3.5 12.5 12 17l8.5-4.5" strokeLinejoin="round" />
-            <path d="M3.5 16.5 12 21l8.5-4.5" strokeLinejoin="round" />
+            <path d="M12 3 4 7v10l8 4 8-4V7l-8-4Z" />
+            <path d="M12 12 4 7M12 12l8-5M12 12v10" />
           </svg>
         )}
       </span>
       <div className="min-w-0">
-        <p className="text-[11px] uppercase tracking-wider text-[var(--muted)]">{label}</p>
-        <p
-          className={`tabular-nums mt-0.5 text-lg font-semibold tracking-tight ${
-            positive ? "text-[var(--positive)]" : negative ? "text-[var(--negative)]" : ""
-          }`}
-        >
+        <p className="text-[11px] font-medium uppercase tracking-wider text-[var(--muted)]">
+          {label}
+        </p>
+        <p className={`tabular-nums mt-1 text-xl font-semibold tracking-tight ${valueClass}`}>
           {value}
         </p>
-        {hint && (
-          <p
-            className={`tabular-nums text-xs ${
-              positive ? "text-[var(--positive)]" : negative ? "text-[var(--negative)]" : "text-[var(--muted)]"
-            }`}
-          >
-            {hint}
-          </p>
-        )}
+        {hint && <p className="mt-1 text-xs leading-snug">{hint}</p>}
       </div>
     </div>
   );
 }
 
-function SmallStat({
-  label,
-  value,
-  icon,
-}: {
-  label: string;
-  value: string;
-  icon: "tag" | "layers" | "box";
-}) {
+function TypeIcon({ kind }: { kind: "display" | "etb" | "tin" | "bundle" }) {
+  if (kind === "display") {
+    return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+        <rect x="4" y="3" width="16" height="14" rx="1.5" />
+        <path d="M8 21h8M12 17v4" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (kind === "etb") {
+    return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+        <path d="M12 3 4 7v10l8 4 8-4V7l-8-4Z" />
+        <path d="M12 12 4 7M12 12l8-5M12 12v10" />
+      </svg>
+    );
+  }
+  if (kind === "tin") {
+    return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+        <ellipse cx="12" cy="7" rx="6" ry="2.5" />
+        <path d="M6 7v9c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5V7" />
+      </svg>
+    );
+  }
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-      <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[var(--surface-elevated)] text-[var(--muted)] ring-1 ring-[var(--border)]">
-        {icon === "tag" && (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-            <path d="M20 12 12 4H5v7l8 8 7-7Z" />
-            <circle cx="8.5" cy="8.5" r="1" fill="currentColor" />
-          </svg>
-        )}
-        {icon === "layers" && (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-            <path d="M12 3.5 3.5 8 12 12.5 20.5 8 12 3.5Z" />
-            <path d="M3.5 12.5 12 17l8.5-4.5" />
-          </svg>
-        )}
-        {icon === "box" && (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-            <path d="M12 3 4 7v10l8 4 8-4V7l-8-4Z" />
-          </svg>
-        )}
-      </span>
-      <div>
-        <p className="text-[11px] uppercase tracking-wider text-[var(--muted)]">{label}</p>
-        <p className="tabular-nums text-base font-semibold">{value}</p>
-      </div>
-    </div>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path d="M6 8h12l-1 11H7L6 8Z" strokeLinejoin="round" />
+      <path d="M9 8V6a3 3 0 0 1 6 0v2" strokeLinecap="round" />
+    </svg>
   );
 }
-
-
 
 function SearchIcon() {
   return (
