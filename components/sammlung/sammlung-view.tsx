@@ -493,6 +493,9 @@ export function SammlungView() {
   const [saving, setSaving] = useState(false);
   /** Expanded multi-copy rows in the table */
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  /** Multi-select for bulk actions (row ids from filtered list) */
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   /** setId → ISO release date from catalog (for Erscheinungsdatum) */
   const [setReleaseById, setSetReleaseById] = useState<Record<string, string>>(
     {},
@@ -533,6 +536,15 @@ export function SammlungView() {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      return next;
+    });
+  };
+
+  const setRowChecked = (id: string, on: boolean) => {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
       return next;
     });
   };
@@ -797,6 +809,41 @@ export function SammlungView() {
     const start = (safePage - 1) * pageSize;
     return filteredItems.slice(start, start + pageSize);
   }, [filteredItems, safePage, pageSize]);
+
+  /** Drop checks that are no longer in the filtered list */
+  useEffect(() => {
+    setCheckedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const allowed = new Set(filteredItems.map((r) => r.id));
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (allowed.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [filteredItems]);
+
+  const allFilteredSelected =
+    filteredItems.length > 0 &&
+    filteredItems.every((r) => checkedIds.has(r.id));
+  const someFilteredSelected =
+    !allFilteredSelected && filteredItems.some((r) => checkedIds.has(r.id));
+
+  const toggleSelectAllFiltered = () => {
+    if (allFilteredSelected) {
+      setCheckedIds(new Set());
+    } else {
+      setCheckedIds(new Set(filteredItems.map((r) => r.id)));
+    }
+  };
+
+  const selectAllHeaderRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const el = selectAllHeaderRef.current;
+    if (el) el.indeterminate = someFilteredSelected;
+  }, [someFilteredSelected, allFilteredSelected]);
 
   const filteredStats = useMemo(() => {
     const cards = filteredItems.length;
@@ -1163,6 +1210,33 @@ export function SammlungView() {
     loadCollection,
   ]);
 
+  const deleteMemberIds = useCallback(
+    async (memberIds: string[]) => {
+      const allLocal =
+        memberIds.every((id) => isLocalRow(id)) || !isAuthenticated;
+      if (allLocal) {
+        for (const mid of memberIds) {
+          removeLocalCollectionItem(mid);
+        }
+        loadLocal();
+        return;
+      }
+      for (const mid of memberIds) {
+        const res = await fetch("/api/collection", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: mid }),
+        });
+        if (!res.ok) {
+          removeLocalCollectionItem(mid);
+        }
+      }
+      loadLocal();
+      await loadCollection();
+    },
+    [isAuthenticated, loadLocal, loadCollection],
+  );
+
   const removeSelected = useCallback(async () => {
     if (!selectedRow) return;
     const memberIds =
@@ -1178,34 +1252,58 @@ export function SammlungView() {
 
     setSaving(true);
     try {
-      const allLocal =
-        memberIds.every((id) => isLocalRow(id)) || !isAuthenticated;
-      if (allLocal) {
-        for (const mid of memberIds) {
-          removeLocalCollectionItem(mid);
-        }
-        loadLocal();
-      } else {
-        for (const mid of memberIds) {
-          const res = await fetch("/api/collection", {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: mid }),
-          });
-          if (!res.ok) {
-            removeLocalCollectionItem(mid);
-          }
-        }
-        loadLocal();
-        await loadCollection();
-      }
+      await deleteMemberIds(memberIds);
       setEditing(false);
       setPanelOpen(false);
       setSelectedId(null);
+      setCheckedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(selectedRow.id);
+        return next;
+      });
     } finally {
       setSaving(false);
     }
-  }, [selectedRow, isAuthenticated, loadLocal, loadCollection]);
+  }, [selectedRow, deleteMemberIds]);
+
+  const removeChecked = useCallback(async () => {
+    if (checkedIds.size === 0) return;
+    const rows = filteredItems.filter((r) => checkedIds.has(r.id));
+    if (rows.length === 0) return;
+    const exemplare = rows.reduce((s, r) => s + r.quantity, 0);
+    const ok = window.confirm(
+      rows.length === 1
+        ? `„${rows[0].name}“ aus der Sammlung entfernen?`
+        : `${rows.length} Karten (${exemplare} Exemplare) aus der Sammlung entfernen?`,
+    );
+    if (!ok) return;
+
+    setBulkDeleting(true);
+    try {
+      const allMemberIds: string[] = [];
+      for (const row of rows) {
+        if (row.groupMemberIds && row.groupMemberIds.length > 0) {
+          allMemberIds.push(...row.groupMemberIds);
+        } else {
+          allMemberIds.push(row.id);
+        }
+      }
+      await deleteMemberIds([...new Set(allMemberIds)]);
+      setCheckedIds(new Set());
+      if (selectedId && checkedIds.has(selectedId)) {
+        setPanelOpen(false);
+        setSelectedId(null);
+        setEditing(false);
+      }
+    } finally {
+      setBulkDeleting(false);
+    }
+  }, [
+    checkedIds,
+    filteredItems,
+    deleteMemberIds,
+    selectedId,
+  ]);
 
   // Reset edit mode when switching cards
   useEffect(() => {
@@ -1478,13 +1576,30 @@ export function SammlungView() {
               )}
             </div>
             {displayItems.length > 0 && (
-              <p className="shrink-0 text-xs text-[var(--muted)]">
-                {filteredStats.cards.toLocaleString("de-DE")} Karten
-                <span className="mx-1.5 opacity-40">·</span>
-                {filteredStats.exemplare.toLocaleString("de-DE")} Exemplare
-                <span className="mx-1.5 opacity-40">·</span>
-                Marktwert {formatMarketPrice(filteredStats.value)}
-              </p>
+              <div className="flex shrink-0 flex-wrap items-center gap-3 text-xs text-[var(--muted)]">
+                {filteredItems.length > 0 && (
+                  <label className="inline-flex cursor-pointer items-center gap-1.5 text-[var(--foreground)]">
+                    <input
+                      type="checkbox"
+                      checked={allFilteredSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = someFilteredSelected;
+                      }}
+                      onChange={toggleSelectAllFiltered}
+                      className="h-3.5 w-3.5 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                      aria-label="Alle gefilterten Karten auswählen"
+                    />
+                    Alle auswählen
+                  </label>
+                )}
+                <p>
+                  {filteredStats.cards.toLocaleString("de-DE")} Karten
+                  <span className="mx-1.5 opacity-40">·</span>
+                  {filteredStats.exemplare.toLocaleString("de-DE")} Exemplare
+                  <span className="mx-1.5 opacity-40">·</span>
+                  Marktwert {formatMarketPrice(filteredStats.value)}
+                </p>
+              </div>
             )}
           </div>
 
@@ -1497,41 +1612,62 @@ export function SammlungView() {
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                     {pageItems.map((row) => {
                       const isSelected = panelOpen && row.id === activeId;
+                      const isChecked = checkedIds.has(row.id);
                       return (
-                        <button
+                        <div
                           key={row.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedId(row.id);
-                            setPanelOpen(true);
-                          }}
-                          className={`rounded-xl border p-2.5 text-left transition-colors ${
-                            isSelected
+                          className={`relative rounded-xl border p-2.5 text-left transition-colors ${
+                            isChecked
                               ? "border-[var(--accent)] bg-[var(--accent-soft)]"
-                              : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)]"
+                              : isSelected
+                                ? "border-[var(--accent)]/60 bg-[var(--surface)]"
+                                : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)]"
                           }`}
                         >
-                          <CardImage
-                            src={row.imageUrl}
-                            fallbacks={row.imageFallbacks}
-                            alt={row.name}
-                            size="md"
-                            className="mx-auto"
-                          />
-                          <p className="mt-2 truncate text-sm font-medium">
-                            {row.name}
-                          </p>
-                          <p className="truncate text-xs text-[var(--muted)]">
-                            {row.setName}
-                            {row.number ? ` · ${row.number}` : ""}
-                          </p>
-                          <div className="mt-1.5 flex items-center justify-between gap-1">
-                            <ConditionBadge condition={row.condition} />
-                            <span className="tabular-nums text-xs font-medium">
-                              <Price value={row.marketValue} />
-                            </span>
-                          </div>
-                        </button>
+                          <label
+                            className="absolute left-2 top-2 z-10 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md bg-[var(--surface)]/90 shadow-sm"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) =>
+                                setRowChecked(row.id, e.target.checked)
+                              }
+                              className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                              aria-label={`${row.name} auswählen`}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedId(row.id);
+                              setPanelOpen(true);
+                            }}
+                            className="w-full text-left"
+                          >
+                            <CardImage
+                              src={row.imageUrl}
+                              fallbacks={row.imageFallbacks}
+                              alt={row.name}
+                              size="md"
+                              className="mx-auto"
+                            />
+                            <p className="mt-2 truncate text-sm font-medium">
+                              {row.name}
+                            </p>
+                            <p className="truncate text-xs text-[var(--muted)]">
+                              {row.setName}
+                              {row.number ? ` · ${row.number}` : ""}
+                            </p>
+                            <div className="mt-1.5 flex items-center justify-between gap-1">
+                              <ConditionBadge condition={row.condition} />
+                              <span className="tabular-nums text-xs font-medium">
+                                <Price value={row.marketValue} />
+                              </span>
+                            </div>
+                          </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -1541,6 +1677,7 @@ export function SammlungView() {
                     <div className="space-y-3 lg:hidden">
                       {pageItems.map((row) => {
                         const isSelected = panelOpen && row.id === activeId;
+                        const isChecked = checkedIds.has(row.id);
                         const profitClass =
                           row.profit > 0
                             ? "text-[var(--positive)]"
@@ -1548,50 +1685,77 @@ export function SammlungView() {
                               ? "text-[var(--negative)]"
                               : "text-[var(--muted)]";
                         return (
-                          <button
+                          <div
                             key={row.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedId(row.id);
-                              setPanelOpen(true);
-                            }}
-                            className={`w-full rounded-xl border p-3 text-left transition-colors touch-manipulation ${
-                              isSelected
+                            className={`w-full rounded-xl border p-3 transition-colors touch-manipulation ${
+                              isChecked
                                 ? "border-[var(--accent)] bg-[var(--accent-soft)]"
-                                : "border-[var(--border)] bg-[var(--surface)]"
+                                : isSelected
+                                  ? "border-[var(--accent)]/60 bg-[var(--surface)]"
+                                  : "border-[var(--border)] bg-[var(--surface)]"
                             }`}
                           >
                             <div className="flex items-center gap-3">
-                              <CardImage
-                                src={row.imageUrl}
-                                fallbacks={row.imageFallbacks}
-                                alt={row.name}
-                                size="sm"
-                              />
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate font-medium">{row.name}</p>
-                                <p className="truncate text-xs text-[var(--muted)]">
-                                  {row.setName}
-                                  {row.number ? ` · ${row.number}` : ""}
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <p className="tabular-nums text-sm font-medium">
-                                  <Price value={row.marketValue} />
-                                </p>
-                                <p className={`tabular-nums text-xs font-medium ${profitClass}`}>
-                                  {row.profit > 0 ? "+" : ""}
-                                  <Price value={row.profit} className={profitClass} />
-                                </p>
-                              </div>
+                              <label
+                                className="flex shrink-0 items-center"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) =>
+                                    setRowChecked(row.id, e.target.checked)
+                                  }
+                                  className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                                  aria-label={`${row.name} auswählen`}
+                                />
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedId(row.id);
+                                  setPanelOpen(true);
+                                }}
+                                className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                              >
+                                <CardImage
+                                  src={row.imageUrl}
+                                  fallbacks={row.imageFallbacks}
+                                  alt={row.name}
+                                  size="sm"
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate font-medium">
+                                    {row.name}
+                                  </p>
+                                  <p className="truncate text-xs text-[var(--muted)]">
+                                    {row.setName}
+                                    {row.number ? ` · ${row.number}` : ""}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="tabular-nums text-sm font-medium">
+                                    <Price value={row.marketValue} />
+                                  </p>
+                                  <p
+                                    className={`tabular-nums text-xs font-medium ${profitClass}`}
+                                  >
+                                    {row.profit > 0 ? "+" : ""}
+                                    <Price
+                                      value={row.profit}
+                                      className={profitClass}
+                                    />
+                                  </p>
+                                </div>
+                              </button>
                             </div>
-                            <div className="mt-3 flex items-center justify-between text-xs">
+                            <div className="mt-3 flex items-center justify-between text-xs pl-7">
                               <ConditionBadge condition={row.condition} />
                               <span className="text-[var(--muted)]">
                                 ×{row.quantity}
                               </span>
                             </div>
-                          </button>
+                          </div>
                         );
                       })}
                     </div>
@@ -1601,6 +1765,21 @@ export function SammlungView() {
                       <table className="w-full min-w-[960px] border-separate border-spacing-0 text-left text-sm">
                         <thead>
                           <tr className="border-b border-[var(--border)] text-[11px] uppercase tracking-wider text-[var(--muted)]">
+                            <th className="w-10 px-2 py-3 font-medium">
+                              <input
+                                ref={selectAllHeaderRef}
+                                type="checkbox"
+                                checked={allFilteredSelected}
+                                onChange={toggleSelectAllFiltered}
+                                className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                                aria-label="Alle markierten Filter-Karten auswählen"
+                                title={
+                                  allFilteredSelected
+                                    ? "Auswahl aufheben"
+                                    : "Alle gefilterten Karten auswählen"
+                                }
+                              />
+                            </th>
                             <th className="px-3 py-3 font-medium">Karte</th>
                             <th className="px-3 py-3 font-medium">
                               Set / Nummer
@@ -1698,6 +1877,8 @@ export function SammlungView() {
                               conditionSet.size,
                             );
 
+                            const isChecked = checkedIds.has(row.id);
+
                             return (
                               <Fragment key={row.id}>
                                 <tr
@@ -1705,7 +1886,7 @@ export function SammlungView() {
                                   className={`cursor-pointer transition-colors ${
                                     !expanded
                                       ? `border-b border-[var(--border)] last:border-0 ${
-                                          isSelected
+                                          isChecked || isSelected
                                             ? "bg-[var(--accent-soft)]"
                                             : "hover:bg-[var(--surface-elevated)]"
                                         }`
@@ -1715,6 +1896,25 @@ export function SammlungView() {
                                   <td
                                     className={frameTd(
                                       "first",
+                                      expanded ? "top" : "mid",
+                                      "px-2 py-3 align-middle",
+                                      "header",
+                                    )}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={(e) =>
+                                        setRowChecked(row.id, e.target.checked)
+                                      }
+                                      className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                                      aria-label={`${row.name} auswählen`}
+                                    />
+                                  </td>
+                                  <td
+                                    className={frameTd(
+                                      "mid",
                                       expanded ? "top" : "mid",
                                       "px-3 py-3",
                                       "header",
@@ -1938,6 +2138,14 @@ export function SammlungView() {
                                             className={frameTd(
                                               "first",
                                               edge,
+                                              "px-2 py-2.5",
+                                              "child",
+                                            )}
+                                          />
+                                          <td
+                                            className={frameTd(
+                                              "mid",
+                                              edge,
                                               "px-3 py-2.5 pl-12",
                                               "child",
                                             )}
@@ -2060,6 +2268,11 @@ export function SammlungView() {
                       ? "0"
                       : `${((safePage - 1) * pageSize + 1).toLocaleString("de-DE")}–${Math.min(safePage * pageSize, filteredItems.length).toLocaleString("de-DE")}`}{" "}
                     von {filteredItems.length.toLocaleString("de-DE")} Karten
+                    {checkedIds.size > 0 && (
+                      <span className="ml-2 text-[var(--accent)]">
+                        · {checkedIds.size.toLocaleString("de-DE")} ausgewählt
+                      </span>
+                    )}
                   </p>
                   <div className="flex flex-wrap items-center justify-center gap-1">
                     <button
@@ -2458,6 +2671,44 @@ export function SammlungView() {
             </div>
           </aside>
         </>
+      )}
+
+      {/* Bulk actions for multi-select */}
+      {checkedIds.size > 0 && (
+        <div
+          className="fixed inset-x-0 bottom-20 z-50 flex justify-center px-4 lg:bottom-6"
+          role="toolbar"
+          aria-label="Auswahl-Aktionen"
+        >
+          <div className="flex max-w-full flex-wrap items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 shadow-xl shadow-black/20">
+            <p className="px-1 text-sm font-medium tabular-nums">
+              {checkedIds.size.toLocaleString("de-DE")} ausgewählt
+            </p>
+            <button
+              type="button"
+              onClick={toggleSelectAllFiltered}
+              className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]"
+            >
+              {allFilteredSelected ? "Keine" : "Alle"} (
+              {filteredItems.length.toLocaleString("de-DE")})
+            </button>
+            <button
+              type="button"
+              onClick={() => setCheckedIds(new Set())}
+              className="rounded-lg px-2.5 py-1.5 text-xs text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)]"
+            >
+              Aufheben
+            </button>
+            <Button
+              variant="danger"
+              className="!h-9"
+              disabled={bulkDeleting}
+              onClick={() => void removeChecked()}
+            >
+              {bulkDeleting ? "Löschen…" : "Löschen"}
+            </Button>
+          </div>
+        </div>
       )}
     </>
   );
