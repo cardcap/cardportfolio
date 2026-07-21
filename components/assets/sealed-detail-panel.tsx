@@ -212,7 +212,6 @@ export function SealedDetailPanel({
               </h2>
               <p className="mt-1 text-xs text-[var(--muted)]">
                 {product.setName}
-                {product.ean ? ` · EAN ${product.ean}` : ""}
               </p>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 <Badge>{product.category}</Badge>
