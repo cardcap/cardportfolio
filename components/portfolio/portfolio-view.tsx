@@ -190,25 +190,13 @@ export function PortfolioView() {
           </div>
 
           {/* Secondary investment KPIs */}
-          <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="mb-5 grid grid-cols-2 gap-3">
             <SecondaryMetric
               icon="tag"
               label="Realisierter Gewinn"
               value={`+${formatCurrency(a.realizedProfit)}`}
               positive
               infoText="Gewinn aus bereits verkauften Positionen."
-            />
-            <SecondaryMetric
-              icon="price"
-              label="Ø Kaufpreis"
-              value={formatCurrency(a.avgPurchasePrice)}
-              infoText="Durchschnittlicher Einkaufspreis pro Asset."
-            />
-            <SecondaryMetric
-              icon="clock"
-              label="Haltedauer"
-              value={`${a.holdDays} Tage`}
-              infoText="Durchschnittliche Besitzdauer deiner Assets."
             />
             <SecondaryMetric
               icon="bars"
