@@ -1075,7 +1075,7 @@ export function SealedView() {
                 <thead>
                   {/* Same header type as Assets → Karten */}
                   <tr className="border-b border-[var(--border)] text-[11px] uppercase tracking-wider text-[var(--muted)]">
-                    <th className="w-10 px-2 py-3 font-medium">
+                    <th className="w-10 px-2 py-3 text-center align-middle font-medium">
                       <input
                         type="checkbox"
                         checked={allFilteredSelected}
@@ -1083,7 +1083,7 @@ export function SealedView() {
                           if (el) el.indeterminate = someFilteredSelected;
                         }}
                         onChange={toggleSelectAllFiltered}
-                        className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                        className="mx-auto block h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
                         aria-label="Alle auswählen"
                       />
                     </th>
@@ -1379,14 +1379,14 @@ function SealedTableRow({
       }`}
     >
       <td
-        className="px-3 py-3 align-middle"
+        className="w-10 px-2 py-3 text-center align-middle"
         onClick={(e) => e.stopPropagation()}
       >
         <input
           type="checkbox"
           checked={checked}
           onChange={(e) => onCheckedChange(e.target.checked)}
-          className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+          className="mx-auto block h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
           aria-label={`${product.name} auswählen`}
         />
       </td>

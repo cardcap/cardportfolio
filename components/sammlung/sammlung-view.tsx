@@ -1807,13 +1807,13 @@ export function SammlungView() {
                       <table className="w-full min-w-[960px] border-separate border-spacing-0 text-left text-sm">
                         <thead>
                           <tr className="border-b border-[var(--border)] text-[11px] uppercase tracking-wider text-[var(--muted)]">
-                            <th className="w-10 px-2 py-3 font-medium">
+                            <th className="w-10 px-2 py-3 text-center align-middle font-medium">
                               <input
                                 ref={selectAllHeaderRef}
                                 type="checkbox"
                                 checked={allFilteredSelected}
                                 onChange={toggleSelectAllFiltered}
-                                className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                                className="mx-auto block h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
                                 aria-label="Alle markierten Filter-Karten auswählen"
                                 title={
                                   allFilteredSelected
@@ -1939,7 +1939,7 @@ export function SammlungView() {
                                     className={frameTd(
                                       "first",
                                       expanded ? "top" : "mid",
-                                      "px-2 py-3 align-middle",
+                                      "w-10 px-2 py-3 text-center align-middle",
                                       "header",
                                     )}
                                     onClick={(e) => e.stopPropagation()}
@@ -1950,7 +1950,7 @@ export function SammlungView() {
                                       onChange={(e) =>
                                         setRowChecked(row.id, e.target.checked)
                                       }
-                                      className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                                      className="mx-auto block h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
                                       aria-label={`${row.name} auswählen`}
                                     />
                                   </td>
