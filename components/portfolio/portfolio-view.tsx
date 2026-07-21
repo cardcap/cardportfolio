@@ -371,22 +371,8 @@ export function PortfolioView() {
           {/* Performance + positions */}
           <div className="mb-5 grid gap-5 xl:grid-cols-2">
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
-              <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="mb-3">
                 <h2 className="text-sm font-medium">Performance nach Asset-Typ</h2>
-                <div className="flex gap-3 text-xs font-medium">
-                  <Link
-                    href="/assets/karten"
-                    className="text-[var(--accent)] hover:opacity-80"
-                  >
-                    Karten →
-                  </Link>
-                  <Link
-                    href="/assets/sealed"
-                    className="text-[var(--muted)] hover:text-[var(--foreground)]"
-                  >
-                    Sealed →
-                  </Link>
-                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[520px] text-left text-sm">
@@ -1244,7 +1230,13 @@ function KpiTile({
                 <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
                   Rendite
                 </p>
-                <p className="tabular-nums font-semibold text-[var(--positive)]">
+                <p
+                  className={`tabular-nums font-semibold ${
+                    hoverReturnPct < 0
+                      ? "text-[var(--negative)]"
+                      : "text-[var(--positive)]"
+                  }`}
+                >
                   {formatPercent(hoverReturnPct)}
                 </p>
               </div>
