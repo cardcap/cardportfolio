@@ -107,6 +107,27 @@ function mapApiSealed(item: ApiSealedItem): SealedProduct {
   };
 }
 
+/** Keep previous list order after open/edit; drop removed, append brand-new. */
+function mergeInventoryPreserveOrder(
+  previous: SealedProduct[],
+  incoming: SealedProduct[],
+): SealedProduct[] {
+  const byId = new Map(incoming.map((i) => [i.id, i]));
+  const seen = new Set<string>();
+  const next: SealedProduct[] = [];
+  for (const prev of previous) {
+    const updated = byId.get(prev.id);
+    if (updated) {
+      next.push(updated);
+      seen.add(prev.id);
+    }
+  }
+  for (const item of incoming) {
+    if (!seen.has(item.id)) next.push(item);
+  }
+  return next;
+}
+
 export function SealedView() {
   const { isAuthenticated, isLoading: authLoading } = useAuthMode();
   const [search, setSearch] = useState("");
@@ -311,6 +332,7 @@ export function SealedView() {
       );
 
       // 2) Open ONE unit: qty>1 → decrement, qty===1 → remove row
+      // Keep list position (do not re-sort by updatedAt to the top).
       const prevQty = result.product.quantity;
       let remainingQty = 0;
       if (isAuthenticated) {
@@ -327,18 +349,17 @@ export function SealedView() {
             errors.push("Sealed-Eintrag");
           } else {
             const data = await openRes.json().catch(() => ({}));
-            const items = (data.items ?? []) as Array<{
-              id: string;
-              quantity: number;
-            }>;
+            const raw = (data.items ?? []) as ApiSealedItem[];
+            const mapped = raw.map(mapApiSealed);
             remainingQty =
-              items.find((i) => i.id === result.product.id)?.quantity ?? 0;
+              mapped.find((i) => i.id === result.product.id)?.quantity ?? 0;
+            setInventory((prev) => mergeInventoryPreserveOrder(prev, mapped));
           }
-          await loadInventory();
         } catch {
           errors.push("Sealed-Eintrag");
         }
       } else {
+        // openLocalSealedUnit mutates in place → order stays
         const next = openLocalSealedUnit(result.product.id);
         setInventory(next);
         remainingQty =
@@ -366,7 +387,7 @@ export function SealedView() {
       );
       setTimeout(() => setToast(null), 5000);
     },
-    [isAuthenticated, loadInventory],
+    [isAuthenticated],
   );
 
   const setOptions = useMemo(
@@ -418,7 +439,8 @@ export function SealedView() {
           return profitA - profitB;
         case "newest":
         default:
-          return 0; // newest: keep inventory order
+          // Inventory order (stable across open/edit unless filters hide the row)
+          return 0;
       }
     });
     return rows;

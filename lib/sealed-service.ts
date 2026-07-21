@@ -119,7 +119,8 @@ export async function getUserSealed(userId: string): Promise<{
 }> {
   const rows = await prisma.sealedItem.findMany({
     where: { userId },
-    orderBy: { updatedAt: "desc" },
+    // Stable order: opening/editing must not jump the row to the top
+    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
   });
   const items = rows.map(toDto);
   return { items, metrics: computeSealedMetrics(items) };
