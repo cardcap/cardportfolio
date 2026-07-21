@@ -700,8 +700,8 @@ export function SealedView() {
         </div>
       </div>
 
-      {/* Primary metrics */}
-      <div className="mb-3 grid grid-cols-2 gap-3 xl:grid-cols-4">
+      {/* Metrics — full content width */}
+      <div className="mb-5 grid w-full grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <MetricTile
           icon="chart"
           label="Gesamtwert"
@@ -727,16 +727,16 @@ export function SealedView() {
           label="Ø Wert pro Produkt"
           value={formatCurrency(metrics.avgValue)}
         />
-      </div>
-
-      {/* Secondary metrics */}
-      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <SmallStat
+        <MetricTile
+          icon="box"
           label="Produkte gesamt"
           value={String(metrics.productCount)}
-          icon="box"
         />
-        <SmallStat label="Sets" value={String(metrics.sets)} icon="layers" />
+        <MetricTile
+          icon="layers"
+          label="Sets"
+          value={String(metrics.sets)}
+        />
       </div>
 
       {/* Toolbar: Suche + Filter (Sortierung in der Filtergruppe, Toggle rechts) */}
@@ -924,36 +924,12 @@ export function SealedView() {
         </div>
       </div>
 
-      {/* Table / grid */}
-      <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]">
+      {/* Bestand: full-width table (Produkt → Bestand, no unit price subtotals) */}
+      <div className="w-full min-w-0 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]">
         {view === "list" ? (
           <>
-            <div className="hidden border-b border-[var(--border)] px-4 py-2.5 text-[10px] uppercase tracking-wider text-[var(--muted)] xl:grid xl:grid-cols-[2rem_minmax(11rem,1.5fr)_minmax(6.5rem,0.95fr)_6.5rem_2.75rem_minmax(5.5rem,0.85fr)_3.25rem_5.5rem_5.5rem_5rem_5.5rem_5.25rem] xl:gap-x-2 xl:gap-y-0 xl:px-5">
-              <span>
-                <input
-                  type="checkbox"
-                  checked={allFilteredSelected}
-                  ref={(el) => {
-                    if (el) el.indeterminate = someFilteredSelected;
-                  }}
-                  onChange={toggleSelectAllFiltered}
-                  className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
-                  aria-label="Alle auswählen"
-                />
-              </span>
-              <span>Produkt</span>
-              <span>Set</span>
-              <span>Kategorie</span>
-              <span>Sprache</span>
-              <span>Zustand</span>
-              <span className="text-right">Menge</span>
-              <span className="text-right">EK / Stück</span>
-              <span className="text-right">Marktwert / Stück</span>
-              <span className="text-right">Gesamtwert</span>
-              <span className="text-right pr-1">Gewinn / Verlust</span>
-              <span className="text-right">Aktion</span>
-            </div>
-            <ul className="divide-y divide-[var(--border)]">
+            {/* Mobile list */}
+            <ul className="divide-y divide-[var(--border)] lg:hidden">
               {pageRows.map((row) => (
                 <SealedRow
                   key={row.id}
@@ -973,9 +949,78 @@ export function SealedView() {
                 </li>
               )}
             </ul>
+
+            {/* Desktop: full-page table, Bestand right after Produkt */}
+            <div className="hidden overflow-x-auto lg:block">
+              <table className="w-full min-w-[1080px] border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--border)] text-[10px] uppercase tracking-wider text-[var(--muted)]">
+                    <th className="w-10 px-3 py-3 font-medium">
+                      <input
+                        type="checkbox"
+                        checked={allFilteredSelected}
+                        ref={(el) => {
+                          if (el) el.indeterminate = someFilteredSelected;
+                        }}
+                        onChange={toggleSelectAllFiltered}
+                        className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                        aria-label="Alle auswählen"
+                      />
+                    </th>
+                    <th className="min-w-[14rem] px-3 py-3 font-medium">
+                      Produkt
+                    </th>
+                    <th className="px-3 py-3 text-right font-medium">
+                      Bestand
+                    </th>
+                    <th className="px-3 py-3 font-medium">Kategorie</th>
+                    <th className="px-3 py-3 font-medium">Sprache</th>
+                    <th className="px-3 py-3 font-medium">Zustand</th>
+                    <th className="px-3 py-3 text-right font-medium">
+                      EK / Stück
+                    </th>
+                    <th className="px-3 py-3 text-right font-medium">
+                      Marktwert / Stück
+                    </th>
+                    <th className="px-3 py-3 text-right font-medium">
+                      Gesamtwert
+                    </th>
+                    <th className="px-3 py-3 text-right font-medium">
+                      Gewinn / Verlust
+                    </th>
+                    <th className="px-3 py-3 text-right font-medium">Aktion</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageRows.map((row) => (
+                    <SealedTableRow
+                      key={row.id}
+                      product={row}
+                      checked={checkedIds.has(row.id)}
+                      onCheckedChange={(on) => setRowChecked(row.id, on)}
+                      onOpen={() => setConfirmProduct(row)}
+                    />
+                  ))}
+                  {pageRows.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={11}
+                        className="px-5 py-12 text-center text-sm text-[var(--muted)]"
+                      >
+                        {loading
+                          ? "Sealed-Inventar wird geladen…"
+                          : isAuthenticated
+                            ? "Keine Sealed-Produkte. Füge Produkte hinzu oder öffne die Demo-Seed."
+                            : "Keine Produkte für diese Filter."}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </>
         ) : (
-          <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid w-full gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {pageRows.map((row) => (
               <SealedCard
                 key={row.id}
@@ -1091,6 +1136,10 @@ export function SealedView() {
   );
 }
 
+const openBtnClass =
+  "inline-flex items-center justify-center rounded-full border border-[var(--accent)]/25 bg-[var(--accent-soft)] px-3 py-1.5 text-xs font-medium text-[var(--accent)] transition-colors hover:border-[var(--accent)]/40 hover:bg-[var(--accent)]/15";
+
+/** Mobile sealed list row */
 function SealedRow({
   product,
   checked,
@@ -1105,9 +1154,7 @@ function SealedRow({
   const totalMarket = product.marketValue * product.quantity;
   const totalCost = product.purchasePrice * product.quantity;
   const profit = totalMarket - totalCost;
-  const profitPct = totalCost ? (profit / totalCost) * 100 : 0;
   const positive = profit >= 0;
-  const canOpen = true;
 
   return (
     <li
@@ -1117,8 +1164,7 @@ function SealedRow({
           : "hover:bg-[var(--surface-elevated)]/50"
       }`}
     >
-      {/* mobile */}
-      <div className="flex gap-3 xl:hidden">
+      <div className="flex gap-3">
         <label className="flex shrink-0 items-start pt-1">
           <input
             type="checkbox"
@@ -1133,35 +1179,27 @@ function SealedRow({
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{product.name}</p>
-              <p className="truncate text-xs text-[var(--muted)]">{product.setName}</p>
+              <p className="truncate text-xs text-[var(--muted)]">
+                {product.setName}
+              </p>
             </div>
             <CategoryBadge category={product.category} />
           </div>
           <div className="mt-2 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
+            <span className="tabular-nums font-medium text-[var(--foreground)]">
+              Bestand ×{product.quantity}
+            </span>
             <span>{product.language}</span>
             <ConditionBadge condition={product.condition} />
-            <span>×{product.quantity}</span>
-            {product.purchaseDate && (
-              <span>
-                EK{" "}
-                {product.purchaseDate.includes("-")
-                  ? product.purchaseDate.split("-").reverse().join(".")
-                  : product.purchaseDate}
-              </span>
-            )}
           </div>
-          {canOpen && (
-            <button
-              type="button"
-              onClick={onOpen}
-              className="mt-2 inline-flex items-center rounded-full border border-[var(--accent)]/25 bg-[var(--accent-soft)] px-3 py-1 text-xs font-medium text-[var(--accent)] transition-colors hover:border-[var(--accent)]/40 hover:bg-[var(--accent)]/15"
-            >
-              Öffnen →
-            </button>
-          )}
+          <button type="button" onClick={onOpen} className={`mt-2 ${openBtnClass}`}>
+            Öffnen →
+          </button>
           <div className="mt-2 flex items-end justify-between">
             <div className="text-xs text-[var(--muted)]">
-              <span className="tabular-nums">{formatCurrency(product.marketValue)}</span>
+              <span className="tabular-nums">
+                {formatCurrency(product.marketValue)}
+              </span>
               <span className="mx-1">·</span>
               <span className="tabular-nums text-[var(--foreground)]">
                 {formatCurrency(totalMarket)}
@@ -1178,9 +1216,37 @@ function SealedRow({
           </div>
         </div>
       </div>
+    </li>
+  );
+}
 
-      {/* desktop — numbers shift slightly left; open action gets own soft chip */}
-      <div className="hidden items-center gap-x-2 xl:grid xl:grid-cols-[2rem_minmax(11rem,1.5fr)_minmax(6.5rem,0.95fr)_6.5rem_2.75rem_minmax(5.5rem,0.85fr)_3.25rem_5.5rem_5.5rem_5rem_5.5rem_5.25rem]">
+/** Desktop full-width table row — Produkt, then Bestand, no price subtotals */
+function SealedTableRow({
+  product,
+  checked,
+  onCheckedChange,
+  onOpen,
+}: {
+  product: SealedProduct;
+  checked: boolean;
+  onCheckedChange: (on: boolean) => void;
+  onOpen: () => void;
+}) {
+  const totalMarket = product.marketValue * product.quantity;
+  const totalCost = product.purchasePrice * product.quantity;
+  const profit = totalMarket - totalCost;
+  const profitPct = totalCost ? (profit / totalCost) * 100 : 0;
+  const positive = profit >= 0;
+
+  return (
+    <tr
+      className={`border-b border-[var(--border)] last:border-0 transition-colors ${
+        checked
+          ? "bg-[var(--accent-soft)]"
+          : "hover:bg-[var(--surface-elevated)]/50"
+      }`}
+    >
+      <td className="px-3 py-3 align-middle">
         <input
           type="checkbox"
           checked={checked}
@@ -1188,70 +1254,68 @@ function SealedRow({
           className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
           aria-label={`${product.name} auswählen`}
         />
+      </td>
+      <td className="min-w-[14rem] px-3 py-3 align-middle">
         <div className="flex min-w-0 items-center gap-3">
           <ProductThumb product={product} />
-          <p className="truncate text-sm font-medium">{product.name}</p>
-        </div>
-        <p className="truncate text-sm text-[var(--muted)]">{product.setName}</p>
-        <CategoryBadge category={product.category} />
-        <span className="text-sm text-[var(--muted)]">{product.language}</span>
-        <ConditionBadge condition={product.condition} />
-        <span className="tabular-nums text-right text-sm">{product.quantity}</span>
-        <div className="text-right">
-          <p className="tabular-nums text-sm">{formatCurrency(product.purchasePrice)}</p>
-          <p className="tabular-nums text-[10px] text-[var(--muted)]">
-            Gesamt: {formatCurrency(totalCost)}
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="tabular-nums text-sm">{formatCurrency(product.marketValue)}</p>
-          <p className="tabular-nums text-[10px] text-[var(--muted)]">
-            Gesamt: {formatCurrency(totalMarket)}
-          </p>
-        </div>
-        <p className="tabular-nums text-right text-sm font-medium">
-          {formatCurrency(totalMarket)}
-        </p>
-        <div className="pr-1 text-right">
-          <p
-            className={`tabular-nums text-sm font-medium ${
-              positive ? "text-[var(--positive)]" : "text-[var(--negative)]"
-            }`}
-          >
-            {positive ? "+" : ""}
-            {formatCurrency(profit)}
-          </p>
-          <p
-            className={`tabular-nums text-[10px] ${
-              positive ? "text-[var(--positive)]" : "text-[var(--negative)]"
-            }`}
-          >
-            {positive ? "+" : ""}
-            {profitPct.toLocaleString("de-DE", { maximumFractionDigits: 2 })} %
-          </p>
-        </div>
-        {canOpen ? (
-          <div className="flex justify-end pl-1">
-            <button
-              type="button"
-              onClick={onOpen}
-              className="inline-flex items-center justify-center rounded-full border border-[var(--accent)]/25 bg-[var(--accent-soft)] px-3 py-1.5 text-xs font-medium text-[var(--accent)] transition-colors hover:border-[var(--accent)]/40 hover:bg-[var(--accent)]/15"
-              title="Produkt öffnen"
-            >
-              Öffnen
-            </button>
+          <div className="min-w-0">
+            <p className="truncate font-medium">{product.name}</p>
+            <p className="truncate text-xs text-[var(--muted)]">
+              {product.setName}
+            </p>
           </div>
-        ) : (
-          <button
-            type="button"
-            className="justify-self-end text-[var(--muted)]"
-            aria-label="Menü"
-          >
-            ⋮
-          </button>
-        )}
-      </div>
-    </li>
+        </div>
+      </td>
+      <td className="px-3 py-3 text-right align-middle tabular-nums text-sm font-medium">
+        {product.quantity}
+      </td>
+      <td className="px-3 py-3 align-middle">
+        <CategoryBadge category={product.category} />
+      </td>
+      <td className="px-3 py-3 align-middle text-sm text-[var(--muted)]">
+        {product.language}
+      </td>
+      <td className="px-3 py-3 align-middle">
+        <ConditionBadge condition={product.condition} />
+      </td>
+      <td className="px-3 py-3 text-right align-middle tabular-nums text-sm">
+        {formatCurrency(product.purchasePrice)}
+      </td>
+      <td className="px-3 py-3 text-right align-middle tabular-nums text-sm">
+        {formatCurrency(product.marketValue)}
+      </td>
+      <td className="px-3 py-3 text-right align-middle tabular-nums text-sm font-medium">
+        {formatCurrency(totalMarket)}
+      </td>
+      <td className="px-3 py-3 text-right align-middle">
+        <p
+          className={`tabular-nums text-sm font-medium ${
+            positive ? "text-[var(--positive)]" : "text-[var(--negative)]"
+          }`}
+        >
+          {positive ? "+" : ""}
+          {formatCurrency(profit)}
+        </p>
+        <p
+          className={`tabular-nums text-[10px] ${
+            positive ? "text-[var(--positive)]" : "text-[var(--negative)]"
+          }`}
+        >
+          {positive ? "+" : ""}
+          {profitPct.toLocaleString("de-DE", { maximumFractionDigits: 2 })} %
+        </p>
+      </td>
+      <td className="px-3 py-3 text-right align-middle">
+        <button
+          type="button"
+          onClick={onOpen}
+          className={openBtnClass}
+          title="Produkt öffnen"
+        >
+          Öffnen
+        </button>
+      </td>
+    </tr>
   );
 }
 
@@ -1384,7 +1448,7 @@ function MetricTile({
   positive,
   negative,
 }: {
-  icon: "box" | "chart" | "coins" | "trend" | "tag";
+  icon: "box" | "chart" | "coins" | "trend" | "tag" | "layers";
   label: string;
   value: string;
   hint?: string;
@@ -1423,6 +1487,13 @@ function MetricTile({
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
             <path d="M20 12 12 4H5v7l8 8 7-7Z" />
             <circle cx="8.5" cy="8.5" r="1" fill="currentColor" />
+          </svg>
+        )}
+        {icon === "layers" && (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+            <path d="M12 3.5 3.5 8 12 12.5 20.5 8 12 3.5Z" strokeLinejoin="round" />
+            <path d="M3.5 12.5 12 17l8.5-4.5" strokeLinejoin="round" />
+            <path d="M3.5 16.5 12 21l8.5-4.5" strokeLinejoin="round" />
           </svg>
         )}
       </span>
