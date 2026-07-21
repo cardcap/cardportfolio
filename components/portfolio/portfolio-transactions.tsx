@@ -3,19 +3,42 @@
 import { useMemo, useRef, useState } from "react";
 import { TransactionDrawer } from "@/components/portfolio/transaction-drawer";
 import { CardImage } from "@/components/ui/card-image";
-import { formatCurrency, formatPercent } from "@/lib/format";
 import {
-  getCard,
-  portfolioTxCashflow,
-  portfolioTxHistory,
-  portfolioTxMetrics,
-  type DetailedTransaction,
-  type TxCashflowMonth,
-} from "@/lib/mock-data";
+  usePortfolioAssets,
+  type LivePosition,
+} from "@/hooks/use-portfolio-assets";
+import { formatCurrency, formatPercent } from "@/lib/format";
 
+type TxKind = "Kauf" | "Verkauf";
 type TxRange = "30d" | "6m" | "1y" | "max";
 type CashMode = "monatlich" | "kumuliert";
 type SortKey = "newest" | "oldest" | "total-desc" | "total-asc";
+
+type DetailedTransaction = {
+  id: string;
+  dateIso: string;
+  dateLabel: string;
+  type: TxKind;
+  cardId: string;
+  name: string;
+  assetType: "Karte" | "Sealed";
+  setName: string;
+  quantity: number;
+  pricePerUnit: number;
+  fees: number;
+  total: number;
+  realizedProfit: number | null;
+  note: string;
+  imageUrl?: string;
+  imageFallbacks?: string[];
+};
+
+type TxCashflowMonth = {
+  label: string;
+  buys: number;
+  sells: number;
+  net: number;
+};
 
 const ranges: { id: TxRange; label: string }[] = [
   { id: "30d", label: "30 Tage" },
@@ -24,32 +47,68 @@ const ranges: { id: TxRange; label: string }[] = [
   { id: "max", label: "Max" },
 ];
 
+function posToTx(p: LivePosition): DetailedTransaction {
+  const dateIso = p.purchaseDate || "";
+  let dateLabel = "—";
+  if (dateIso) {
+    const [y, mo, d] = dateIso.split("-");
+    if (y && mo && d) dateLabel = `${d}.${mo}.${y}`;
+  }
+  const qty = Math.max(1, p.quantity);
+  const pricePerUnit = Math.round((p.invested / qty) * 100) / 100;
+  return {
+    id: p.id,
+    dateIso: dateIso || "1970-01-01",
+    dateLabel,
+    type: "Kauf",
+    cardId: p.id,
+    name: p.name,
+    assetType: p.kind,
+    setName: p.setName,
+    quantity: qty,
+    pricePerUnit,
+    fees: 0,
+    total: p.invested,
+    realizedProfit: null,
+    note: "Aus Assets",
+    imageUrl: p.imageUrl,
+    imageFallbacks: p.imageFallbacks,
+  };
+}
+
 export function PortfolioTransactions() {
-  const m = portfolioTxMetrics;
-  const [range, setRange] = useState<TxRange>("1y");
+  const live = usePortfolioAssets();
+  const [range, setRange] = useState<TxRange>("max");
   const [cashMode, setCashMode] = useState<CashMode>("monatlich");
   const [search, setSearch] = useState("");
   const [txType, setTxType] = useState("Alle");
   const [assetType, setAssetType] = useState("Alle");
   const [setFilter, setSetFilter] = useState("Alle");
-  const [dateFrom, setDateFrom] = useState("2023-06-15");
-  const [dateTo, setDateTo] = useState("2024-06-15");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [sort, setSort] = useState<SortKey>("newest");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [localTx, setLocalTx] = useState<DetailedTransaction[]>([]);
 
+  const assetTx = useMemo(
+    () => live.positions.map(posToTx),
+    [live.positions],
+  );
+
   const setNames = useMemo(
     () => [
       "Alle",
-      ...Array.from(new Set(portfolioTxHistory.map((t) => t.setName))).sort(),
+      ...Array.from(
+        new Set(assetTx.map((t) => t.setName).filter(Boolean)),
+      ).sort(),
     ],
-    [],
+    [assetTx],
   );
 
   const filtered = useMemo(() => {
-    let rows = [...localTx, ...portfolioTxHistory];
+    let rows = [...localTx, ...assetTx];
     if (txType !== "Alle") rows = rows.filter((r) => r.type === txType);
     if (assetType !== "Alle")
       rows = rows.filter((r) => r.assetType === assetType);
@@ -74,19 +133,100 @@ export function PortfolioTransactions() {
       return b.dateIso.localeCompare(a.dateIso);
     });
     return rows;
-  }, [localTx, txType, assetType, setFilter, dateFrom, dateTo, search, sort]);
+  }, [
+    localTx,
+    assetTx,
+    txType,
+    assetType,
+    setFilter,
+    dateFrom,
+    dateTo,
+    search,
+    sort,
+  ]);
 
-  const totalCount = m.totalTx + localTx.length;
-  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
-  const pageRows = filtered.slice(0, pageSize);
+  const m = useMemo(() => {
+    const buys = filtered.filter((t) => t.type === "Kauf");
+    const sells = filtered.filter((t) => t.type === "Verkauf");
+    const buyVolume = buys.reduce((s, t) => s + t.total, 0);
+    const sellVolume = sells.reduce((s, t) => s + t.total, 0);
+    const fees = filtered.reduce((s, t) => s + t.fees, 0);
+    const realizedProfit = sells.reduce(
+      (s, t) => s + (t.realizedProfit ?? 0),
+      0,
+    );
+    const last = filtered[0];
+    return {
+      buyCount: buys.length,
+      buyVolume: Math.round(buyVolume * 100) / 100,
+      sellCount: sells.length,
+      sellVolume: Math.round(sellVolume * 100) / 100,
+      realizedProfit: Math.round(realizedProfit * 100) / 100,
+      realizedReturnPct: 0,
+      fees: Math.round(fees * 100) / 100,
+      avgBuy: buys.length ? Math.round((buyVolume / buys.length) * 100) / 100 : 0,
+      avgSell: sells.length
+        ? Math.round((sellVolume / sells.length) * 100) / 100
+        : 0,
+      lastTxDate: last?.dateLabel ?? "—",
+      totalTx: filtered.length,
+      cardTx: filtered.filter((t) => t.assetType === "Karte").length,
+      sealedTx: filtered.filter((t) => t.assetType === "Sealed").length,
+      buySharePct:
+        filtered.length > 0
+          ? Math.round((buys.length / filtered.length) * 100)
+          : 0,
+      sellSharePct:
+        filtered.length > 0
+          ? Math.round((sells.length / filtered.length) * 100)
+          : 0,
+      busiestMonth: "—",
+    };
+  }, [filtered]);
+
+  const portfolioTxCashflow: TxCashflowMonth[] = useMemo(() => {
+    // Group buys by month from live assets
+    const map = new Map<string, { buys: number; sells: number }>();
+    for (const t of filtered) {
+      const key = t.dateIso.slice(0, 7) || "ohne-datum";
+      const prev = map.get(key) ?? { buys: 0, sells: 0 };
+      if (t.type === "Kauf") prev.buys += t.total;
+      else prev.sells += t.total;
+      map.set(key, prev);
+    }
+    return [...map.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-12)
+      .map(([key, v]) => {
+        let label = key;
+        if (key.includes("-")) {
+          const [y, mo] = key.split("-");
+          const d = new Date(Number(y), Number(mo) - 1, 1);
+          label = d.toLocaleDateString("de-DE", {
+            month: "short",
+            year: "2-digit",
+          });
+        }
+        return {
+          label,
+          buys: Math.round(v.buys * 100) / 100,
+          sells: Math.round(v.sells * 100) / 100,
+          net: Math.round((v.sells - v.buys) * 100) / 100,
+        };
+      });
+  }, [filtered]);
+
+  const totalCount = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(Math.max(totalCount, 1) / pageSize));
+  const pageRows = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   function resetFilters() {
     setSearch("");
     setTxType("Alle");
     setAssetType("Alle");
     setSetFilter("Alle");
-    setDateFrom("2023-06-15");
-    setDateTo("2024-06-15");
+    setDateFrom("");
+    setDateTo("");
     setSort("newest");
     setPage(1);
   }
@@ -173,9 +313,9 @@ export function PortfolioTransactions() {
         <Metric
           icon="trend"
           label="Realisierter Gewinn"
-          value={`+${formatCurrency(m.realizedProfit)}`}
-          hint={`+${m.realizedReturnPct.toLocaleString("de-DE")} % Rendite`}
-          positive
+          value={formatCurrency(m.realizedProfit)}
+          hint="Verkäufe folgen, sobald sie erfasst werden"
+          positive={m.realizedProfit >= 0}
         />
         <Metric
           icon="pct"
@@ -435,7 +575,6 @@ export function PortfolioTransactions() {
 }
 
 function TxRow({ row }: { row: DetailedTransaction }) {
-  const card = getCard(row.cardId);
   const isBuy = row.type === "Kauf";
   const profit = row.realizedProfit;
 
@@ -443,7 +582,12 @@ function TxRow({ row }: { row: DetailedTransaction }) {
     <li className="px-4 py-3 transition-colors hover:bg-[var(--surface-elevated)]/40 sm:px-5">
       {/* mobile */}
       <div className="flex gap-3 2xl:hidden">
-        <CardImage src={card.imageUrl} alt={row.name} size="sm" />
+        <CardImage
+          src={row.imageUrl ?? ""}
+          fallbacks={row.imageFallbacks}
+          alt={row.name}
+          size="sm"
+        />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-[var(--muted)]">{row.dateLabel}</span>
@@ -487,7 +631,12 @@ function TxRow({ row }: { row: DetailedTransaction }) {
         <span className="text-sm text-[var(--muted)]">{row.dateLabel}</span>
         <TypeBadge type={row.type} />
         <div className="flex min-w-0 items-center gap-2">
-          <CardImage src={card.imageUrl} alt={row.name} size="sm" />
+          <CardImage
+            src={row.imageUrl ?? ""}
+            fallbacks={row.imageFallbacks}
+            alt={row.name}
+            size="sm"
+          />
           <span className="truncate text-sm font-medium">{row.name}</span>
         </div>
         <AssetBadge type={row.assetType} />

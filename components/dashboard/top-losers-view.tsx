@@ -4,18 +4,55 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CardImage } from "@/components/ui/card-image";
 import { InfoTip } from "@/components/ui/metric-card";
-import { formatCurrency } from "@/lib/format";
 import {
-  getCard,
-  topLosersDetailed,
-  topLosersSummary,
-  type DetailedMover,
-  type MoverKind,
-} from "@/lib/mock-data";
+  usePortfolioAssets,
+  type LivePosition,
+} from "@/hooks/use-portfolio-assets";
+import { formatCurrency } from "@/lib/format";
 
 type Scope = "gesamt" | "karten" | "sealed";
 type Range = "24h" | "7d" | "30d" | "1y";
 type SortKey = "loss-desc" | "loss-asc" | "name";
+type MoverKind = "Karte" | "Sealed";
+
+type DetailedMover = {
+  cardId: string;
+  kind: MoverKind;
+  setName: string;
+  name: string;
+  changePct: number;
+  changeAbs: number;
+  price: number;
+  valueBefore: number;
+  currentValue: number;
+  language?: string;
+  condition?: string;
+  trend: number[];
+  imageUrl?: string;
+  imageFallbacks?: string[];
+  href: string;
+};
+
+function toMover(p: LivePosition): DetailedMover {
+  const changeAbs = Math.round((p.market - p.invested) * 100) / 100;
+  return {
+    cardId: p.id,
+    kind: p.kind,
+    setName: p.setName,
+    name: p.name,
+    changePct: p.returnPct,
+    changeAbs,
+    price: p.market,
+    valueBefore: p.invested,
+    currentValue: p.market,
+    language: p.language,
+    condition: p.condition,
+    trend: [p.invested, p.market],
+    imageUrl: p.imageUrl,
+    imageFallbacks: p.imageFallbacks,
+    href: p.href,
+  };
+}
 
 const scopes: { id: Scope; label: string }[] = [
   { id: "gesamt", label: "Gesamt" },
@@ -31,46 +68,38 @@ const ranges: { id: Range; label: string }[] = [
 ];
 
 export function TopLosersView() {
+  const live = usePortfolioAssets();
   const [scope, setScope] = useState<Scope>("gesamt");
   const [range, setRange] = useState<Range>("7d");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("loss-desc");
 
   const filtered = useMemo(() => {
-    let rows = [...topLosersDetailed];
+    let rows = live.positions
+      .filter((p) => p.returnPct < 0)
+      .map(toMover);
 
     if (scope === "karten") rows = rows.filter((r) => r.kind === "Karte");
     if (scope === "sealed") rows = rows.filter((r) => r.kind === "Sealed");
 
     const q = query.trim().toLowerCase();
     if (q) {
-      rows = rows.filter((r) => {
-        const card = getCard(r.cardId);
-        const name = (r.name ?? card.name).toLowerCase();
-        return (
-          name.includes(q) ||
+      rows = rows.filter(
+        (r) =>
+          r.name.toLowerCase().includes(q) ||
           r.setName.toLowerCase().includes(q) ||
-          r.kind.toLowerCase().includes(q)
-        );
-      });
+          r.kind.toLowerCase().includes(q),
+      );
     }
 
     rows.sort((a, b) => {
-      if (sort === "name") {
-        const an = a.name ?? getCard(a.cardId).name;
-        const bn = b.name ?? getCard(b.cardId).name;
-        return an.localeCompare(bn, "de");
-      }
-      if (sort === "loss-asc") {
-        // geringster Verlust zuerst (z. B. -3 % vor -11 %)
-        return b.changePct - a.changePct;
-      }
-      // loss-desc: höchster Verlust zuerst (am negativsten)
+      if (sort === "name") return a.name.localeCompare(b.name, "de");
+      if (sort === "loss-asc") return b.changePct - a.changePct;
       return a.changePct - b.changePct;
     });
 
-    return rows.slice(0, 10);
-  }, [scope, query, sort]);
+    return rows.slice(0, 25);
+  }, [live.positions, scope, query, sort]);
 
   const metrics = useMemo(() => {
     if (filtered.length === 0) {
@@ -236,7 +265,7 @@ export function TopLosersView() {
             </li>
           )}
           {filtered.map((row, index) => (
-            <LoserRow key={row.id} row={row} rank={index + 1} />
+            <LoserRow key={row.cardId} row={row} rank={index + 1} />
           ))}
         </ul>
 
@@ -244,7 +273,7 @@ export function TopLosersView() {
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <span className="inline-flex items-center gap-1.5">
               <span aria-hidden>⏱</span>
-              Preise zuletzt aktualisiert: {topLosersSummary.pricesUpdatedLabel}
+              Preise aus Assets → Karten &amp; Sealed
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span aria-hidden>🏷</span>
@@ -261,7 +290,10 @@ export function TopLosersView() {
 }
 
 function LoserRow({ row, rank }: { row: DetailedMover; rank: number }) {
-  const card = getCard(row.cardId);
+  const card = {
+    imageUrl: row.imageUrl ?? "",
+    name: row.name,
+  };
   const name = row.name ?? card.name;
   const href = row.kind === "Sealed" ? "/assets/sealed" : "/assets/karten";
   const lang = row.language ?? "DE";

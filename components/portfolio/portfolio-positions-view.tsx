@@ -3,19 +3,38 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CardImage } from "@/components/ui/card-image";
-import { formatCurrency, formatPercent } from "@/lib/format";
 import {
-  getCard,
-  portfolioPositionsList,
-  portfolioPositionsSummary,
-  type PortfolioPosition,
-  type PositionStatus,
-} from "@/lib/mock-data";
+  sparkToValue,
+  usePortfolioAssets,
+  type LivePosition,
+} from "@/hooks/use-portfolio-assets";
+import { formatCurrency, formatPercent } from "@/lib/format";
 
 type Scope = "gesamt" | "karten" | "sealed";
 type Range = "30d" | "6m" | "1y" | "max";
+type PositionStatus = "plus" | "flat" | "minus";
 type StatusFilter = PositionStatus | "all";
 type SortKey = "return-desc" | "return-asc" | "profit-desc" | "name";
+
+type PortfolioPosition = {
+  id: string;
+  cardId: string;
+  name: string;
+  kind: "Karte" | "Sealed";
+  setName: string;
+  language: string;
+  condition: string;
+  quantity: number;
+  invested: number;
+  market: number;
+  profit: number;
+  returnPct: number;
+  status: PositionStatus;
+  trend: number[];
+  imageUrl?: string;
+  imageFallbacks?: string[];
+  href: string;
+};
 
 const ranges: { id: Range; label: string }[] = [
   { id: "30d", label: "30 Tage" },
@@ -24,35 +43,36 @@ const ranges: { id: Range; label: string }[] = [
   { id: "max", label: "Max" },
 ];
 
-const statusTabs: { id: StatusFilter; label: string; count: number; tone?: string }[] = [
-  {
-    id: "plus",
-    label: "Im Plus",
-    count: portfolioPositionsSummary.plus,
-    tone: "plus",
-  },
-  {
-    id: "flat",
-    label: "Unverändert",
-    count: portfolioPositionsSummary.flat,
-  },
-  {
-    id: "minus",
-    label: "Im Minus",
-    count: portfolioPositionsSummary.minus,
-    tone: "minus",
-  },
-  {
-    id: "all",
-    label: "Alle",
-    count: portfolioPositionsSummary.all,
-  },
-];
+function toPosition(p: LivePosition): PortfolioPosition {
+  const profit = Math.round((p.market - p.invested) * 100) / 100;
+  const status: PositionStatus =
+    p.returnPct > 0.5 ? "plus" : p.returnPct < -0.5 ? "minus" : "flat";
+  return {
+    id: p.id,
+    cardId: p.id,
+    name: p.name,
+    kind: p.kind,
+    setName: p.setName,
+    language: p.language || "—",
+    condition: p.condition || "—",
+    quantity: p.quantity,
+    invested: p.invested,
+    market: p.market,
+    profit,
+    returnPct: p.returnPct,
+    status,
+    trend: sparkToValue(p.market, 10),
+    imageUrl: p.imageUrl,
+    imageFallbacks: p.imageFallbacks,
+    href: p.href,
+  };
+}
 
 export function PortfolioPositionsView() {
+  const live = usePortfolioAssets();
   const [scope, setScope] = useState<Scope>("gesamt");
   const [range, setRange] = useState<Range>("1y");
-  const [status, setStatus] = useState<StatusFilter>("plus");
+  const [status, setStatus] = useState<StatusFilter>("all");
   const [search, setSearch] = useState("");
   const [assetType, setAssetType] = useState("Alle");
   const [setFilter, setSetFilter] = useState("Alle");
@@ -62,16 +82,56 @@ export function PortfolioPositionsView() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
+  const positions = useMemo(
+    () => live.positions.map(toPosition),
+    [live.positions],
+  );
+
+  const summary = useMemo(() => {
+    const plus = positions.filter((p) => p.status === "plus").length;
+    const flat = positions.filter((p) => p.status === "flat").length;
+    const minus = positions.filter((p) => p.status === "minus").length;
+    const all = positions.length;
+    return {
+      plus,
+      flat,
+      minus,
+      all,
+      plusPct: all > 0 ? Math.round((plus / all) * 100) : 0,
+      totalProfitPlus: positions
+        .filter((p) => p.status === "plus")
+        .reduce((s, p) => s + p.profit, 0),
+      avgReturnPlus:
+        plus > 0
+          ? positions
+              .filter((p) => p.status === "plus")
+              .reduce((s, p) => s + p.returnPct, 0) / plus
+          : 0,
+    };
+  }, [positions]);
+
+  const statusTabs: {
+    id: StatusFilter;
+    label: string;
+    count: number;
+    tone?: string;
+  }[] = [
+    { id: "plus", label: "Im Plus", count: summary.plus, tone: "plus" },
+    { id: "flat", label: "Unverändert", count: summary.flat },
+    { id: "minus", label: "Im Minus", count: summary.minus, tone: "minus" },
+    { id: "all", label: "Alle", count: summary.all },
+  ];
+
   const setNames = useMemo(
     () => [
       "Alle",
-      ...Array.from(new Set(portfolioPositionsList.map((p) => p.setName))).sort(),
+      ...Array.from(new Set(positions.map((p) => p.setName).filter(Boolean))).sort(),
     ],
-    [],
+    [positions],
   );
 
   const filtered = useMemo(() => {
-    let rows = [...portfolioPositionsList];
+    let rows = [...positions];
 
     if (status !== "all") rows = rows.filter((r) => r.status === status);
     if (scope === "karten") rows = rows.filter((r) => r.kind === "Karte");
@@ -99,6 +159,7 @@ export function PortfolioPositionsView() {
 
     return rows;
   }, [
+    positions,
     status,
     scope,
     assetType,
@@ -109,45 +170,39 @@ export function PortfolioPositionsView() {
     sort,
   ]);
 
-  // Demo list is short — metrics still show full summary for "plus" tab
   const metrics = useMemo(() => {
-    if (status === "plus" && filtered.length > 0) {
+    const profit = filtered.reduce((s, r) => s + r.profit, 0);
+    const avg =
+      filtered.length > 0
+        ? filtered.reduce((s, r) => s + r.returnPct, 0) / filtered.length
+        : 0;
+    const all = summary.all || 1;
+    if (status === "plus") {
       return {
-        count: portfolioPositionsSummary.plus,
-        pct: portfolioPositionsSummary.plusPct,
-        totalProfit: portfolioPositionsSummary.totalProfitPlus,
-        avgReturn: portfolioPositionsSummary.avgReturnPlus,
+        count: summary.plus,
+        pct: summary.plusPct,
+        totalProfit: summary.totalProfitPlus,
+        avgReturn: summary.avgReturnPlus,
         title: "Positionen im Plus",
         tableTitle: "Positionen im Plus",
-        tableHint: "Vergleich mit dem persönlichen Einkaufspreis",
+        tableHint: "Vergleich mit dem persönlichen Einkaufspreis (Assets)",
       };
     }
     if (status === "minus") {
-      const profit = filtered.reduce((s, r) => s + r.profit, 0);
-      const avg =
-        filtered.length > 0
-          ? filtered.reduce((s, r) => s + r.returnPct, 0) / filtered.length
-          : 0;
       return {
-        count: portfolioPositionsSummary.minus,
-        pct: Math.round(
-          (portfolioPositionsSummary.minus / portfolioPositionsSummary.all) *
-            100,
-        ),
+        count: summary.minus,
+        pct: Math.round((summary.minus / all) * 100),
         totalProfit: profit,
         avgReturn: avg,
         title: "Positionen im Minus",
         tableTitle: "Positionen im Minus",
-        tableHint: "Vergleich mit dem persönlichen Einkaufspreis",
+        tableHint: "Vergleich mit dem persönlichen Einkaufspreis (Assets)",
       };
     }
     if (status === "flat") {
       return {
-        count: portfolioPositionsSummary.flat,
-        pct: Math.round(
-          (portfolioPositionsSummary.flat / portfolioPositionsSummary.all) *
-            100,
-        ),
+        count: summary.flat,
+        pct: Math.round((summary.flat / all) * 100),
         totalProfit: 0,
         avgReturn: 0,
         title: "Unveränderte Positionen",
@@ -155,34 +210,21 @@ export function PortfolioPositionsView() {
         tableHint: "Kein messbarer Gewinn oder Verlust",
       };
     }
-    const profit = filtered.reduce((s, r) => s + r.profit, 0);
-    const avg =
-      filtered.length > 0
-        ? filtered.reduce((s, r) => s + r.returnPct, 0) / filtered.length
-        : 0;
     return {
-      count: portfolioPositionsSummary.all,
+      count: summary.all,
       pct: 100,
       totalProfit: profit,
       avgReturn: avg,
       title: "Alle Positionen",
       tableTitle: "Alle Positionen",
-      tableHint: "Vergleich mit dem persönlichen Einkaufspreis",
+      tableHint: "Nur Assets → Karten & Sealed",
     };
-  }, [status, filtered]);
+  }, [status, filtered, summary]);
 
   const totalPages = Math.max(1, Math.ceil(Math.max(filtered.length, 1) / pageSize));
-  // For demo: if status is plus and we have only 10 demo rows, show them all as page 1 of many
-  const displayCount =
-    status === "plus"
-      ? portfolioPositionsSummary.plus
-      : status === "minus"
-        ? portfolioPositionsSummary.minus
-        : status === "flat"
-          ? portfolioPositionsSummary.flat
-          : portfolioPositionsSummary.all;
-  const safePage = Math.min(page, Math.max(1, Math.ceil(displayCount / pageSize)));
-  const pageRows = filtered.slice(0, pageSize);
+  const displayCount = filtered.length;
+  const safePage = Math.min(page, Math.max(1, Math.ceil(Math.max(displayCount, 1) / pageSize)));
+  const pageRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   function resetFilters() {
     setSearch("");
@@ -488,10 +530,7 @@ export function PortfolioPositionsView() {
                 <option value={50}>50</option>
               </select>
             </label>
-            <span>
-              Marktpreise zuletzt aktualisiert:{" "}
-              {portfolioPositionsSummary.pricesUpdatedLabel}
-            </span>
+            <span>Nur Assets → Karten &amp; Sealed</span>
           </div>
           <Pagination
             page={safePage}
@@ -511,7 +550,6 @@ function PositionRow({
   row: PortfolioPosition;
   rank: number;
 }) {
-  const card = getCard(row.cardId);
   const pos = row.profit > 0;
   const neg = row.profit < 0;
 
@@ -522,7 +560,12 @@ function PositionRow({
         <span className="tabular-nums w-5 shrink-0 pt-1 text-sm text-[var(--muted)]">
           {rank}
         </span>
-        <CardImage src={card.imageUrl} alt={row.name} size="sm" />
+        <CardImage
+          src={row.imageUrl ?? ""}
+          fallbacks={row.imageFallbacks}
+          alt={row.name}
+          size="sm"
+        />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
@@ -577,7 +620,12 @@ function PositionRow({
       <div className="hidden items-center gap-2 xl:grid xl:grid-cols-[2.5rem_minmax(12rem,1.5fr)_4.5rem_minmax(7rem,1fr)_3.5rem_5.5rem_5.5rem_6rem_5rem_4.5rem_1.25rem]">
         <span className="tabular-nums text-sm text-[var(--muted)]">{rank}</span>
         <div className="flex min-w-0 items-center gap-3">
-          <CardImage src={card.imageUrl} alt={row.name} size="sm" />
+          <CardImage
+            src={row.imageUrl ?? ""}
+            fallbacks={row.imageFallbacks}
+            alt={row.name}
+            size="sm"
+          />
           <p className="truncate text-sm font-medium">{row.name}</p>
         </div>
         <KindBadge kind={row.kind} />

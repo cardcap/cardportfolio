@@ -3,24 +3,43 @@
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { InfoTip } from "@/components/ui/metric-card";
-import { formatCurrency, formatPercent } from "@/lib/format";
 import {
-  portfolioAnalyseByAttribute,
-  portfolioAnalyseMetrics,
-  portfolioConcentration,
-  portfolioReturnDistribution,
-  portfolioReturnSeries,
-  portfolioSetPerformance,
-  portfolioWinLoss,
-  type AnalyseAttributeRow,
-  type ReturnSeriesPoint,
-  type SetPerformanceRow,
-} from "@/lib/mock-data";
+  usePortfolioAssets,
+  type LivePosition,
+} from "@/hooks/use-portfolio-assets";
+import { formatCurrency, formatPercent } from "@/lib/format";
 
 type AnalyseRange = "30d" | "6m" | "1y" | "max";
 type ReturnMode = "kumuliert" | "monatlich";
 type SetMode = "top" | "flop";
 type AttrDim = "language" | "condition" | "rarity";
+
+type ReturnSeriesPoint = {
+  date: string;
+  label: string;
+  cards: number;
+  sealed: number;
+};
+
+type SetPerformanceRow = {
+  id: string;
+  name: string;
+  assetType: "Karten" | "Sealed" | "Gemischt";
+  market: number;
+  profit: number;
+  returnPct: number;
+  sharePct: number;
+  color: string;
+};
+
+type AnalyseAttributeRow = {
+  id: string;
+  label: string;
+  flag?: string;
+  market: number;
+  returnPct: number;
+  sharePct: number;
+};
 
 const analyseRanges: { id: AnalyseRange; label: string }[] = [
   { id: "30d", label: "30 Tage" },
@@ -29,29 +48,292 @@ const analyseRanges: { id: AnalyseRange; label: string }[] = [
   { id: "max", label: "Max" },
 ];
 
+const SET_COLORS = [
+  "#f472b6",
+  "#a78bfa",
+  "#38bdf8",
+  "#34d399",
+  "#fbbf24",
+  "#fb7185",
+];
+
+function bucketStatus(p: LivePosition): "plus" | "flat" | "minus" {
+  if (p.returnPct > 0.5) return "plus";
+  if (p.returnPct < -0.5) return "minus";
+  return "flat";
+}
+
+function countBreakdown(list: LivePosition[]) {
+  const plus = list.filter((p) => bucketStatus(p) === "plus").length;
+  const flat = list.filter((p) => bucketStatus(p) === "flat").length;
+  const minus = list.filter((p) => bucketStatus(p) === "minus").length;
+  const n = list.length || 1;
+  return {
+    plus,
+    flat,
+    minus,
+    plusPct: Math.round((plus / n) * 100),
+    flatPct: Math.round((flat / n) * 100),
+    minusPct: Math.round((minus / n) * 100),
+  };
+}
+
 export function PortfolioAnalyse() {
   const [range, setRange] = useState<AnalyseRange>("1y");
   const [returnMode, setReturnMode] = useState<ReturnMode>("kumuliert");
   const [setMode, setSetMode] = useState<SetMode>("top");
   const [attrDim, setAttrDim] = useState<AttrDim>("language");
-  const m = portfolioAnalyseMetrics;
-  const wl = portfolioWinLoss;
+  const live = usePortfolioAssets();
+
+  const cards = useMemo(
+    () => live.positions.filter((p) => p.kind === "Karte"),
+    [live.positions],
+  );
+  const sealed = useMemo(
+    () => live.positions.filter((p) => p.kind === "Sealed"),
+    [live.positions],
+  );
+
+  const cardsBd = useMemo(() => countBreakdown(cards), [cards]);
+  const sealedBd = useMemo(() => countBreakdown(sealed), [sealed]);
+  const allBd = useMemo(
+    () => countBreakdown(live.positions),
+    [live.positions],
+  );
+
+  const totalAssets = live.positions.length;
+  const winnersCount = allBd.plus;
+  const winRate = totalAssets > 0 ? Math.round((winnersCount / totalAssets) * 100) : 0;
+
+  const cardsReturn =
+    live.cardsInvested > 0
+      ? Math.round(
+          ((live.cardsValue - live.cardsInvested) / live.cardsInvested) * 1000,
+        ) / 10
+      : live.cardsValue > 0
+        ? 100
+        : 0;
+  const sealedReturn =
+    live.sealedInvested > 0
+      ? Math.round(
+          ((live.sealedValue - live.sealedInvested) / live.sealedInvested) *
+            1000,
+        ) / 10
+      : live.sealedValue > 0
+        ? 100
+        : 0;
+
+  const bestAssetClass =
+    cardsReturn >= sealedReturn ? "Karten" : "Sealed";
+  const bestAssetClassReturn = Math.max(cardsReturn, sealedReturn);
 
   const setRows = useMemo(() => {
-    const rows = [...portfolioSetPerformance];
-    if (setMode === "top") {
-      rows.sort((a, b) => b.returnPct - a.returnPct);
-    } else {
-      rows.sort((a, b) => a.returnPct - b.returnPct);
+    const map = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        kinds: Set<"Karte" | "Sealed">;
+        market: number;
+        invested: number;
+      }
+    >();
+    for (const p of live.positions) {
+      const key = p.setName || "Ohne Set";
+      const prev = map.get(key) ?? {
+        id: p.setId || key,
+        name: key,
+        kinds: new Set(),
+        market: 0,
+        invested: 0,
+      };
+      prev.kinds.add(p.kind);
+      prev.market += p.market;
+      prev.invested += p.invested;
+      map.set(key, prev);
     }
-    return rows;
-  }, [setMode]);
+    const total = live.totalValue || 1;
+    let rows: SetPerformanceRow[] = [...map.values()].map((g, i) => {
+      const profit = Math.round((g.market - g.invested) * 100) / 100;
+      const returnPct =
+        g.invested > 0
+          ? Math.round((profit / g.invested) * 1000) / 10
+          : g.market > 0
+            ? 100
+            : 0;
+      const assetType: SetPerformanceRow["assetType"] =
+        g.kinds.size > 1
+          ? "Gemischt"
+          : g.kinds.has("Sealed")
+            ? "Sealed"
+            : "Karten";
+      return {
+        id: g.id,
+        name: g.name,
+        assetType,
+        market: Math.round(g.market * 100) / 100,
+        profit,
+        returnPct,
+        sharePct: Math.round((g.market / total) * 1000) / 10,
+        color: SET_COLORS[i % SET_COLORS.length],
+      };
+    });
+    rows.sort((a, b) =>
+      setMode === "top" ? b.returnPct - a.returnPct : a.returnPct - b.returnPct,
+    );
+    return rows.slice(0, 12);
+  }, [live.positions, live.totalValue, setMode]);
 
-  const attrRows = portfolioAnalyseByAttribute[attrDim];
+  const strongestSet = setRows[0];
+
+  const top5Share =
+    live.totalValue > 0
+      ? Math.min(
+          100,
+          Math.round(
+            (live.topPositions.reduce((s, p) => s + p.market, 0) /
+              live.totalValue) *
+              1000,
+          ) / 10,
+        )
+      : 0;
+  const top10Market = [...live.positions]
+    .sort((a, b) => b.market - a.market)
+    .slice(0, 10)
+    .reduce((s, p) => s + p.market, 0);
+  const top10Share =
+    live.totalValue > 0
+      ? Math.round((top10Market / live.totalValue) * 1000) / 10
+      : 0;
+  const restShare = Math.max(0, Math.round((100 - top10Share) * 10) / 10);
+  const largestShare =
+    live.totalValue > 0 && live.topPositions[0]
+      ? Math.round((live.topPositions[0].market / live.totalValue) * 1000) / 10
+      : 0;
+
+  const priceCoverage =
+    totalAssets > 0
+      ? Math.round(
+          (live.positions.filter((p) => p.market > 0).length / totalAssets) *
+            100,
+        )
+      : 0;
+
+  // Return series: ramp to live return rates (no mock history)
+  const returnSeries: ReturnSeriesPoint[] = useMemo(() => {
+    const months = 12;
+    const out: ReturnSeriesPoint[] = [];
+    const now = new Date();
+    for (let i = 0; i < months; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - (months - 1 - i), 1);
+      const t = months <= 1 ? 1 : i / (months - 1);
+      out.push({
+        date: d.toISOString().slice(0, 10),
+        label: d.toLocaleDateString("de-DE", { month: "short", year: "2-digit" }),
+        cards: Math.round(cardsReturn * t * 10) / 10,
+        sealed: Math.round(sealedReturn * t * 10) / 10,
+      });
+    }
+    return out;
+  }, [cardsReturn, sealedReturn]);
+
+  const returnDistribution = useMemo(() => {
+    const bands = [
+      { label: "< −20 %", min: -Infinity, max: -20, color: "#f87171", n: 0 },
+      { label: "−20 bis 0 %", min: -20, max: 0, color: "#fb7185", n: 0 },
+      { label: "0 bis 20 %", min: 0, max: 20, color: "#a1a1aa", n: 0 },
+      { label: "20 bis 50 %", min: 20, max: 50, color: "#4ade80", n: 0 },
+      { label: "> 50 %", min: 50, max: Infinity, color: "#22c55e", n: 0 },
+    ];
+    for (const p of live.positions) {
+      const r = p.returnPct;
+      const b = bands.find((x) => r >= x.min && r < x.max) ?? bands[bands.length - 1];
+      if (r >= 50) bands[4].n += 1;
+      else b.n += 1;
+    }
+    const n = totalAssets || 1;
+    return bands.map((b) => ({
+      label: b.label,
+      pct: Math.round((b.n / n) * 100),
+      color: b.color,
+    }));
+  }, [live.positions, totalAssets]);
+
+  const attrRows = useMemo(() => {
+    if (attrDim === "rarity") {
+      // No rarity on LivePosition yet — show empty
+      return [] as AnalyseAttributeRow[];
+    }
+    const map = new Map<string, { market: number; invested: number }>();
+    for (const p of live.positions) {
+      const label =
+        attrDim === "language"
+          ? p.language || "—"
+          : p.condition || "—";
+      const prev = map.get(label) ?? { market: 0, invested: 0 };
+      prev.market += p.market;
+      prev.invested += p.invested;
+      map.set(label, prev);
+    }
+    const total = live.totalValue || 1;
+    return [...map.entries()]
+      .map(([label, v], i) => {
+        const profit = v.market - v.invested;
+        const returnPct =
+          v.invested > 0
+            ? Math.round((profit / v.invested) * 1000) / 10
+            : v.market > 0
+              ? 100
+              : 0;
+        return {
+          id: `${attrDim}-${i}`,
+          label,
+          market: Math.round(v.market * 100) / 100,
+          returnPct,
+          sharePct: Math.round((v.market / total) * 1000) / 10,
+        } satisfies AnalyseAttributeRow;
+      })
+      .sort((a, b) => b.market - a.market);
+  }, [live.positions, live.totalValue, attrDim]);
+
+  const m = {
+    return1y: live.returnRate,
+    winRate,
+    winnersCount,
+    totalAssets,
+    volatility: 0,
+    maxDrawdown: 0,
+    bestAssetClass,
+    bestAssetClassReturn,
+    strongestSet: strongestSet?.name ?? "—",
+    strongestSetReturn: strongestSet?.returnPct ?? 0,
+    top5Share,
+    priceCoverage,
+  };
+
+  const wl = {
+    inPlus: allBd.plusPct,
+    unchanged: allBd.flatPct,
+    inMinus: allBd.minusPct,
+    cards: cardsBd,
+    sealed: sealedBd,
+  };
+
+  const concLabel =
+    largestShare >= 40
+      ? "Konzentriert"
+      : largestShare >= 20
+        ? "Ausgewogen"
+        : "Diversifiziert";
+  const concNote =
+    totalAssets === 0
+      ? "Füge Karten oder Sealed unter Assets hinzu."
+      : largestShare >= 40
+        ? "Eine Position macht einen großen Anteil aus."
+        : "Keine einzelne Position dominiert dein Portfolio.";
 
   return (
     <div className="space-y-5">
-      {/* Range selector (analyse-specific) */}
       <div className="flex justify-end">
         <div className="flex rounded-full border border-[var(--border)] bg-[var(--surface)] p-0.5">
           {analyseRanges.map((r) => (
@@ -71,58 +353,61 @@ export function PortfolioAnalyse() {
         </div>
       </div>
 
-      {/* Primary KPIs */}
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <AnalyseMetric
           icon="trend"
-          label="Rendite (1 Jahr)"
+          label="Gesamtrendite"
           value={formatPercent(m.return1y)}
-          positive
-          infoText="Gesamtrendite des Portfolios über die letzten 12 Monate."
+          positive={m.return1y >= 0}
+          negative={m.return1y < 0}
+          infoText="Unrealisierte Rendite aus Assets → Karten & Sealed."
         />
         <AnalyseMetric
           icon="pie"
           label="Gewinnerquote"
           value={`${m.winRate} %`}
           hint={`${m.winnersCount} von ${m.totalAssets} Assets`}
-          infoText="Anteil der Assets mit positivem Kursverlauf im Zeitraum."
+          infoText="Anteil der Assets mit positiver Rendite (Marktwert vs. EK)."
         />
         <AnalyseMetric
           icon="wave"
           label="Wertschwankung"
           value={`${m.volatility.toLocaleString("de-DE")} %`}
           warn
-          infoText="Wie stark der Portfoliowert im Zeitraum schwankt (Volatilität)."
+          infoText="Historische Volatilität folgt, sobald Preisverläufe gespeichert werden."
         />
         <AnalyseMetric
           icon="drop"
           label="Größter Rückgang"
           value={`${m.maxDrawdown.toLocaleString("de-DE")} %`}
-          hint="innerhalb von 1 Jahr"
-          negative
-          infoText="Maximaler Verlust vom Höchst- zum Tiefststand im Zeitraum."
+          hint="noch keine Historie"
+          negative={m.maxDrawdown < 0}
+          infoText="Drawdown folgt mit Preis-Historie. Aktuell 0 ohne Verlaufsdaten."
         />
       </div>
 
-      {/* Secondary strip */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StripStat
           icon="★"
           label="Beste Asset-Klasse"
-          value={`${m.bestAssetClass} +${m.bestAssetClassReturn.toLocaleString("de-DE")} %`}
+          value={
+            totalAssets === 0
+              ? "—"
+              : `${m.bestAssetClass} ${m.bestAssetClassReturn >= 0 ? "+" : ""}${m.bestAssetClassReturn.toLocaleString("de-DE")} %`
+          }
           accent
         />
         <StripStat
           icon="🏆"
           label="Stärkstes Set"
-          value={`${m.strongestSet} +${m.strongestSetReturn.toLocaleString("de-DE")} %`}
+          value={
+            strongestSet
+              ? `${m.strongestSet} ${m.strongestSetReturn >= 0 ? "+" : ""}${m.strongestSetReturn.toLocaleString("de-DE")} %`
+              : "—"
+          }
           accent
         />
-        <StripStat
-          icon="▍"
-          label="Top-5-Anteil"
-          value={`${m.top5Share} %`}
-        />
+        <StripStat icon="〇" label="Top-5-Anteil" value={`${m.top5Share} %`} />
         <StripStat
           icon="◆"
           label="Preisabdeckung"
@@ -130,7 +415,6 @@ export function PortfolioAnalyse() {
         />
       </div>
 
-      {/* Return chart + win/loss donut */}
       <div className="grid gap-5 xl:grid-cols-[1.55fr_1fr]">
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
           <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
@@ -169,7 +453,13 @@ export function PortfolioAnalyse() {
               ))}
             </div>
           </div>
-          <ReturnChart data={portfolioReturnSeries} mode={returnMode} />
+          {totalAssets === 0 ? (
+            <p className="py-10 text-center text-xs text-[var(--muted)]">
+              Noch keine Assets in Karten oder Sealed.
+            </p>
+          ) : (
+            <ReturnChart data={returnSeries} mode={returnMode} />
+          )}
         </div>
 
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
@@ -231,15 +521,14 @@ export function PortfolioAnalyse() {
 
           <div className="mt-5 flex justify-center">
             <WinLossDonut
-              plus={wl.inPlus}
-              flat={wl.unchanged}
+              plus={wl.inPlus || (totalAssets === 0 ? 0 : 0)}
+              flat={wl.unchanged || (totalAssets === 0 ? 100 : 0)}
               minus={wl.inMinus}
             />
           </div>
         </div>
       </div>
 
-      {/* Set performance + concentration */}
       <div className="grid gap-5 xl:grid-cols-[1.55fr_1fr]">
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -283,9 +572,20 @@ export function PortfolioAnalyse() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
-                {setRows.map((row, i) => (
-                  <SetRow key={row.id} row={row} rank={i + 1} />
-                ))}
+                {setRows.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="py-6 text-center text-xs text-[var(--muted)]"
+                    >
+                      Noch keine Assets in Karten oder Sealed.
+                    </td>
+                  </tr>
+                ) : (
+                  setRows.map((row, i) => (
+                    <SetRow key={row.id} row={row} rank={i + 1} />
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -294,17 +594,15 @@ export function PortfolioAnalyse() {
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
           <h2 className="mb-4 text-sm font-medium">Portfolio-Konzentration</h2>
           <div className="space-y-3">
-            <ConcBar label="Top 5 Positionen" pct={portfolioConcentration.top5} />
-            <ConcBar label="Top 10 Positionen" pct={portfolioConcentration.top10} />
-            <ConcBar label="Restliches Portfolio" pct={portfolioConcentration.rest} muted />
+            <ConcBar label="Top 5 Positionen" pct={top5Share} />
+            <ConcBar label="Top 10 Positionen" pct={top10Share} />
+            <ConcBar label="Restliches Portfolio" pct={restShare} muted />
           </div>
           <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]/40 px-3 py-3">
             <span className="inline-flex rounded-full bg-[var(--accent-soft)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--accent)]">
-              {portfolioConcentration.label}
+              {concLabel}
             </span>
-            <p className="mt-2 text-xs text-[var(--muted)]">
-              {portfolioConcentration.note}
-            </p>
+            <p className="mt-2 text-xs text-[var(--muted)]">{concNote}</p>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3 border-t border-[var(--border)] pt-3">
             <div>
@@ -312,7 +610,7 @@ export function PortfolioAnalyse() {
                 ★ Größte Position
               </p>
               <p className="tabular-nums mt-0.5 text-sm font-semibold">
-                {portfolioConcentration.largestShare.toLocaleString("de-DE")} %
+                {largestShare.toLocaleString("de-DE")} %
               </p>
             </div>
             <div>
@@ -320,45 +618,44 @@ export function PortfolioAnalyse() {
                 Verschiedene Assets
               </p>
               <p className="tabular-nums mt-0.5 text-sm font-semibold">
-                {portfolioConcentration.distinctAssets}
+                {totalAssets}
               </p>
             </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-3 border-t border-[var(--border)] pt-3 text-xs font-medium">
             <Link
-              href="/portfolio/positionen"
+              href="/assets/karten"
               className="text-[var(--accent)] hover:opacity-80"
             >
-              Positionen →
+              Assets → Karten
             </Link>
             <Link
-              href="/portfolio/top-performer"
+              href="/assets/sealed"
               className="text-[var(--muted)] hover:text-[var(--foreground)]"
             >
-              Top Performer →
-            </Link>
-            <Link
-              href="/portfolio/top-verlierer"
-              className="text-[var(--muted)] hover:text-[var(--foreground)]"
-            >
-              Top Verlierer →
+              Assets → Sealed
             </Link>
           </div>
         </div>
       </div>
 
-      {/* Distribution + attribute analysis */}
       <div className="grid gap-5 xl:grid-cols-2">
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
           <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
             <div>
               <h2 className="text-base font-semibold">Renditeverteilung</h2>
               <p className="mt-0.5 text-xs text-[var(--muted)]">
-                Anteil der Assets nach Renditeband · {m.totalAssets} bewertete Assets
+                Anteil der Assets nach Renditeband · {m.totalAssets} Assets
               </p>
             </div>
           </div>
-          <ReturnDistributionChart data={portfolioReturnDistribution} />
+          {totalAssets === 0 ? (
+            <p className="py-8 text-center text-xs text-[var(--muted)]">
+              Noch keine Assets in Karten oder Sealed.
+            </p>
+          ) : (
+            <ReturnDistributionChart data={returnDistribution} />
+          )}
         </div>
 
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
@@ -394,13 +691,26 @@ export function PortfolioAnalyse() {
                   <th className="pb-2 text-left font-medium">Merkmal</th>
                   <th className="pb-2 text-right font-medium">Marktwert</th>
                   <th className="pb-2 text-right font-medium">Rendite</th>
-                  <th className="pb-2 pl-3 text-left font-medium">Portfolio-Anteil</th>
+                  <th className="pb-2 pl-3 text-left font-medium">
+                    Portfolio-Anteil
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
-                {attrRows.map((row) => (
-                  <AttrRow key={row.id} row={row} />
-                ))}
+                {attrRows.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="py-6 text-center text-xs text-[var(--muted)]"
+                    >
+                      {attrDim === "rarity"
+                        ? "Seltenheit folgt, sobald sie in Assets gespeichert wird."
+                        : "Noch keine Assets in Karten oder Sealed."}
+                    </td>
+                  </tr>
+                ) : (
+                  attrRows.map((row) => <AttrRow key={row.id} row={row} />)
+                )}
               </tbody>
             </table>
           </div>

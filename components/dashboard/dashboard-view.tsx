@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { AreaChart } from "@/components/charts/area-chart";
 import { DonutChart } from "@/components/charts/donut-chart";
 import { PageHeader } from "@/components/layout/page-header";
@@ -11,200 +11,147 @@ import { Panel } from "@/components/ui/panel";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { SetLogo } from "@/components/ui/set-logo";
 import { formatMarketPrice } from "@/components/ui/price";
-import { useAuthMode } from "@/components/auth/use-auth-mode";
 import { useWishlist } from "@/components/wishlist-provider";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import {
-  getLocalCollection,
-  localCollectionMetrics,
-} from "@/lib/local-collection";
-import {
-  getCard,
-  getSealedMetrics,
-  metricSparklines,
-  portfolioAllocation,
-  portfolioAllocationBreakdown,
-  portfolioHistoryDaily,
-  portfolioMetrics,
-  recentAdditions,
-  sealedProducts,
-  setProgress,
-  sets,
-  topLosersDetailed,
-  topPerformers,
-} from "@/lib/mock-data";
+  sparkToValue,
+  usePortfolioAssets,
+} from "@/hooks/use-portfolio-assets";
 import { setDetailPath } from "@/lib/set-path";
 
 type Scope = "gesamt" | "karten" | "sealed";
 
-function scaleSpark(values: number[], targetEnd: number): number[] {
-  if (!values.length) return values;
-  const last = values[values.length - 1] || 1;
-  const factor = targetEnd / last;
-  return values.map((v) => Math.round(v * factor));
-}
-
 export function DashboardView() {
   const [scope, setScope] = useState<Scope>("gesamt");
   const { count: wishlistCount } = useWishlist();
-  const { isAuthenticated } = useAuthMode();
-  const m = portfolioMetrics;
-
-  // Live asset counts (same source as Assets → Karten / Sealed)
-  const [cardCount, setCardCount] = useState(0);
-  // Same as Assets → Sealed “Produkte” (distinct product lines)
-  const sealedCount = useMemo(
-    () => getSealedMetrics(sealedProducts).productCount,
-    [],
-  );
-
-  const refreshCardCount = useCallback(async () => {
-    const local = localCollectionMetrics(getLocalCollection()).totalCards;
-    if (!isAuthenticated) {
-      setCardCount(local);
-      return;
-    }
-    try {
-      const res = await fetch("/api/collection");
-      if (!res.ok) {
-        setCardCount(local);
-        return;
-      }
-      const data = await res.json();
-      const apiTotal =
-        data.metrics?.totalCards ??
-        (data.items ?? []).reduce(
-          (s: number, i: { quantity?: number }) => s + (i.quantity ?? 1),
-          0,
-        );
-      // Prefer max so local adds still show if API lags / fails
-      setCardCount(Math.max(apiTotal, local));
-    } catch {
-      setCardCount(local);
-    }
-  }, [isAuthenticated]);
-
-  useEffect(() => {
-    void refreshCardCount();
-    const onLocal = () => void refreshCardCount();
-    window.addEventListener("cardcap-collection-changed", onLocal);
-    window.addEventListener("storage", onLocal);
-    return () => {
-      window.removeEventListener("cardcap-collection-changed", onLocal);
-      window.removeEventListener("storage", onLocal);
-    };
-  }, [refreshCardCount]);
+  const live = usePortfolioAssets();
 
   const scoped = useMemo(() => {
     if (scope === "karten") {
-      const share = m.cardsValue / m.totalValue;
-      const invested = Math.round(m.invested * share);
-      const profit = m.cardsValue - invested;
-      const returnRate = invested > 0 ? (profit / invested) * 100 : 0;
-      const weekly = m.weeklyChange + 0.4;
+      const totalValue = live.cardsValue;
+      const invested = live.cardsInvested;
+      const profitLoss = Math.round((totalValue - invested) * 100) / 100;
+      const returnRate =
+        invested > 0
+          ? Math.round((profitLoss / invested) * 1000) / 10
+          : totalValue > 0
+            ? 100
+            : 0;
       return {
-        totalValue: m.cardsValue,
+        totalValue,
         invested,
-        profitLoss: profit,
+        profitLoss,
         returnRate,
-        weeklyChange: weekly,
-        weeklyChangeInvested: m.weeklyChangeInvested + 0.2,
-        sparkTotal: scaleSpark(metricSparklines.totalValue, m.cardsValue),
-        sparkInvested: scaleSpark(metricSparklines.invested, invested),
+        weeklyChange: 0,
+        weeklyChangeInvested: 0,
+        sparkTotal: sparkToValue(totalValue),
+        sparkInvested: sparkToValue(invested),
         valueLabel: "Kartenwert",
-        valueInfo: "Aktueller Marktwert nur deiner Einzelkarten.",
-        investInfo: "Summe der Einkaufspreise (EK) deiner Karten-Positionen.",
+        valueInfo:
+          "Marktwert deiner Karten aus Assets → Karten.",
+        investInfo: "Summe der Einkaufspreise (EK) deiner Karten.",
         profitInfo: "Karten-Marktwert minus investiertes Karten-Kapital.",
-        returnInfo: "Rendite nur auf den Karten-Anteil deines Portfolios.",
-        allocation: [
-          {
-            label: "Karten",
-            percent: 100,
-            color: "#f472b6",
-            value: m.cardsValue,
-          },
-        ],
-        breakdown: portfolioAllocationBreakdown.filter(
-          (b) => b.label === "Einzelkarten" || b.label.toLowerCase().includes("karte"),
-        ),
+        returnInfo: "Rendite nur auf den Karten-Anteil.",
+        allocation:
+          totalValue > 0
+            ? [
+                {
+                  label: "Karten",
+                  percent: 100,
+                  color: "#f472b6",
+                  value: totalValue,
+                },
+              ]
+            : [],
+        breakdown: [],
         centerLabel: "Karten",
-        recent: recentAdditions.filter((r) => r.kind !== "Sealed"),
-        losers: topLosersDetailed.filter((r) => r.kind !== "Sealed"),
+        recent: live.topPositions.filter((p) => p.kind === "Karte").slice(0, 4),
+        losers: live.worstReturn?.kind === "Karte" ? [live.worstReturn] : [],
         showSets: true,
-        countCards: cardCount,
-        countSealed: sealedCount,
+        countCards: live.cardsCount,
+        countSealed: live.sealedProducts,
       };
     }
     if (scope === "sealed") {
-      const share = m.sealedValue / m.totalValue;
-      const invested = Math.round(m.invested * share);
-      const profit = m.sealedValue - invested;
-      const returnRate = invested > 0 ? (profit / invested) * 100 : 0;
-      const weekly = m.weeklyChange - 0.6;
+      const totalValue = live.sealedValue;
+      const invested = live.sealedInvested;
+      const profitLoss = Math.round((totalValue - invested) * 100) / 100;
+      const returnRate =
+        invested > 0
+          ? Math.round((profitLoss / invested) * 1000) / 10
+          : totalValue > 0
+            ? 100
+            : 0;
       return {
-        totalValue: m.sealedValue,
+        totalValue,
         invested,
-        profitLoss: profit,
+        profitLoss,
         returnRate,
-        weeklyChange: weekly,
-        weeklyChangeInvested: m.weeklyChangeInvested - 0.1,
-        sparkTotal: scaleSpark(metricSparklines.totalValue, m.sealedValue),
-        sparkInvested: scaleSpark(metricSparklines.invested, invested),
+        weeklyChange: 0,
+        weeklyChangeInvested: 0,
+        sparkTotal: sparkToValue(totalValue),
+        sparkInvested: sparkToValue(invested),
         valueLabel: "Sealed-Wert",
-        valueInfo: "Aktueller Marktwert nur deiner Sealed-Produkte.",
+        valueInfo: "Marktwert deiner Produkte aus Assets → Sealed.",
         investInfo: "Summe der Einkaufspreise (EK) deiner Sealed-Produkte.",
         profitInfo: "Sealed-Marktwert minus investiertes Sealed-Kapital.",
-        returnInfo: "Rendite nur auf den Sealed-Anteil deines Portfolios.",
-        allocation: [
-          {
-            label: "Sealed",
-            percent: 100,
-            color: "#a78bfa",
-            value: m.sealedValue,
-          },
-        ],
-        breakdown: portfolioAllocationBreakdown.filter(
-          (b) =>
-            b.label !== "Einzelkarten" &&
-            !b.label.toLowerCase().includes("karte"),
-        ),
+        returnInfo: "Rendite nur auf den Sealed-Anteil.",
+        allocation:
+          totalValue > 0
+            ? [
+                {
+                  label: "Sealed",
+                  percent: 100,
+                  color: "#a78bfa",
+                  value: totalValue,
+                },
+              ]
+            : [],
+        breakdown: [],
         centerLabel: "Sealed",
-        recent: recentAdditions.filter((r) => r.kind === "Sealed"),
-        losers: topLosersDetailed.filter((r) => r.kind === "Sealed"),
+        recent: live.topPositions
+          .filter((p) => p.kind === "Sealed")
+          .slice(0, 4),
+        losers: live.worstReturn?.kind === "Sealed" ? [live.worstReturn] : [],
         showSets: false,
-        countCards: cardCount,
-        countSealed: sealedCount,
+        countCards: live.cardsCount,
+        countSealed: live.sealedProducts,
       };
     }
 
     return {
-      totalValue: m.totalValue,
-      invested: m.invested,
-      profitLoss: m.profitLoss,
-      returnRate: m.returnRate,
-      weeklyChange: m.weeklyChange,
-      weeklyChangeInvested: m.weeklyChangeInvested,
-      sparkTotal: metricSparklines.totalValue,
-      sparkInvested: metricSparklines.invested,
+      totalValue: live.totalValue,
+      invested: live.invested,
+      profitLoss: live.unrealized,
+      returnRate: live.returnRate,
+      weeklyChange: 0,
+      weeklyChangeInvested: 0,
+      sparkTotal: sparkToValue(live.totalValue),
+      sparkInvested: sparkToValue(live.invested),
       valueLabel: "Gesamtwert",
       valueInfo:
-        "Aktueller Marktwert aller Karten und Sealed-Produkte in deiner Sammlung.",
+        "Marktwert aller Karten und Sealed-Produkte aus deinen Assets.",
       investInfo:
-        "Summe aller Einkaufspreise (EK) deiner Positionen – was du tatsächlich ausgegeben hast.",
+        "Summe aller Einkaufspreise (EK) deiner Assets → Karten & Sealed.",
       profitInfo:
-        "Differenz aus Marktwert und investiertem Kapital (unrealisierter Gewinn in der Demo).",
+        "Differenz aus Marktwert und investiertem Kapital (unrealisiert).",
       returnInfo:
         "Prozentuale Performance: (Marktwert − Investiert) ÷ Investiert × 100.",
-      allocation: portfolioAllocation,
-      breakdown: portfolioAllocationBreakdown,
+      allocation: live.allocation,
+      breakdown: live.allocation.map((a) => ({
+        label: a.label,
+        percent: a.percent,
+        color: a.color,
+        value: a.value,
+      })),
       centerLabel: "Gesamt",
-      recent: recentAdditions,
-      losers: topLosersDetailed,
+      recent: live.topPositions.slice(0, 4),
+      losers: live.worstReturn ? [live.worstReturn] : [],
       showSets: true,
-      countCards: cardCount,
-      countSealed: sealedCount,
+      countCards: live.cardsCount,
+      countSealed: live.sealedProducts,
     };
-  }, [scope, m, cardCount, sealedCount]);
+  }, [scope, live]);
 
   const profitPositive = scoped.profitLoss >= 0;
   const returnPositive = scoped.returnRate >= 0;
@@ -295,12 +242,11 @@ export function DashboardView() {
                   scoped.invested * (scoped.weeklyChangeInvested / 100),
                 )
           }
-          changeMeta="3 Käufe"
           positive={scoped.weeklyChangeInvested >= 0}
           negative={scoped.weeklyChangeInvested < 0}
           info
           infoText={scoped.investInfo}
-          periodNote="letzte 7 Tage"
+          periodNote="aus Assets → Karten & Sealed"
         />
         <MetricCard
           label="Gewinn / Verlust"
@@ -368,12 +314,12 @@ export function DashboardView() {
       {/* Chart + allocation / sets */}
       <div className="mb-5 grid items-stretch gap-5 xl:grid-cols-[1.55fr_1fr]">
         <AreaChart
-          dailyData={portfolioHistoryDaily}
+          dailyData={live.history}
           title="Wertentwicklung"
           showSeriesLegend
           minHeight={280}
           seriesFocus={scope}
-          footerNote={`Preise zuletzt aktualisiert: ${portfolioMetrics.pricesUpdatedLabel}`}
+          footerNote="Nur Assets → Karten & Sealed · Preise aus deiner Sammlung"
         />
 
         <div className="space-y-5">
@@ -457,173 +403,186 @@ export function DashboardView() {
 
           {scoped.showSets && (
           <Panel
-            title="Set-Fortschritt"
+            title="Sets in deiner Sammlung"
             actionHref="/sets"
             actionLabel="Alle Sets anzeigen →"
           >
             <div className="space-y-4">
-              {setProgress.map((item) => {
-                const set = sets.find((s) => s.id === item.setId)!;
-                const percent = Math.round((item.owned / item.total) * 100);
-                return (
-                  <Link
-                    key={item.setId}
-                    href={setDetailPath(item.setId)}
-                    className="flex items-center gap-3 rounded-lg transition-colors hover:bg-[var(--surface-elevated)]/60"
-                  >
-                    <SetLogo src={set.logoUrl} alt={set.name} size="sm" />
-                    <div className="min-w-0 flex-1 py-0.5">
-                      <div className="flex items-center justify-between gap-2 text-sm">
-                        <span className="truncate font-medium">{set.name}</span>
-                        <span className="tabular-nums shrink-0 text-[var(--muted)]">
-                          {percent} %
-                        </span>
+              {live.setGroups.length === 0 ? (
+                <p className="text-xs text-[var(--muted)]">
+                  Noch keine Karten in Assets → Karten.
+                </p>
+              ) : (
+                live.setGroups.slice(0, 5).map((item) => {
+                  const maxOwned = live.setGroups[0]?.owned || 1;
+                  const percent = Math.min(
+                    100,
+                    Math.round((item.owned / maxOwned) * 100),
+                  );
+                  return (
+                    <Link
+                      key={item.setId}
+                      href={setDetailPath(item.setId)}
+                      className="flex items-center gap-3 rounded-lg transition-colors hover:bg-[var(--surface-elevated)]/60"
+                    >
+                      <SetLogo src="" alt={item.setName} size="sm" />
+                      <div className="min-w-0 flex-1 py-0.5">
+                        <div className="flex items-center justify-between gap-2 text-sm">
+                          <span className="truncate font-medium">
+                            {item.setName}
+                          </span>
+                          <span className="tabular-nums shrink-0 text-[var(--muted)]">
+                            {formatCurrency(item.value)}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[var(--muted)]">
+                          {item.owned.toLocaleString("de-DE")} Karten in Assets
+                        </p>
+                        <ProgressBar value={percent} className="mt-2" />
                       </div>
-                      <p className="text-xs text-[var(--muted)]">
-                        {item.owned} / {item.total} Karten
-                      </p>
-                      <ProgressBar value={percent} className="mt-2" />
-                    </div>
-                  </Link>
-                );
-              })}
+                    </Link>
+                  );
+                })
+              )}
             </div>
           </Panel>
           )}
         </div>
       </div>
 
-      {/* Bottom rankers */}
+      {/* Bottom rankers — live assets only */}
       <div className="grid gap-5 lg:grid-cols-3">
         <Panel
-          title="Top Performer (7 Tage)"
-          actionHref="/portfolio/top-performer"
-          actionLabel="Top 10 anzeigen →"
+          title="Beste Rendite"
+          actionHref="/assets/karten"
+          actionLabel="Sammlung →"
         >
           <div className="space-y-1">
-            {(scope === "sealed" ? [] : topPerformers).map((item, index) => {
-              const card = getCard(item.cardId);
-              return (
-                <Link
-                  key={item.cardId}
-                  href="/portfolio/top-performer"
-                  className="flex items-center gap-3 rounded-lg px-1 py-1.5 transition-colors hover:bg-[var(--surface-elevated)]/60"
-                >
-                  <span className="tabular-nums w-4 text-xs text-[var(--muted)]">
-                    {index + 1}
-                  </span>
-                  <CardImage src={card.imageUrl} alt={card.name} size="sm" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{card.name}</p>
-                    <p className="truncate text-xs text-[var(--muted)]">
-                      {card.rarity} · {card.setName}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    {item.price != null && (
-                      <p className="tabular-nums text-sm">
-                        {formatCurrency(item.price)}
-                      </p>
-                    )}
-                    <p className="tabular-nums text-xs text-[var(--positive)]">
-                      +{item.change.toLocaleString("de-DE")} %
-                    </p>
-                  </div>
-                </Link>
-              );
-            })}
-            {scope === "sealed" && (
+            {live.bestReturn &&
+            (scope === "gesamt" ||
+              (scope === "karten" && live.bestReturn.kind === "Karte") ||
+              (scope === "sealed" && live.bestReturn.kind === "Sealed")) ? (
+              <Link
+                href={live.bestReturn.href}
+                className="flex items-center gap-3 rounded-lg px-1 py-1.5 transition-colors hover:bg-[var(--surface-elevated)]/60"
+              >
+                <span className="tabular-nums w-4 text-xs text-[var(--muted)]">
+                  1
+                </span>
+                <CardImage
+                  src={live.bestReturn.imageUrl ?? ""}
+                  fallbacks={live.bestReturn.imageFallbacks}
+                  alt={live.bestReturn.name}
+                  size="sm"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">
+                    {live.bestReturn.name}
+                  </p>
+                  <p className="truncate text-xs text-[var(--muted)]">
+                    {live.bestReturn.kind} · {live.bestReturn.setName}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="tabular-nums text-sm">
+                    {formatCurrency(live.bestReturn.market)}
+                  </p>
+                  <p className="tabular-nums text-xs text-[var(--positive)]">
+                    +{live.bestReturn.returnPct.toLocaleString("de-DE")} %
+                  </p>
+                </div>
+              </Link>
+            ) : (
               <p className="px-1 py-3 text-xs text-[var(--muted)]">
-                Top Performer für Sealed erscheinen unter Assets → Sealed.
+                Noch keine Assets mit Rendite-Daten.
               </p>
             )}
           </div>
         </Panel>
 
         <Panel
-          title="Top Verlierer (7 Tage)"
-          actionHref="/portfolio/top-verlierer"
-          actionLabel="Top 10 anzeigen →"
+          title="Stärkster Verlust"
+          actionHref="/assets/karten"
+          actionLabel="Sammlung →"
         >
           <div className="space-y-1">
-            {scoped.losers.slice(0, 3).map((item, index) => {
-              const card = getCard(item.cardId);
-              const name = item.name ?? card.name;
-              const dest =
-                item.kind === "Sealed" ? "/assets/sealed" : "/portfolio/top-verlierer";
-              return (
-                <Link
-                  key={item.id}
-                  href={dest}
-                  className="flex items-center gap-3 rounded-lg px-1 py-1.5 transition-colors hover:bg-[var(--surface-elevated)]/60"
-                >
-                  <span className="tabular-nums w-4 text-xs text-[var(--muted)]">
-                    {index + 1}
-                  </span>
-                  <CardImage src={card.imageUrl} alt={name} size="sm" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{name}</p>
-                    <p className="truncate text-xs text-[var(--muted)]">
-                      {item.kind} · {item.setName}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="tabular-nums text-sm">
-                      {formatCurrency(item.valueBefore)}
-                    </p>
-                    <p className="tabular-nums text-xs text-[var(--negative)]">
-                      {item.changePct.toLocaleString("de-DE")} %
-                    </p>
-                  </div>
-                </Link>
-              );
-            })}
+            {live.worstReturn &&
+            (scope === "gesamt" ||
+              (scope === "karten" && live.worstReturn.kind === "Karte") ||
+              (scope === "sealed" && live.worstReturn.kind === "Sealed")) ? (
+              <Link
+                href={live.worstReturn.href}
+                className="flex items-center gap-3 rounded-lg px-1 py-1.5 transition-colors hover:bg-[var(--surface-elevated)]/60"
+              >
+                <span className="tabular-nums w-4 text-xs text-[var(--muted)]">
+                  1
+                </span>
+                <CardImage
+                  src={live.worstReturn.imageUrl ?? ""}
+                  fallbacks={live.worstReturn.imageFallbacks}
+                  alt={live.worstReturn.name}
+                  size="sm"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">
+                    {live.worstReturn.name}
+                  </p>
+                  <p className="truncate text-xs text-[var(--muted)]">
+                    {live.worstReturn.kind} · {live.worstReturn.setName}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="tabular-nums text-sm">
+                    {formatCurrency(live.worstReturn.market)}
+                  </p>
+                  <p className="tabular-nums text-xs text-[var(--negative)]">
+                    {live.worstReturn.returnPct.toLocaleString("de-DE")} %
+                  </p>
+                </div>
+              </Link>
+            ) : (
+              <p className="px-1 py-3 text-xs text-[var(--muted)]">
+                Noch keine Assets mit Rendite-Daten.
+              </p>
+            )}
           </div>
         </Panel>
 
         <Panel
-          title="Zuletzt hinzugefügt"
+          title="Wertvollste Positionen"
           actionHref="/assets/karten"
-          actionLabel="Sammlung öffnen →"
+          actionLabel="Sammlung →"
         >
           <div className="space-y-1">
-            {scoped.recent.map((row) => {
-              const card = getCard(row.cardId);
-              const dest =
-                row.kind === "Sealed" ? "/assets/sealed" : "/assets/karten";
-              return (
-                <Link
-                  key={`${row.cardId}-${row.dateLabel}`}
-                  href={dest}
-                  className="flex items-center gap-3 rounded-lg px-1 py-1.5 transition-colors hover:bg-[var(--surface-elevated)]/60"
-                >
-                  <CardImage src={card.imageUrl} alt={card.name} size="sm" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{card.name}</p>
-                    <p className="truncate text-xs text-[var(--muted)]">
-                      {card.rarity} · {card.setName}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    <span
-                      className={`rounded-md px-2 py-0.5 text-[10px] font-medium ${
-                        row.kind === "Sealed"
-                          ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-                          : "bg-[var(--surface-elevated)] text-[var(--muted)] ring-1 ring-[var(--border)]"
-                      }`}
-                    >
-                      {row.kind}
-                    </span>
-                    <span className="text-[10px] text-[var(--muted)]">
-                      {row.dateLabel}
-                    </span>
-                  </div>
-                </Link>
-              );
-            })}
+            {scoped.recent.map((row, index) => (
+              <Link
+                key={row.id}
+                href={row.href}
+                className="flex items-center gap-3 rounded-lg px-1 py-1.5 transition-colors hover:bg-[var(--surface-elevated)]/60"
+              >
+                <span className="tabular-nums w-4 text-xs text-[var(--muted)]">
+                  {index + 1}
+                </span>
+                <CardImage
+                  src={row.imageUrl ?? ""}
+                  fallbacks={row.imageFallbacks}
+                  alt={row.name}
+                  size="sm"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{row.name}</p>
+                  <p className="truncate text-xs text-[var(--muted)]">
+                    {row.kind} · {row.setName}
+                  </p>
+                </div>
+                <p className="tabular-nums text-sm">
+                  {formatCurrency(row.market)}
+                </p>
+              </Link>
+            ))}
             {scoped.recent.length === 0 && (
               <p className="px-1 py-3 text-xs text-[var(--muted)]">
-                Keine Einträge in diesem Bereich.
+                Noch keine Assets in Karten oder Sealed.
               </p>
             )}
           </div>

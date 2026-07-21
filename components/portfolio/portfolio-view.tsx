@@ -10,16 +10,10 @@ import { CardImage } from "@/components/ui/card-image";
 import { InfoTip } from "@/components/ui/metric-card";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import {
-  getCard,
-  portfolioAllocationBy,
-  portfolioAnalytics,
-  portfolioAssetPerformance,
-  portfolioCashflow,
-  portfolioTransactions,
-  portfolioYearHistory,
-  valuablePositions,
-  type PortfolioHistoryPoint,
-} from "@/lib/mock-data";
+  usePortfolioAssets,
+  type LiveHistoryPoint,
+  type LivePosition,
+} from "@/hooks/use-portfolio-assets";
 
 type Scope = "gesamt" | "karten" | "sealed";
 type Tab = "uebersicht" | "analyse" | "transaktionen";
@@ -45,7 +39,7 @@ export function PortfolioView() {
   const [range, setRange] = useState<Range>("1J");
   const [chartSeries, setChartSeries] = useState<ChartSeries>("gesamt");
   const [allocDim, setAllocDim] = useState<AllocDim>("assetType");
-  const a = portfolioAnalytics;
+  const live = usePortfolioAssets();
 
   useEffect(() => {
     setTab(tabFromSearch(searchParams.get("tab")));
@@ -53,40 +47,89 @@ export function PortfolioView() {
 
   const metrics = useMemo(() => {
     if (scope === "karten") {
-      const unrealized = a.cardsValue - a.cardsInvested;
+      const unrealized = live.cardsValue - live.cardsInvested;
       return {
-        totalValue: a.cardsValue,
-        invested: a.cardsInvested,
+        totalValue: live.cardsValue,
+        invested: live.cardsInvested,
         unrealized,
-        returnRate: a.cardsInvested > 0 ? (unrealized / a.cardsInvested) * 100 : 0,
-        weeklyChange: a.weeklyChange + 0.4,
+        returnRate:
+          live.cardsInvested > 0
+            ? (unrealized / live.cardsInvested) * 100
+            : live.cardsValue > 0
+              ? 100
+              : 0,
+        weeklyChange: 0,
         valueLabel: "Kartenwert",
         returnLabel: "Karten-Rendite",
       };
     }
     if (scope === "sealed") {
-      const unrealized = a.sealedValue - a.sealedInvested;
+      const unrealized = live.sealedValue - live.sealedInvested;
       return {
-        totalValue: a.sealedValue,
-        invested: a.sealedInvested,
+        totalValue: live.sealedValue,
+        invested: live.sealedInvested,
         unrealized,
         returnRate:
-          a.sealedInvested > 0 ? (unrealized / a.sealedInvested) * 100 : 0,
-        weeklyChange: a.weeklyChange - 0.5,
+          live.sealedInvested > 0
+            ? (unrealized / live.sealedInvested) * 100
+            : live.sealedValue > 0
+              ? 100
+              : 0,
+        weeklyChange: 0,
         valueLabel: "Sealed-Wert",
         returnLabel: "Sealed-Rendite",
       };
     }
     return {
-      totalValue: a.totalValue,
-      invested: a.invested,
-      unrealized: a.unrealizedProfit,
-      returnRate: a.totalReturnRate,
-      weeklyChange: a.weeklyChange,
+      totalValue: live.totalValue,
+      invested: live.invested,
+      unrealized: live.unrealized,
+      returnRate: live.returnRate,
+      weeklyChange: 0,
       valueLabel: "Gesamtwert",
       returnLabel: "Gesamtrendite",
     };
-  }, [scope, a]);
+  }, [scope, live]);
+
+  const assetPerformance = useMemo(() => {
+    const total = live.totalValue || 1;
+    return [
+      {
+        type: "Karten" as const,
+        market: live.cardsValue,
+        invested: live.cardsInvested,
+        profit: Math.round((live.cardsValue - live.cardsInvested) * 100) / 100,
+        returnPct:
+          live.cardsInvested > 0
+            ? Math.round(
+                ((live.cardsValue - live.cardsInvested) / live.cardsInvested) *
+                  1000,
+              ) / 10
+            : 0,
+        share:
+          Math.round((live.cardsValue / total) * 1000) / 10 || 0,
+        color: "#f472b6",
+      },
+      {
+        type: "Sealed" as const,
+        market: live.sealedValue,
+        invested: live.sealedInvested,
+        profit:
+          Math.round((live.sealedValue - live.sealedInvested) * 100) / 100,
+        returnPct:
+          live.sealedInvested > 0
+            ? Math.round(
+                ((live.sealedValue - live.sealedInvested) /
+                  live.sealedInvested) *
+                  1000,
+              ) / 10
+            : 0,
+        share:
+          Math.round((live.sealedValue / total) * 1000) / 10 || 0,
+        color: "#a78bfa",
+      },
+    ];
+  }, [live]);
 
   // Keep chart series toggle in sync with header scope
   useEffect(() => {
@@ -190,14 +233,14 @@ export function PortfolioView() {
             <PrimaryMetric
               icon="tag"
               label="Realisierter Gewinn"
-              value={`+${formatCurrency(a.realizedProfit)}`}
+              value={formatCurrency(0)}
               positive
               infoText="Gewinn aus bereits verkauften Positionen."
             />
             <PrimaryMetric
               icon="bars"
               label="Top-5-Anteil"
-              value={`${a.top5Share} %`}
+              value={`${live.topPositions.length ? Math.min(100, Math.round((live.topPositions.reduce((s,p)=>s+p.market,0)/(live.totalValue||1))*1000)/10) : 0} %`}
               infoText="Anteil der fünf wertvollsten Positionen am Gesamtwert."
             />
           </div>
@@ -250,14 +293,16 @@ export function PortfolioView() {
               </div>
 
               <PortfolioGrowthChart
-                data={portfolioYearHistory}
+                data={live.history}
                 series={chartSeries}
                 range={range}
+                cardsInvested={live.cardsInvested}
+                sealedInvested={live.sealedInvested}
               />
 
               <p className="mt-3 flex shrink-0 items-center gap-1.5 text-xs text-[var(--muted)]">
                 <span aria-hidden>⏱</span>
-                Marktpreise zuletzt aktualisiert: {a.pricesUpdatedLabel}
+                Nur Assets → Karten & Sealed · aktuelle Marktwerte
               </p>
             </div>
 
@@ -291,7 +336,7 @@ export function PortfolioView() {
                 </div>
                 <div className="flex flex-col items-center gap-4">
                   <DonutChart
-                    segments={portfolioAllocationBy[allocDim]}
+                    segments={live.allocationBy[allocDim]}
                     size={172}
                     ringWidth={28}
                     hideLegend
@@ -299,28 +344,32 @@ export function PortfolioView() {
                     centerSub={formatCurrency(metrics.totalValue)}
                   />
                   <div className="w-full space-y-2">
-                    {portfolioAllocationBy[allocDim].map((s) => (
-                      <div
-                        key={s.label}
-                        className="flex items-center justify-between gap-2 text-sm"
-                      >
-                        <span className="flex min-w-0 items-center gap-2">
-                          <span
-                            className="h-2.5 w-2.5 shrink-0 rounded-full"
-                            style={{ backgroundColor: s.color }}
-                          />
-                          <span className="truncate">{s.label}</span>
-                        </span>
-                        <span className="tabular-nums shrink-0 font-medium">
-                          {s.percent} %
-                          {s.value != null && (
+                    {live.allocationBy[allocDim].length === 0 ? (
+                      <p className="text-center text-xs text-[var(--muted)]">
+                        Noch keine Assets in Karten oder Sealed.
+                      </p>
+                    ) : (
+                      live.allocationBy[allocDim].map((s) => (
+                        <div
+                          key={s.label}
+                          className="flex items-center justify-between gap-2 text-sm"
+                        >
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span
+                              className="h-2.5 w-2.5 shrink-0 rounded-full"
+                              style={{ backgroundColor: s.color }}
+                            />
+                            <span className="truncate">{s.label}</span>
+                          </span>
+                          <span className="tabular-nums shrink-0 font-medium">
+                            {s.percent} %
                             <span className="ml-2 text-[var(--muted)]">
                               {formatCurrency(s.value)}
                             </span>
-                          )}
-                        </span>
-                      </div>
-                    ))}
+                          </span>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               </div>
@@ -330,37 +379,30 @@ export function PortfolioView() {
                 <div className="grid grid-cols-2 gap-2">
                   <KpiTile
                     label="Wertvollste Position"
-                    value={formatCurrency(a.largestPosition)}
+                    value={formatCurrency(live.topPositions[0]?.market ?? 0)}
                     icon="star"
-                    hoverCardId={a.largestPositionCardId}
-                    hoverMarket={a.largestPosition}
-                    href="/assets/karten"
+                    hoverPosition={live.topPositions[0] ?? null}
+                    href={live.topPositions[0]?.href ?? "/assets/karten"}
                   />
                   <KpiTile
                     label="Beste Rendite"
-                    value={formatPercent(a.bestReturnPct)}
+                    value={formatPercent(live.bestReturn?.returnPct ?? 0)}
                     icon="up"
-                    positive
-                    hoverCardId={a.bestReturnCardId}
-                    hoverMarket={a.bestReturnMarketValue}
-                    hoverPurchase={a.bestReturnPurchasePrice}
-                    hoverReturnPct={a.bestReturnPct}
-                    href="/assets/karten"
+                    positive={(live.bestReturn?.returnPct ?? 0) >= 0}
+                    hoverPosition={live.bestReturn}
+                    href={live.bestReturn?.href ?? "/assets/karten"}
                   />
                   <KpiTile
                     label="Stärkster Verlust"
-                    value={formatPercent(a.worstReturnPct)}
+                    value={formatPercent(live.worstReturn?.returnPct ?? 0)}
                     icon="down"
-                    negative
-                    hoverCardId={a.worstReturnCardId}
-                    hoverMarket={a.worstReturnMarketValue}
-                    hoverPurchase={a.worstReturnPurchasePrice}
-                    hoverReturnPct={a.worstReturnPct}
-                    href="/assets/karten"
+                    negative={(live.worstReturn?.returnPct ?? 0) < 0}
+                    hoverPosition={live.worstReturn}
+                    href={live.worstReturn?.href ?? "/assets/karten"}
                   />
                   <KpiTile
                     label="Verschiedene Assets"
-                    value={String(a.distinctAssets)}
+                    value={String(live.cardsUnique + live.sealedProducts)}
                     icon="box"
                   />
                 </div>
@@ -407,7 +449,7 @@ export function PortfolioView() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border)]">
-                    {portfolioAssetPerformance.map((row) => (
+                    {assetPerformance.map((row) => (
                       <tr key={row.type}>
                         <td className="px-2 py-3.5">
                           <span className="inline-flex items-center gap-2">
@@ -451,16 +493,18 @@ export function PortfolioView() {
                     <tr className="font-medium">
                       <td className="px-2 py-3.5">Gesamt</td>
                       <td className="tabular-nums px-2 py-3.5 text-right">
-                        {formatCurrency(a.totalValue)}
+                        {formatCurrency(live.totalValue)}
                       </td>
                       <td className="tabular-nums px-2 py-3.5 text-right text-[var(--muted)]">
-                        {formatCurrency(a.invested)}
+                        {formatCurrency(live.invested)}
                       </td>
-                      <td className="tabular-nums px-2 py-3.5 text-right text-[var(--positive)]">
-                        +{formatCurrency(a.unrealizedProfit + a.realizedProfit)}
+                      <td className={`tabular-nums px-2 py-3.5 text-right ${live.unrealized >= 0 ? "text-[var(--positive)]" : "text-[var(--negative)]"}`}>
+                        {live.unrealized >= 0 ? "+" : ""}
+                        {formatCurrency(live.unrealized)}
                       </td>
-                      <td className="tabular-nums px-2 py-3.5 text-right text-[var(--positive)]">
-                        +{a.totalReturnRate.toLocaleString("de-DE")} %
+                      <td className={`tabular-nums px-2 py-3.5 text-right ${live.returnRate >= 0 ? "text-[var(--positive)]" : "text-[var(--negative)]"}`}>
+                        {live.returnRate >= 0 ? "+" : ""}
+                        {live.returnRate.toLocaleString("de-DE")} %
                       </td>
                       <td className="px-2 py-3.5">
                         <div className="flex min-w-0 items-center gap-3">
@@ -489,27 +533,25 @@ export function PortfolioView() {
                 </Link>
               </div>
               <ul className="space-y-1">
-                {valuablePositions.map((pos, i) => {
-                  const card = getCard(pos.cardId);
-                  const name = pos.name ?? card.name;
-                  const dest =
-                    pos.kind === "Sealed"
-                      ? "/assets/sealed"
-                      : "/portfolio/positionen";
-                  return (
-                    <li key={pos.cardId}>
+                {live.topPositions.map((pos, i) => (
+                    <li key={pos.id}>
                       <Link
-                        href={dest}
+                        href={pos.href}
                         className="flex items-center gap-3 rounded-lg px-1 py-1.5 transition-colors hover:bg-[var(--surface-elevated)]/60"
                       >
                         <span className="tabular-nums w-4 text-xs text-[var(--muted)]">
                           {i + 1}
                         </span>
-                        <CardImage src={card.imageUrl} alt={name} size="sm" />
+                        <CardImage
+                          src={pos.imageUrl ?? ""}
+                          fallbacks={pos.imageFallbacks}
+                          alt={pos.name}
+                          size="sm"
+                        />
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">{name}</p>
+                          <p className="truncate text-sm font-medium">{pos.name}</p>
                           <p className="truncate text-xs text-[var(--muted)]">
-                            {pos.setCode}
+                            {pos.setName}
                           </p>
                         </div>
                         <span
@@ -526,41 +568,27 @@ export function PortfolioView() {
                         </p>
                       </Link>
                     </li>
-                  );
-                })}
+                  ))}
+                {live.topPositions.length === 0 && (
+                  <li className="px-1 py-4 text-xs text-[var(--muted)]">
+                    Noch keine Assets in Karten oder Sealed.
+                  </li>
+                )}
               </ul>
             </div>
           </div>
 
-          {/* Cashflow + transactions */}
-          <div className="grid gap-5 xl:grid-cols-2">
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-sm font-medium">Käufe &amp; Verkäufe</h2>
-                <div className="flex gap-3 text-[11px] text-[var(--muted)]">
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-sm bg-pink-400/80" />
-                    Käufe
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-sm bg-emerald-400/80" />
-                    Verkäufe
-                  </span>
-                </div>
-              </div>
-              <CashflowChart data={portfolioCashflow} />
-            </div>
-
+          {/* Recent purchases from live assets (no mock transactions) */}
+          <div className="grid gap-5 xl:grid-cols-1">
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
               <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-medium">Letzte Transaktionen</h2>
-                <button
-                  type="button"
-                  onClick={() => setTab("transaktionen")}
+                <h2 className="text-sm font-medium">Letzte Käufe aus Assets</h2>
+                <Link
+                  href="/assets/karten"
                   className="text-xs font-medium text-[var(--accent)] hover:opacity-80"
                 >
-                  Alle Transaktionen →
-                </button>
+                  Assets öffnen →
+                </Link>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[400px] text-sm">
@@ -570,48 +598,64 @@ export function PortfolioView() {
                       <th className="pb-2 text-left font-medium">Typ</th>
                       <th className="pb-2 text-left font-medium">Position</th>
                       <th className="pb-2 text-right font-medium">Anzahl</th>
-                      <th className="pb-2 text-right font-medium">Gesamt</th>
+                      <th className="pb-2 text-right font-medium">Investiert</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border)]">
-                    {portfolioTransactions.map((tx) => {
-                      const card = getCard(tx.cardId);
-                      const name = tx.name ?? card.name;
-                      const sell = tx.total < 0;
-                      return (
-                        <tr key={tx.id}>
-                          <td className="py-2.5 text-[var(--muted)]">{tx.date}</td>
+                    {[...live.positions]
+                      .filter((p) => p.invested > 0 || p.market > 0)
+                      .sort((a, b) => {
+                        const da = a.purchaseDate ?? "";
+                        const db = b.purchaseDate ?? "";
+                        return db.localeCompare(da);
+                      })
+                      .slice(0, 8)
+                      .map((pos) => (
+                        <tr key={pos.id}>
+                          <td className="py-2.5 text-[var(--muted)]">
+                            {pos.purchaseDate
+                              ? new Date(pos.purchaseDate).toLocaleDateString(
+                                  "de-DE",
+                                )
+                              : "—"}
+                          </td>
                           <td className="py-2.5">
-                            <span
-                              className={`rounded-md px-2 py-0.5 text-[10px] font-medium ${
-                                tx.type === "Verkauf"
-                                  ? "bg-emerald-500/15 text-emerald-300"
-                                  : "bg-[var(--accent-soft)] text-[var(--accent)]"
-                              }`}
-                            >
-                              {tx.type}
+                            <span className="rounded-md bg-[var(--accent-soft)] px-2 py-0.5 text-[10px] font-medium text-[var(--accent)]">
+                              Kauf
                             </span>
                           </td>
                           <td className="py-2.5">
-                            <div className="flex min-w-0 items-center gap-2">
-                              <CardImage src={card.imageUrl} alt={name} size="sm" />
-                              <span className="truncate">{name}</span>
-                            </div>
+                            <Link
+                              href={pos.href}
+                              className="flex min-w-0 items-center gap-2 hover:opacity-90"
+                            >
+                              <CardImage
+                                src={pos.imageUrl ?? ""}
+                                fallbacks={pos.imageFallbacks}
+                                alt={pos.name}
+                                size="sm"
+                              />
+                              <span className="truncate">{pos.name}</span>
+                            </Link>
                           </td>
                           <td className="tabular-nums py-2.5 text-right">
-                            {tx.qty}
+                            {pos.quantity}
                           </td>
-                          <td
-                            className={`tabular-nums py-2.5 text-right font-medium ${
-                              sell ? "text-[var(--negative)]" : ""
-                            }`}
-                          >
-                            {sell ? "−" : ""}
-                            {formatCurrency(Math.abs(tx.total))}
+                          <td className="tabular-nums py-2.5 text-right font-medium">
+                            {formatCurrency(pos.invested)}
                           </td>
                         </tr>
-                      );
-                    })}
+                      ))}
+                    {live.positions.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="py-6 text-center text-xs text-[var(--muted)]"
+                        >
+                          Noch keine Assets in Karten oder Sealed.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -639,9 +683,9 @@ const PORTFOLIO_RANGE_DAYS: Record<Range, number | null> = {
 };
 
 function filterPortfolioRange(
-  data: PortfolioHistoryPoint[],
+  data: LiveHistoryPoint[],
   range: Range,
-): PortfolioHistoryPoint[] {
+): LiveHistoryPoint[] {
   if (!data.length) return data;
   const days = PORTFOLIO_RANGE_DAYS[range];
   if (days == null) return data;
@@ -675,10 +719,14 @@ function PortfolioGrowthChart({
   data,
   series,
   range,
+  cardsInvested,
+  sealedInvested,
 }: {
-  data: PortfolioHistoryPoint[];
+  data: LiveHistoryPoint[];
   series: ChartSeries;
   range: Range;
+  cardsInvested: number;
+  sealedInvested: number;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -716,9 +764,17 @@ function PortfolioGrowthChart({
     return downsamplePoints(f, maxPts);
   }, [data, range]);
 
+  const totalInv = cardsInvested + sealedInvested;
+  const cardsShare = totalInv > 0 ? cardsInvested / totalInv : 0.5;
+  const sealedShare = totalInv > 0 ? sealedInvested / totalInv : 0.5;
+
   const values = filtered.flatMap((d) => [
     d[marketKey as "market" | "cards" | "sealed"],
-    d.invested * (series === "gesamt" ? 1 : series === "karten" ? 0.64 : 0.36),
+    series === "gesamt"
+      ? d.invested
+      : series === "karten"
+        ? d.invested * cardsShare
+        : d.invested * sealedShare,
   ]);
   const min = (values.length ? Math.min(...values) : 0) * 0.9;
   const max = (values.length ? Math.max(...values) : 1) * 1.06;
@@ -730,8 +786,8 @@ function PortfolioGrowthChart({
       series === "gesamt"
         ? d.invested
         : series === "karten"
-          ? Math.round(d.invested * 0.64)
-          : Math.round(d.invested * 0.36);
+          ? Math.round(d.invested * cardsShare * 100) / 100
+          : Math.round(d.invested * sealedShare * 100) / 100;
     const x =
       filtered.length === 1
         ? pad.left + cw / 2
@@ -1128,10 +1184,7 @@ function KpiTile({
   icon,
   positive,
   negative,
-  hoverCardId,
-  hoverMarket,
-  hoverPurchase,
-  hoverReturnPct,
+  hoverPosition,
   href,
 }: {
   label: string;
@@ -1139,17 +1192,13 @@ function KpiTile({
   icon: string;
   positive?: boolean;
   negative?: boolean;
-  /** Optional card preview on hover */
-  hoverCardId?: string;
-  hoverMarket?: number;
-  hoverPurchase?: number;
-  hoverReturnPct?: number;
-  /** Click target (e.g. Sammlung) */
+  /** Live asset preview on hover */
+  hoverPosition?: LivePosition | null;
   href?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const card = hoverCardId ? getCard(hoverCardId) : null;
-  const interactive = Boolean(hoverCardId && card);
+  const pos = hoverPosition ?? null;
+  const interactive = Boolean(pos);
 
   const body = (
     <>
@@ -1191,28 +1240,29 @@ function KpiTile({
         body
       )}
 
-      {open && card && (
+      {open && pos && (
         <div
           className="absolute bottom-[calc(100%+0.5rem)] left-1/2 z-30 w-[13.5rem] -translate-x-1/2 rounded-xl border border-[var(--border-strong)] bg-[var(--surface-elevated)] p-3 shadow-xl"
           role="tooltip"
         >
           <div className="flex gap-2.5">
             <CardImage
-              src={card.imageUrl}
-              alt={card.name}
+              src={pos.imageUrl ?? ""}
+              fallbacks={pos.imageFallbacks}
+              alt={pos.name}
               size="sm"
               className="shrink-0"
             />
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold leading-tight">
-                {card.name}
+                {pos.name}
               </p>
               <p className="mt-0.5 truncate text-[11px] text-[var(--muted)]">
-                {card.setName}
-                {card.number ? ` · ${card.number}` : ""}
+                {pos.setName}
               </p>
               <p className="mt-0.5 text-[11px] text-[var(--muted)]">
-                {card.rarity}
+                {pos.kind}
+                {pos.condition ? ` · ${pos.condition}` : ""}
               </p>
             </div>
           </div>
@@ -1222,45 +1272,27 @@ function KpiTile({
                 Marktwert
               </p>
               <p className="tabular-nums font-semibold">
-                {formatCurrency(hoverMarket ?? card.price)}
+                {formatCurrency(pos.market)}
               </p>
             </div>
-            {hoverReturnPct != null ? (
-              <div className="rounded-lg bg-[var(--background)] px-2 py-1.5">
-                <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
-                  Rendite
-                </p>
-                <p
-                  className={`tabular-nums font-semibold ${
-                    hoverReturnPct < 0
-                      ? "text-[var(--negative)]"
-                      : "text-[var(--positive)]"
-                  }`}
-                >
-                  {formatPercent(hoverReturnPct)}
-                </p>
-              </div>
-            ) : hoverPurchase != null ? (
-              <div className="rounded-lg bg-[var(--background)] px-2 py-1.5">
-                <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
-                  EK
-                </p>
-                <p className="tabular-nums font-semibold">
-                  {formatCurrency(hoverPurchase)}
-                </p>
-              </div>
-            ) : (
-              <div className="rounded-lg bg-[var(--background)] px-2 py-1.5">
-                <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
-                  Sprache
-                </p>
-                <p className="font-semibold">{card.language}</p>
-              </div>
-            )}
+            <div className="rounded-lg bg-[var(--background)] px-2 py-1.5">
+              <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
+                Rendite
+              </p>
+              <p
+                className={`tabular-nums font-semibold ${
+                  pos.returnPct < 0
+                    ? "text-[var(--negative)]"
+                    : "text-[var(--positive)]"
+                }`}
+              >
+                {formatPercent(pos.returnPct)}
+              </p>
+            </div>
           </div>
           {href && (
             <p className="mt-2 text-center text-[10px] text-[var(--muted)]">
-              Klicken → Sammlung
+              Klicken → Assets
             </p>
           )}
         </div>
