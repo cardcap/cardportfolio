@@ -1585,10 +1585,10 @@ function SealedMetricsPanel({
           ).map((item) => (
             <div
               key={item.label}
-              className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--background)]/50 px-3 py-3 sm:px-4"
+              className="flex min-w-0 items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--background)]/50 px-3 py-3 sm:gap-3.5 sm:px-4"
             >
               <span
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ring-1 ring-[var(--border)]"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ring-[var(--border)] sm:h-11 sm:w-11"
                 style={{
                   backgroundColor: `${item.accent}18`,
                   color: item.accent,
@@ -1596,14 +1596,12 @@ function SealedMetricsPanel({
               >
                 <TypeIcon kind={item.icon} />
               </span>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-[var(--foreground)] sm:text-[15px]">
-                  {item.label}
-                </p>
-                <p className="tabular-nums mt-0.5 text-2xl font-semibold leading-none tracking-tight">
-                  {item.count}
-                </p>
-              </div>
+              <p className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--foreground)] sm:text-[15px]">
+                {item.label}
+              </p>
+              <p className="tabular-nums shrink-0 text-2xl font-semibold leading-none tracking-tight">
+                {item.count}
+              </p>
             </div>
           ))}
         </div>
