@@ -954,8 +954,9 @@ export function SealedView() {
             <div className="hidden overflow-x-auto lg:block">
               <table className="w-full min-w-[1080px] border-collapse text-left text-sm">
                 <thead>
-                  <tr className="border-b border-[var(--border)] text-[10px] uppercase tracking-wider text-[var(--muted)]">
-                    <th className="w-10 px-3 py-3 font-medium">
+                  {/* Same header type as Assets → Karten */}
+                  <tr className="border-b border-[var(--border)] text-[11px] uppercase tracking-wider text-[var(--muted)]">
+                    <th className="w-10 px-2 py-3 font-medium">
                       <input
                         type="checkbox"
                         checked={allFilteredSelected}
