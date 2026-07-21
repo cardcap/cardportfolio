@@ -157,8 +157,8 @@ export function PortfolioView() {
 
       {tab === "uebersicht" && (
         <>
-          {/* Primary metrics */}
-          <div className="mb-3 grid grid-cols-2 gap-3 xl:grid-cols-4">
+          {/* All KPI boxes in one row (wraps on smaller screens) */}
+          <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
             <PrimaryMetric
               icon="doc"
               label={metrics.valueLabel}
@@ -187,18 +187,14 @@ export function PortfolioView() {
               positive={metrics.returnRate >= 0}
               infoText="Prozentuale Performance: (Marktwert − Investiert) ÷ Investiert."
             />
-          </div>
-
-          {/* Secondary investment KPIs */}
-          <div className="mb-5 grid grid-cols-2 gap-3">
-            <SecondaryMetric
+            <PrimaryMetric
               icon="tag"
               label="Realisierter Gewinn"
               value={`+${formatCurrency(a.realizedProfit)}`}
               positive
               infoText="Gewinn aus bereits verkauften Positionen."
             />
-            <SecondaryMetric
+            <PrimaryMetric
               icon="bars"
               label="Top-5-Anteil"
               value={`${a.top5Share} %`}
