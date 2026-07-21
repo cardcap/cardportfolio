@@ -1460,16 +1460,6 @@ function SealedMetricsPanel({
     { key: "Bundles", label: "Bundles", count: byType.Bundles, color: "#be185d" },
   ];
 
-  const pricedCount = inventory.filter((p) => p.marketValue > 0).length;
-  const productCount = inventory.length;
-  const coveragePct =
-    productCount > 0 ? Math.round((pricedCount / productCount) * 100) : 0;
-  const missingPrices = Math.max(0, productCount - pricedCount);
-
-  const r = 36;
-  const circ = 2 * Math.PI * r;
-  const dash = (coveragePct / 100) * circ;
-
   return (
     <div className="mb-5 w-full min-w-0 space-y-3">
       <div className="grid w-full grid-cols-2 gap-3 xl:grid-cols-4">
@@ -1540,108 +1530,53 @@ function SealedMetricsPanel({
         />
       </div>
 
-      <div className="grid w-full grid-cols-1 gap-3 lg:grid-cols-2">
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-[var(--muted)]">
-            Bestand nach Produkttyp
-          </p>
-          <div className="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-[var(--border)]">
-            <div className="flex h-full w-full">
-              {typeTotal > 0 ? (
-                typeSegments.map((s) => (
-                  <div
-                    key={s.key}
-                    className="h-full first:rounded-l-full last:rounded-r-full"
-                    style={{
-                      width: `${(s.count / typeTotal) * 100}%`,
-                      backgroundColor: s.color,
-                      minWidth: s.count > 0 ? 4 : 0,
-                    }}
-                    title={`${s.label}: ${s.count}`}
-                  />
-                ))
-              ) : (
-                <div className="h-full w-full rounded-full bg-[var(--border-strong)]/40" />
-              )}
-            </div>
-          </div>
-          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {(
-              [
-                { label: "Displays", count: byType.Displays, icon: "display" as const },
-                {
-                  label: "Elite Trainer Boxen",
-                  count: byType["Elite Trainer Boxen"],
-                  icon: "etb" as const,
-                },
-                { label: "Tins", count: byType.Tins, icon: "tin" as const },
-                { label: "Bundles", count: byType.Bundles, icon: "bundle" as const },
-              ] as const
-            ).map((item) => (
-              <div key={item.label} className="flex flex-col items-start gap-1.5">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--surface-elevated)] text-[var(--muted)] ring-1 ring-[var(--border)]">
-                  <TypeIcon kind={item.icon} />
-                </span>
-                <p className="text-[11px] text-[var(--muted)]">{item.label}</p>
-                <p className="tabular-nums text-lg font-semibold leading-none">
-                  {item.count}
-                </p>
-              </div>
-            ))}
+      <div className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
+        <p className="text-[11px] font-medium uppercase tracking-wider text-[var(--muted)]">
+          Bestand nach Produkttyp
+        </p>
+        <div className="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-[var(--border)]">
+          <div className="flex h-full w-full">
+            {typeTotal > 0 ? (
+              typeSegments.map((s) => (
+                <div
+                  key={s.key}
+                  className="h-full first:rounded-l-full last:rounded-r-full"
+                  style={{
+                    width: `${(s.count / typeTotal) * 100}%`,
+                    backgroundColor: s.color,
+                    minWidth: s.count > 0 ? 4 : 0,
+                  }}
+                  title={`${s.label}: ${s.count}`}
+                />
+              ))
+            ) : (
+              <div className="h-full w-full rounded-full bg-[var(--border-strong)]/40" />
+            )}
           </div>
         </div>
-
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-[var(--muted)]">
-            Preisabdeckung
-          </p>
-          <div className="mt-3 flex flex-wrap items-center gap-5">
-            <div className="relative h-[5.5rem] w-[5.5rem] shrink-0">
-              <svg viewBox="0 0 96 96" className="h-full w-full -rotate-90" aria-hidden>
-                <circle cx="48" cy="48" r={r} fill="none" stroke="var(--border)" strokeWidth="8" />
-                <circle
-                  cx="48"
-                  cy="48"
-                  r={r}
-                  fill="none"
-                  stroke="#f472b6"
-                  strokeWidth="8"
-                  strokeLinecap="round"
-                  strokeDasharray={`${dash} ${circ - dash}`}
-                />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="tabular-nums text-xl font-semibold">
-                  {coveragePct} %
-                </span>
-              </div>
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">
-                {pricedCount} von {productCount} Produkten bewertet
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {(
+            [
+              { label: "Displays", count: byType.Displays, icon: "display" as const },
+              {
+                label: "Elite Trainer Boxen",
+                count: byType["Elite Trainer Boxen"],
+                icon: "etb" as const,
+              },
+              { label: "Tins", count: byType.Tins, icon: "tin" as const },
+              { label: "Bundles", count: byType.Bundles, icon: "bundle" as const },
+            ] as const
+          ).map((item) => (
+            <div key={item.label} className="flex flex-col items-start gap-1.5">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--surface-elevated)] text-[var(--muted)] ring-1 ring-[var(--border)]">
+                <TypeIcon kind={item.icon} />
+              </span>
+              <p className="text-[11px] text-[var(--muted)]">{item.label}</p>
+              <p className="tabular-nums text-lg font-semibold leading-none">
+                {item.count}
               </p>
-              {missingPrices > 0 ? (
-                <p className="mt-1.5 flex items-start gap-1.5 text-xs text-[var(--muted)]">
-                  <span className="mt-0.5 text-[var(--accent)]" aria-hidden>
-                    ⚠
-                  </span>
-                  {missingPrices} Produkt{missingPrices === 1 ? "" : "e"} ohne Marktpreis
-                </p>
-              ) : (
-                <p className="mt-1.5 text-xs text-[var(--positive)]">
-                  Alle Produkte mit Marktpreis
-                </p>
-              )}
-              {missingPrices > 0 && (
-                <Link
-                  href="/kartendatenbank"
-                  className="mt-2 inline-flex text-xs font-medium text-[var(--accent)] hover:underline"
-                >
-                  Fehlenden Marktpreis ergänzen →
-                </Link>
-              )}
             </div>
-          </div>
+          ))}
         </div>
       </div>
     </div>
