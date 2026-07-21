@@ -1391,13 +1391,6 @@ export function SammlungView() {
               <Button
                 className="w-full sm:w-auto"
                 variant="secondary"
-                onClick={() => requireAuth(() => {})}
-              >
-                Kartenscanner
-              </Button>
-              <Button
-                className="w-full sm:w-auto"
-                variant="secondary"
                 onClick={openImport}
               >
                 Excel-Import

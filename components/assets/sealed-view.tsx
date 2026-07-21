@@ -834,13 +834,6 @@ export function SealedView() {
             type="button"
             className="inline-flex h-9 items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 text-sm text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"
           >
-            <BarcodeIcon />
-            Barcode scannen
-          </button>
-          <button
-            type="button"
-            className="inline-flex h-9 items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 text-sm text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"
-          >
             <ImportIcon />
             Excel-Import
           </button>
@@ -1906,14 +1899,6 @@ function SearchIcon() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
       <circle cx="11" cy="11" r="6.5" />
       <path d="M16 16l4 4" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function BarcodeIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-      <path d="M4 6v12M7 6v12M10 6v12M12 6v12M15 6v12M18 6v12M21 6v12" strokeLinecap="round" />
     </svg>
   );
 }

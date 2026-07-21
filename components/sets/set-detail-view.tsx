@@ -372,13 +372,6 @@ export function SetDetailView({
               <span className="text-base leading-none">+</span>
               Karte hinzufügen
             </button>
-            <button
-              type="button"
-              className="inline-flex h-10 items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 text-sm text-[var(--muted)] hover:text-[var(--foreground)]"
-            >
-              <ScanIcon />
-              Kartenscanner
-            </button>
             <Link
               href="/sets"
               className="inline-flex h-10 items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 text-sm text-[var(--muted)] hover:text-[var(--foreground)]"
@@ -789,15 +782,6 @@ function SearchIcon() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
       <circle cx="11" cy="11" r="6.5" />
       <path d="M16 16l4 4" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function ScanIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-      <path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2" strokeLinecap="round" />
-      <path d="M4 12h16" strokeLinecap="round" />
     </svg>
   );
 }
