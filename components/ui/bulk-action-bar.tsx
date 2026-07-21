@@ -49,15 +49,16 @@ export function BulkActionBar({
           <p className="px-1 text-sm font-medium tabular-nums">
             {selectedCount.toLocaleString("de-DE")} ausgewählt
           </p>
-          <button
-            type="button"
-            onClick={onSelectAll}
-            disabled={busy}
-            className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)] disabled:opacity-50"
-          >
-            {allSelected ? "Keine" : "Alle"} (
-            {totalCount.toLocaleString("de-DE")})
-          </button>
+          {!allSelected && (
+            <button
+              type="button"
+              onClick={onSelectAll}
+              disabled={busy}
+              className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)] disabled:opacity-50"
+            >
+              Alle ({totalCount.toLocaleString("de-DE")})
+            </button>
+          )}
           <button
             type="button"
             onClick={onClear}
