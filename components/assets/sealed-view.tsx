@@ -1413,7 +1413,7 @@ function ConditionBadge({ condition }: { condition: SealedProduct["condition"] }
 
 type SealedMetrics = ReturnType<typeof getSealedMetrics>;
 
-/** Top KPI row + Bestand / Preisabdeckung (Screenshot-Layout) */
+/** Top KPI row + Bestand nach Produkttyp */
 function SealedMetricsPanel({
   inventory,
   metrics,
