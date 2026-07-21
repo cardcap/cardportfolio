@@ -375,51 +375,64 @@ export function PortfolioView() {
                 <h2 className="text-sm font-medium">Performance nach Asset-Typ</h2>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[520px] text-left text-sm">
+                <table className="w-full min-w-[640px] table-fixed text-left text-sm">
+                  <colgroup>
+                    <col className="w-[16%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[16%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[28%]" />
+                  </colgroup>
                   <thead>
                     <tr className="border-b border-[var(--border)] text-[10px] uppercase tracking-wider text-[var(--muted)]">
-                      <th className="pb-2 font-medium">Asset-Typ</th>
-                      <th className="pb-2 text-right font-medium">Marktwert</th>
-                      <th className="pb-2 text-right font-medium">Investiert</th>
-                      <th className="pb-2 text-right font-medium">Gewinn / Verlust</th>
-                      <th className="pb-2 text-right font-medium">Rendite</th>
-                      <th className="pb-2 pl-3 font-medium">Portfolio-Anteil</th>
+                      <th className="px-2 pb-2.5 pt-0.5 font-medium">
+                        Asset-Typ
+                      </th>
+                      <th className="px-2 pb-2.5 pt-0.5 text-right font-medium">
+                        Marktwert
+                      </th>
+                      <th className="px-2 pb-2.5 pt-0.5 text-right font-medium">
+                        Investiert
+                      </th>
+                      <th className="px-2 pb-2.5 pt-0.5 text-right font-medium">
+                        Gewinn / Verlust
+                      </th>
+                      <th className="px-2 pb-2.5 pt-0.5 text-right font-medium">
+                        Rendite
+                      </th>
+                      <th className="px-2 pb-2.5 pt-0.5 font-medium">
+                        Portfolio-Anteil
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border)]">
                     {portfolioAssetPerformance.map((row) => (
                       <tr key={row.type}>
-                        <td className="py-3">
-                          <Link
-                            href={
-                              row.type.toLowerCase().includes("sealed")
-                                ? "/assets/sealed"
-                                : "/assets/karten"
-                            }
-                            className="inline-flex items-center gap-2 hover:text-[var(--accent)]"
-                          >
+                        <td className="px-2 py-3.5">
+                          <span className="inline-flex items-center gap-2">
                             <span
-                              className="h-2 w-2 rounded-full"
+                              className="h-2 w-2 shrink-0 rounded-full"
                               style={{ backgroundColor: row.color }}
                             />
                             {row.type}
-                          </Link>
+                          </span>
                         </td>
-                        <td className="tabular-nums py-3 text-right">
+                        <td className="tabular-nums px-2 py-3.5 text-right">
                           {formatCurrency(row.market)}
                         </td>
-                        <td className="tabular-nums py-3 text-right text-[var(--muted)]">
+                        <td className="tabular-nums px-2 py-3.5 text-right text-[var(--muted)]">
                           {formatCurrency(row.invested)}
                         </td>
-                        <td className="tabular-nums py-3 text-right text-[var(--positive)]">
+                        <td className="tabular-nums px-2 py-3.5 text-right text-[var(--positive)]">
                           +{formatCurrency(row.profit)}
                         </td>
-                        <td className="tabular-nums py-3 text-right text-[var(--positive)]">
+                        <td className="tabular-nums px-2 py-3.5 text-right text-[var(--positive)]">
                           +{row.returnPct.toLocaleString("de-DE")} %
                         </td>
-                        <td className="py-3 pl-3">
-                          <div className="flex items-center gap-2">
-                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--border)]">
+                        <td className="px-2 py-3.5">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--border)]">
                               <div
                                 className="h-full rounded-full"
                                 style={{
@@ -428,7 +441,7 @@ export function PortfolioView() {
                                 }}
                               />
                             </div>
-                            <span className="tabular-nums w-8 text-right text-xs text-[var(--muted)]">
+                            <span className="tabular-nums w-10 shrink-0 text-right text-xs text-[var(--muted)]">
                               {row.share} %
                             </span>
                           </div>
@@ -436,27 +449,25 @@ export function PortfolioView() {
                       </tr>
                     ))}
                     <tr className="font-medium">
-                      <td className="py-3">Gesamt</td>
-                      <td className="tabular-nums py-3 text-right">
+                      <td className="px-2 py-3.5">Gesamt</td>
+                      <td className="tabular-nums px-2 py-3.5 text-right">
                         {formatCurrency(a.totalValue)}
                       </td>
-                      <td className="tabular-nums py-3 text-right text-[var(--muted)]">
+                      <td className="tabular-nums px-2 py-3.5 text-right text-[var(--muted)]">
                         {formatCurrency(a.invested)}
                       </td>
-                      <td className="tabular-nums py-3 text-right text-[var(--positive)]">
+                      <td className="tabular-nums px-2 py-3.5 text-right text-[var(--positive)]">
                         +{formatCurrency(a.unrealizedProfit + a.realizedProfit)}
                       </td>
-                      <td className="tabular-nums py-3 text-right text-[var(--positive)]">
+                      <td className="tabular-nums px-2 py-3.5 text-right text-[var(--positive)]">
                         +{a.totalReturnRate.toLocaleString("de-DE")} %
                       </td>
-                      <td className="py-3 pl-3">
-                        <div className="flex items-center gap-2">
-                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--border)]">
-                            <div
-                              className="h-full w-full rounded-full bg-[var(--accent)]"
-                            />
+                      <td className="px-2 py-3.5">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--border)]">
+                            <div className="h-full w-full rounded-full bg-[var(--accent)]" />
                           </div>
-                          <span className="tabular-nums w-8 text-right text-xs text-[var(--muted)]">
+                          <span className="tabular-nums w-10 shrink-0 text-right text-xs text-[var(--muted)]">
                             100 %
                           </span>
                         </div>
