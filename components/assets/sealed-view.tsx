@@ -1554,27 +1554,56 @@ function SealedMetricsPanel({
             )}
           </div>
         </div>
-        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
           {(
             [
-              { label: "Displays", count: byType.Displays, icon: "display" as const },
+              {
+                label: "Displays",
+                count: byType.Displays,
+                icon: "display" as const,
+                accent: "#f9a8d4",
+              },
               {
                 label: "Elite Trainer Boxen",
                 count: byType["Elite Trainer Boxen"],
                 icon: "etb" as const,
+                accent: "#f472b6",
               },
-              { label: "Tins", count: byType.Tins, icon: "tin" as const },
-              { label: "Bundles", count: byType.Bundles, icon: "bundle" as const },
+              {
+                label: "Tins",
+                count: byType.Tins,
+                icon: "tin" as const,
+                accent: "#ec4899",
+              },
+              {
+                label: "Bundles",
+                count: byType.Bundles,
+                icon: "bundle" as const,
+                accent: "#be185d",
+              },
             ] as const
           ).map((item) => (
-            <div key={item.label} className="flex flex-col items-start gap-1.5">
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--surface-elevated)] text-[var(--muted)] ring-1 ring-[var(--border)]">
+            <div
+              key={item.label}
+              className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--background)]/50 px-3 py-3 sm:px-4"
+            >
+              <span
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ring-1 ring-[var(--border)]"
+                style={{
+                  backgroundColor: `${item.accent}18`,
+                  color: item.accent,
+                }}
+              >
                 <TypeIcon kind={item.icon} />
               </span>
-              <p className="text-[11px] text-[var(--muted)]">{item.label}</p>
-              <p className="tabular-nums text-lg font-semibold leading-none">
-                {item.count}
-              </p>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-[var(--foreground)] sm:text-[15px]">
+                  {item.label}
+                </p>
+                <p className="tabular-nums mt-0.5 text-2xl font-semibold leading-none tracking-tight">
+                  {item.count}
+                </p>
+              </div>
             </div>
           ))}
         </div>
