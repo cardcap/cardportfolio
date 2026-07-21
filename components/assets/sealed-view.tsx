@@ -928,7 +928,7 @@ export function SealedView() {
       <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]">
         {view === "list" ? (
           <>
-            <div className="hidden border-b border-[var(--border)] px-4 py-2.5 text-[10px] uppercase tracking-wider text-[var(--muted)] xl:grid xl:grid-cols-[2rem_minmax(12rem,1.6fr)_minmax(7rem,1fr)_7rem_3rem_minmax(6rem,0.9fr)_3.5rem_6rem_6rem_5.5rem_6rem_1.5rem] xl:gap-2 xl:px-5">
+            <div className="hidden border-b border-[var(--border)] px-4 py-2.5 text-[10px] uppercase tracking-wider text-[var(--muted)] xl:grid xl:grid-cols-[2rem_minmax(11rem,1.5fr)_minmax(6.5rem,0.95fr)_6.5rem_2.75rem_minmax(5.5rem,0.85fr)_3.25rem_5.5rem_5.5rem_5rem_5.5rem_5.25rem] xl:gap-x-2 xl:gap-y-0 xl:px-5">
               <span>
                 <input
                   type="checkbox"
@@ -950,8 +950,8 @@ export function SealedView() {
               <span className="text-right">EK / Stück</span>
               <span className="text-right">Marktwert / Stück</span>
               <span className="text-right">Gesamtwert</span>
-              <span className="text-right">Gewinn / Verlust</span>
-              <span />
+              <span className="text-right pr-1">Gewinn / Verlust</span>
+              <span className="text-right">Aktion</span>
             </div>
             <ul className="divide-y divide-[var(--border)]">
               {pageRows.map((row) => (
@@ -1154,7 +1154,7 @@ function SealedRow({
             <button
               type="button"
               onClick={onOpen}
-              className="mt-2 text-xs font-medium text-[var(--accent)] hover:opacity-80"
+              className="mt-2 inline-flex items-center rounded-full border border-[var(--accent)]/25 bg-[var(--accent-soft)] px-3 py-1 text-xs font-medium text-[var(--accent)] transition-colors hover:border-[var(--accent)]/40 hover:bg-[var(--accent)]/15"
             >
               Öffnen →
             </button>
@@ -1179,8 +1179,8 @@ function SealedRow({
         </div>
       </div>
 
-      {/* desktop */}
-      <div className="hidden items-center gap-2 xl:grid xl:grid-cols-[2rem_minmax(12rem,1.6fr)_minmax(7rem,1fr)_7rem_3rem_minmax(6rem,0.9fr)_3.5rem_6rem_6rem_5.5rem_6rem_1.5rem]">
+      {/* desktop — numbers shift slightly left; open action gets own soft chip */}
+      <div className="hidden items-center gap-x-2 xl:grid xl:grid-cols-[2rem_minmax(11rem,1.5fr)_minmax(6.5rem,0.95fr)_6.5rem_2.75rem_minmax(5.5rem,0.85fr)_3.25rem_5.5rem_5.5rem_5rem_5.5rem_5.25rem]">
         <input
           type="checkbox"
           checked={checked}
@@ -1212,7 +1212,7 @@ function SealedRow({
         <p className="tabular-nums text-right text-sm font-medium">
           {formatCurrency(totalMarket)}
         </p>
-        <div className="text-right">
+        <div className="pr-1 text-right">
           <p
             className={`tabular-nums text-sm font-medium ${
               positive ? "text-[var(--positive)]" : "text-[var(--negative)]"
@@ -1231,18 +1231,20 @@ function SealedRow({
           </p>
         </div>
         {canOpen ? (
-          <button
-            type="button"
-            onClick={onOpen}
-            className="text-xs font-medium text-[var(--accent)] hover:opacity-80"
-            title="Öffnen"
-          >
-            Öffnen
-          </button>
+          <div className="flex justify-end pl-1">
+            <button
+              type="button"
+              onClick={onOpen}
+              className="inline-flex items-center justify-center rounded-full border border-[var(--accent)]/25 bg-[var(--accent-soft)] px-3 py-1.5 text-xs font-medium text-[var(--accent)] transition-colors hover:border-[var(--accent)]/40 hover:bg-[var(--accent)]/15"
+              title="Produkt öffnen"
+            >
+              Öffnen
+            </button>
+          </div>
         ) : (
           <button
             type="button"
-            className="text-[var(--muted)]"
+            className="justify-self-end text-[var(--muted)]"
             aria-label="Menü"
           >
             ⋮
@@ -1315,7 +1317,7 @@ function SealedCard({
             <button
               type="button"
               onClick={onOpen}
-              className="mt-1 text-xs font-medium text-[var(--accent)]"
+              className="mt-1.5 inline-flex items-center rounded-full border border-[var(--accent)]/25 bg-[var(--accent-soft)] px-2.5 py-1 text-xs font-medium text-[var(--accent)] transition-colors hover:border-[var(--accent)]/40 hover:bg-[var(--accent)]/15"
             >
               Öffnen
             </button>
