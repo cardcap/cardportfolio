@@ -1101,7 +1101,13 @@ export const portfolioAnalytics = {
   sealedValue: 4233,
   sealedInvested: 3550,
   largestPosition: 850,
+  /** Card linked to largest / most valuable position */
+  largestPositionCardId: "charizard-ex",
   bestReturnPct: 52.0,
+  /** Card linked to best return */
+  bestReturnCardId: "mew-ex",
+  bestReturnPurchasePrice: 90,
+  bestReturnMarketValue: 137,
   worstReturnPct: -20.0,
   distinctAssets: 929,
   pricesUpdatedLabel: "heute, 06:00 Uhr",

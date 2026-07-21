@@ -333,15 +333,23 @@ export function PortfolioView() {
                 <h2 className="mb-3 text-sm font-medium">Portfolio-Kennzahlen</h2>
                 <div className="grid grid-cols-2 gap-2">
                   <KpiTile
-                    label="Größte Position"
+                    label="Wertvollste Position"
                     value={formatCurrency(a.largestPosition)}
                     icon="star"
+                    hoverCardId={a.largestPositionCardId}
+                    hoverMarket={a.largestPosition}
+                    href="/assets/karten"
                   />
                   <KpiTile
                     label="Beste Rendite"
                     value={formatPercent(a.bestReturnPct)}
                     icon="up"
                     positive
+                    hoverCardId={a.bestReturnCardId}
+                    hoverMarket={a.bestReturnMarketValue}
+                    hoverPurchase={a.bestReturnPurchasePrice}
+                    hoverReturnPct={a.bestReturnPct}
+                    href="/assets/karten"
                   />
                   <KpiTile
                     label="Stärkster Verlust"
@@ -1133,15 +1141,31 @@ function KpiTile({
   icon,
   positive,
   negative,
+  hoverCardId,
+  hoverMarket,
+  hoverPurchase,
+  hoverReturnPct,
+  href,
 }: {
   label: string;
   value: string;
   icon: string;
   positive?: boolean;
   negative?: boolean;
+  /** Optional card preview on hover */
+  hoverCardId?: string;
+  hoverMarket?: number;
+  hoverPurchase?: number;
+  hoverReturnPct?: number;
+  /** Click target (e.g. Sammlung) */
+  href?: string;
 }) {
-  return (
-    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]/40 px-3 py-2.5">
+  const [open, setOpen] = useState(false);
+  const card = hoverCardId ? getCard(hoverCardId) : null;
+  const interactive = Boolean(hoverCardId && card);
+
+  const body = (
+    <>
       <p className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-[var(--muted)]">
         <MetricIcon type={icon} />
         {label}
@@ -1157,6 +1181,97 @@ function KpiTile({
       >
         {value}
       </p>
+    </>
+  );
+
+  const shellClass = `relative rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]/40 px-3 py-2.5 transition-colors ${
+    interactive
+      ? "cursor-pointer hover:border-[var(--accent)]/40 hover:bg-[var(--accent-soft)]/25"
+      : ""
+  }`;
+
+  return (
+    <div
+      className={shellClass}
+      onMouseEnter={() => interactive && setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      {href && interactive ? (
+        <Link href={href} className="block outline-none">
+          {body}
+        </Link>
+      ) : (
+        body
+      )}
+
+      {open && card && (
+        <div
+          className="absolute bottom-[calc(100%+0.5rem)] left-1/2 z-30 w-[13.5rem] -translate-x-1/2 rounded-xl border border-[var(--border-strong)] bg-[var(--surface-elevated)] p-3 shadow-xl"
+          role="tooltip"
+        >
+          <div className="flex gap-2.5">
+            <CardImage
+              src={card.imageUrl}
+              alt={card.name}
+              size="sm"
+              className="shrink-0"
+            />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold leading-tight">
+                {card.name}
+              </p>
+              <p className="mt-0.5 truncate text-[11px] text-[var(--muted)]">
+                {card.setName}
+                {card.number ? ` · ${card.number}` : ""}
+              </p>
+              <p className="mt-0.5 text-[11px] text-[var(--muted)]">
+                {card.rarity}
+              </p>
+            </div>
+          </div>
+          <div className="mt-2.5 grid grid-cols-2 gap-1.5 text-xs">
+            <div className="rounded-lg bg-[var(--background)] px-2 py-1.5">
+              <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
+                Marktwert
+              </p>
+              <p className="tabular-nums font-semibold">
+                {formatCurrency(hoverMarket ?? card.price)}
+              </p>
+            </div>
+            {hoverReturnPct != null ? (
+              <div className="rounded-lg bg-[var(--background)] px-2 py-1.5">
+                <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
+                  Rendite
+                </p>
+                <p className="tabular-nums font-semibold text-[var(--positive)]">
+                  {formatPercent(hoverReturnPct)}
+                </p>
+              </div>
+            ) : hoverPurchase != null ? (
+              <div className="rounded-lg bg-[var(--background)] px-2 py-1.5">
+                <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
+                  EK
+                </p>
+                <p className="tabular-nums font-semibold">
+                  {formatCurrency(hoverPurchase)}
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-lg bg-[var(--background)] px-2 py-1.5">
+                <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
+                  Sprache
+                </p>
+                <p className="font-semibold">{card.language}</p>
+              </div>
+            )}
+          </div>
+          {href && (
+            <p className="mt-2 text-center text-[10px] text-[var(--muted)]">
+              Klicken → Sammlung
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
