@@ -485,7 +485,7 @@ export function PortfolioView() {
                   href="/portfolio/positionen"
                   className="text-xs font-medium text-[var(--accent)] hover:opacity-80"
                 >
-                  Alle →
+                  Alle anzeigen
                 </Link>
               </div>
               <ul className="space-y-1">
@@ -529,12 +529,6 @@ export function PortfolioView() {
                   );
                 })}
               </ul>
-              <Link
-                href="/portfolio/positionen"
-                className="mt-4 inline-block text-xs font-medium text-[var(--accent)] hover:opacity-80"
-              >
-                Alle Positionen anzeigen →
-              </Link>
             </div>
           </div>
 
