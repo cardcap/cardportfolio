@@ -124,6 +124,7 @@ export async function PATCH(request: NextRequest) {
       quantity?: number;
       condition?: string;
       purchasePrice?: number;
+      purchaseDate?: string | null;
       marketValue?: number | null;
     };
 
@@ -135,6 +136,7 @@ export async function PATCH(request: NextRequest) {
       quantity: body.quantity,
       condition: body.condition,
       purchasePrice: body.purchasePrice,
+      purchaseDate: body.purchaseDate,
       marketValue: body.marketValue,
     });
 

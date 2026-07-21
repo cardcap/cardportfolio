@@ -14,6 +14,8 @@ export type SealedItemDto = {
   condition: string;
   quantity: number;
   purchasePrice: number;
+  /** ISO yyyy-mm-dd */
+  purchaseDate?: string | null;
   marketValue: number;
   imageUrl?: string;
   imageFallbacks?: string[];
@@ -54,6 +56,7 @@ function toDto(row: {
   condition: string;
   quantity: number;
   purchasePrice: number;
+  purchaseDate?: string | null;
   marketValue: number | null;
   imageUrl: string | null;
   imageFallbacks: string | null;
@@ -70,6 +73,7 @@ function toDto(row: {
     condition: row.condition,
     quantity: row.quantity,
     purchasePrice: row.purchasePrice,
+    purchaseDate: row.purchaseDate ?? null,
     marketValue: row.marketValue ?? row.purchasePrice,
     imageUrl: row.imageUrl ?? undefined,
     imageFallbacks: parseFallbacks(row.imageFallbacks),
@@ -131,6 +135,8 @@ export type CreateSealedParams = {
   condition?: string;
   quantity?: number;
   purchasePrice: number;
+  /** ISO yyyy-mm-dd */
+  purchaseDate?: string | null;
   marketValue?: number | null;
   imageUrl?: string | null;
   imageFallbacks?: string[] | null;
@@ -181,6 +187,9 @@ export async function addSealedItem(
       condition,
       quantity,
       purchasePrice: params.purchasePrice,
+      purchaseDate:
+        params.purchaseDate?.trim() ||
+        new Date().toISOString().slice(0, 10),
       marketValue: params.marketValue ?? params.purchasePrice,
       imageUrl: params.imageUrl ?? null,
       imageFallbacks: params.imageFallbacks
@@ -199,6 +208,7 @@ export async function updateSealedItem(
     quantity?: number;
     condition?: string;
     purchasePrice?: number;
+    purchaseDate?: string | null;
     marketValue?: number | null;
   },
 ): Promise<SealedItemDto | null> {
@@ -216,6 +226,8 @@ export async function updateSealedItem(
           : undefined,
       condition: patch.condition?.trim() || undefined,
       purchasePrice: patch.purchasePrice,
+      purchaseDate:
+        patch.purchaseDate !== undefined ? patch.purchaseDate : undefined,
       marketValue: patch.marketValue,
     },
   });

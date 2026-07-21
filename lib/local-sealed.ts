@@ -46,6 +46,29 @@ export function removeLocalSealed(id: string): SealedProduct[] {
   return next;
 }
 
+/** Update fields on a local sealed row. */
+export function updateLocalSealed(
+  id: string,
+  patch: Partial<
+    Pick<
+      SealedProduct,
+      | "quantity"
+      | "condition"
+      | "purchasePrice"
+      | "purchaseDate"
+      | "marketValue"
+    >
+  >,
+): SealedProduct[] {
+  const items = getLocalSealed();
+  const idx = items.findIndex((p) => p.id === id);
+  if (idx < 0) return items;
+  const next = [...items];
+  next[idx] = { ...next[idx], ...patch };
+  saveLocalSealed(next);
+  return next;
+}
+
 /**
  * Open one unit of a sealed product.
  * quantity > 1 → decrement; quantity 1 → remove from list.

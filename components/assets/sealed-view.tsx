@@ -10,6 +10,7 @@ import { addToLocalCollectionDetailed } from "@/lib/local-collection";
 import {
   getLocalSealed,
   removeLocalSealed,
+  updateLocalSealed,
   SEALED_CHANGED_EVENT,
 } from "@/lib/local-sealed";
 import {
@@ -18,6 +19,7 @@ import {
   type SealedProduct,
 } from "@/lib/mock-data";
 import type { TcgCard } from "@/lib/pokemon-tcg";
+import { BulkActionBar } from "@/components/ui/bulk-action-bar";
 
 type SortKey =
   | "newest"
@@ -60,6 +62,7 @@ type ApiSealedItem = {
   condition: string;
   quantity: number;
   purchasePrice: number;
+  purchaseDate?: string | null;
   marketValue: number;
   imageUrl?: string;
   imageFallbacks?: string[];
@@ -84,6 +87,7 @@ function mapApiSealed(item: ApiSealedItem): SealedProduct {
     condition: cond,
     quantity: item.quantity,
     purchasePrice: item.purchasePrice,
+    purchaseDate: item.purchaseDate ?? null,
     marketValue: item.marketValue,
     imageUrl: item.imageUrl,
     imageFallbacks: item.imageFallbacks,
@@ -111,6 +115,8 @@ export function SealedView() {
   const [toast, setToast] = useState<string | null>(null);
   const [inventory, setInventory] = useState<SealedProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const loadInventory = useCallback(async () => {
     if (authLoading) return;
@@ -400,6 +406,102 @@ export function SealedView() {
     );
     return { products, units, value };
   }, [filtered]);
+
+  useEffect(() => {
+    setCheckedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const allowed = new Set(filtered.map((p) => p.id));
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (allowed.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [filtered]);
+
+  const allFilteredSelected =
+    filtered.length > 0 && filtered.every((p) => checkedIds.has(p.id));
+  const someFilteredSelected =
+    !allFilteredSelected && filtered.some((p) => checkedIds.has(p.id));
+
+  const toggleSelectAllFiltered = () => {
+    if (allFilteredSelected) setCheckedIds(new Set());
+    else setCheckedIds(new Set(filtered.map((p) => p.id)));
+  };
+
+  const setRowChecked = (id: string, on: boolean) => {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const removeChecked = async () => {
+    if (checkedIds.size === 0) return;
+    const rows = filtered.filter((p) => checkedIds.has(p.id));
+    if (rows.length === 0) return;
+    const ok = window.confirm(
+      rows.length === 1
+        ? `„${rows[0].name}“ aus dem Sealed-Inventar entfernen?`
+        : `${rows.length} Sealed-Produkte entfernen?`,
+    );
+    if (!ok) return;
+
+    setBulkBusy(true);
+    try {
+      for (const row of rows) {
+        if (!isAuthenticated) {
+          removeLocalSealed(row.id);
+        } else {
+          const res = await fetch("/api/sealed", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: row.id }),
+          });
+          if (!res.ok) removeLocalSealed(row.id);
+        }
+      }
+      setCheckedIds(new Set());
+      await loadInventory();
+      if (!isAuthenticated) setInventory(getLocalSealed());
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const updateCheckedPurchaseDate = async (isoDate: string) => {
+    if (checkedIds.size === 0 || !isoDate) return;
+    const rows = filtered.filter((p) => checkedIds.has(p.id));
+    if (rows.length === 0) return;
+
+    setBulkBusy(true);
+    try {
+      for (const row of rows) {
+        if (!isAuthenticated) {
+          updateLocalSealed(row.id, { purchaseDate: isoDate });
+        } else {
+          const res = await fetch("/api/sealed", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: row.id, purchaseDate: isoDate }),
+          });
+          if (!res.ok) updateLocalSealed(row.id, { purchaseDate: isoDate });
+        }
+      }
+      await loadInventory();
+      if (!isAuthenticated) setInventory(getLocalSealed());
+      setToast(
+        `Einkaufsdatum für ${rows.length} Produkt${rows.length === 1 ? "" : "e"} gesetzt`,
+      );
+      setTimeout(() => setToast(null), 3000);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   const activeChips = useMemo(() => {
     const chips: Array<{ key: string; label: string; clear: () => void }> = [];
@@ -791,13 +893,35 @@ export function SealedView() {
             </button>
           )}
         </div>
-        <p className="shrink-0 text-xs text-[var(--muted)]">
-          {filteredStats.products.toLocaleString("de-DE")} Produkte
-          <span className="mx-1.5 opacity-40">·</span>
-          {filteredStats.units.toLocaleString("de-DE")} Stück
-          <span className="mx-1.5 opacity-40">·</span>
-          Marktwert {formatCurrency(filteredStats.value)}
-        </p>
+        <div className="flex shrink-0 flex-wrap items-center gap-3 text-xs text-[var(--muted)]">
+          {filtered.length > 0 && (
+            <label className="inline-flex cursor-pointer items-center gap-1.5 text-[var(--foreground)]">
+              <input
+                type="checkbox"
+                checked={allFilteredSelected}
+                ref={(el) => {
+                  if (el) el.indeterminate = someFilteredSelected;
+                }}
+                onChange={toggleSelectAllFiltered}
+                className="h-3.5 w-3.5 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                aria-label="Alle gefilterten Produkte auswählen"
+              />
+              Alle auswählen
+            </label>
+          )}
+          <p>
+            {filteredStats.products.toLocaleString("de-DE")} Produkte
+            <span className="mx-1.5 opacity-40">·</span>
+            {filteredStats.units.toLocaleString("de-DE")} Stück
+            <span className="mx-1.5 opacity-40">·</span>
+            Marktwert {formatCurrency(filteredStats.value)}
+            {checkedIds.size > 0 && (
+              <span className="ml-2 text-[var(--accent)]">
+                · {checkedIds.size.toLocaleString("de-DE")} ausgewählt
+              </span>
+            )}
+          </p>
+        </div>
       </div>
 
       {/* Table / grid */}
@@ -806,7 +930,16 @@ export function SealedView() {
           <>
             <div className="hidden border-b border-[var(--border)] px-4 py-2.5 text-[10px] uppercase tracking-wider text-[var(--muted)] xl:grid xl:grid-cols-[2rem_minmax(12rem,1.6fr)_minmax(7rem,1fr)_7rem_3rem_minmax(6rem,0.9fr)_3.5rem_6rem_6rem_5.5rem_6rem_1.5rem] xl:gap-2 xl:px-5">
               <span>
-                <input type="checkbox" className="rounded border-[var(--border)]" aria-label="Alle auswählen" />
+                <input
+                  type="checkbox"
+                  checked={allFilteredSelected}
+                  ref={(el) => {
+                    if (el) el.indeterminate = someFilteredSelected;
+                  }}
+                  onChange={toggleSelectAllFiltered}
+                  className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+                  aria-label="Alle auswählen"
+                />
               </span>
               <span>Produkt</span>
               <span>Set</span>
@@ -825,6 +958,8 @@ export function SealedView() {
                 <SealedRow
                   key={row.id}
                   product={row}
+                  checked={checkedIds.has(row.id)}
+                  onCheckedChange={(on) => setRowChecked(row.id, on)}
                   onOpen={() => setConfirmProduct(row)}
                 />
               ))}
@@ -845,6 +980,8 @@ export function SealedView() {
               <SealedCard
                 key={row.id}
                 product={row}
+                checked={checkedIds.has(row.id)}
+                onCheckedChange={(on) => setRowChecked(row.id, on)}
                 onOpen={() => setConfirmProduct(row)}
               />
             ))}
@@ -939,15 +1076,30 @@ export function SealedView() {
           </select>
         </label>
       </div>
+
+      <BulkActionBar
+        selectedCount={checkedIds.size}
+        totalCount={filtered.length}
+        allSelected={allFilteredSelected}
+        busy={bulkBusy}
+        onSelectAll={toggleSelectAllFiltered}
+        onClear={() => setCheckedIds(new Set())}
+        onDelete={() => void removeChecked()}
+        onPurchaseDate={(d) => updateCheckedPurchaseDate(d)}
+      />
     </div>
   );
 }
 
 function SealedRow({
   product,
+  checked,
+  onCheckedChange,
   onOpen,
 }: {
   product: SealedProduct;
+  checked: boolean;
+  onCheckedChange: (on: boolean) => void;
   onOpen: () => void;
 }) {
   const totalMarket = product.marketValue * product.quantity;
@@ -958,9 +1110,24 @@ function SealedRow({
   const canOpen = true;
 
   return (
-    <li className="px-4 py-3 transition-colors hover:bg-[var(--surface-elevated)]/50 sm:px-5">
+    <li
+      className={`px-4 py-3 transition-colors sm:px-5 ${
+        checked
+          ? "bg-[var(--accent-soft)]"
+          : "hover:bg-[var(--surface-elevated)]/50"
+      }`}
+    >
       {/* mobile */}
       <div className="flex gap-3 xl:hidden">
+        <label className="flex shrink-0 items-start pt-1">
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={(e) => onCheckedChange(e.target.checked)}
+            className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+            aria-label={`${product.name} auswählen`}
+          />
+        </label>
         <ProductThumb product={product} />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
@@ -974,6 +1141,14 @@ function SealedRow({
             <span>{product.language}</span>
             <ConditionBadge condition={product.condition} />
             <span>×{product.quantity}</span>
+            {product.purchaseDate && (
+              <span>
+                EK{" "}
+                {product.purchaseDate.includes("-")
+                  ? product.purchaseDate.split("-").reverse().join(".")
+                  : product.purchaseDate}
+              </span>
+            )}
           </div>
           {canOpen && (
             <button
@@ -1006,7 +1181,13 @@ function SealedRow({
 
       {/* desktop */}
       <div className="hidden items-center gap-2 xl:grid xl:grid-cols-[2rem_minmax(12rem,1.6fr)_minmax(7rem,1fr)_7rem_3rem_minmax(6rem,0.9fr)_3.5rem_6rem_6rem_5.5rem_6rem_1.5rem]">
-        <input type="checkbox" className="rounded border-[var(--border)]" aria-label={product.name} />
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onCheckedChange(e.target.checked)}
+          className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+          aria-label={`${product.name} auswählen`}
+        />
         <div className="flex min-w-0 items-center gap-3">
           <ProductThumb product={product} />
           <p className="truncate text-sm font-medium">{product.name}</p>
@@ -1074,9 +1255,13 @@ function SealedRow({
 
 function SealedCard({
   product,
+  checked,
+  onCheckedChange,
   onOpen,
 }: {
   product: SealedProduct;
+  checked: boolean;
+  onCheckedChange: (on: boolean) => void;
   onOpen: () => void;
 }) {
   const totalMarket = product.marketValue * product.quantity;
@@ -1086,7 +1271,22 @@ function SealedCard({
   const canOpen = true;
 
   return (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)]/40 p-4">
+    <div
+      className={`relative rounded-xl border p-4 ${
+        checked
+          ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+          : "border-[var(--border)] bg-[var(--surface-elevated)]/40"
+      }`}
+    >
+      <label className="absolute left-3 top-3 z-10 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md bg-[var(--surface)]/90 shadow-sm">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onCheckedChange(e.target.checked)}
+          className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
+          aria-label={`${product.name} auswählen`}
+        />
+      </label>
       <div className="flex gap-3">
         <ProductThumb product={product} large />
         <div className="min-w-0 flex-1">

@@ -236,13 +236,25 @@ export function updateLocalCollectionItem(
   const marketUnit = unitMarket > 0 ? unitMarket : unit;
   item.marketValue = Math.round(marketUnit * item.quantity * 100) / 100;
 
-  // Keep exemplars in sync when simple update (uniform condition/price/date)
-  if (
+  // Date-only: keep per-exemplar condition/price, only rewrite dates
+  const dateOnly =
+    patch.purchaseDate !== undefined &&
+    patch.quantity === undefined &&
+    patch.condition === undefined &&
+    patch.purchasePrice === undefined;
+
+  if (dateOnly && item.exemplars && item.exemplars.length > 0) {
+    item.exemplars = item.exemplars.map((e) => ({
+      ...e,
+      purchaseDate: patch.purchaseDate,
+    }));
+  } else if (
     patch.quantity !== undefined ||
     patch.condition !== undefined ||
     patch.purchasePrice !== undefined ||
     patch.purchaseDate !== undefined
   ) {
+    // Keep exemplars in sync when simple uniform update
     item.exemplars = Array.from({ length: item.quantity }, () => ({
       condition: item.condition,
       purchasePrice: item.purchasePrice,

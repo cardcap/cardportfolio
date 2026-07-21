@@ -2017,6 +2017,8 @@ export type SealedProduct = {
   condition: "OVP" | "leichte Mängel" | "beschädigt";
   quantity: number;
   purchasePrice: number;
+  /** ISO yyyy-mm-dd */
+  purchaseDate?: string | null;
   marketValue: number;
   /** Set logo / product art */
   imageUrl?: string;

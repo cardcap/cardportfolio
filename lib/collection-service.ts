@@ -425,6 +425,19 @@ export async function updateCollectionItem(
     }
   }
 
+  let nextExemplars:
+    | CollectionExemplarDto[]
+    | undefined = undefined;
+  if (patch.purchaseDate !== undefined) {
+    const currentEx = parseExemplars(existing.exemplars);
+    if (currentEx && currentEx.length > 0) {
+      nextExemplars = currentEx.map((e) => ({
+        ...e,
+        purchaseDate: patch.purchaseDate,
+      }));
+    }
+  }
+
   const updated = await prisma.collectionItem.update({
     where: { id: existing.id },
     data: {
@@ -438,6 +451,9 @@ export async function updateCollectionItem(
         patch.purchaseDate !== undefined
           ? patch.purchaseDate
           : existing.purchaseDate,
+      ...(nextExemplars !== undefined
+        ? { exemplars: nextExemplars as object }
+        : {}),
     },
   });
 

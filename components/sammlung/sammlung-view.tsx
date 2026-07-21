@@ -25,6 +25,7 @@ import { useAuthMode } from "@/components/auth/use-auth-mode";
 import { CollectionImportDialog } from "@/components/sammlung/collection-import-dialog";
 import { SetCardDetailPanel } from "@/components/sets/set-card-detail-panel";
 import { PageHeader } from "@/components/layout/page-header";
+import { BulkActionBar } from "@/components/ui/bulk-action-bar";
 import { Button } from "@/components/ui/button";
 import { CardImage } from "@/components/ui/card-image";
 import { ConditionBadge } from "@/components/ui/condition-badge";
@@ -1298,12 +1299,53 @@ export function SammlungView() {
     } finally {
       setBulkDeleting(false);
     }
-  }, [
-    checkedIds,
-    filteredItems,
-    deleteMemberIds,
-    selectedId,
-  ]);
+  }, [checkedIds, filteredItems, deleteMemberIds, selectedId]);
+
+  const updateCheckedPurchaseDate = useCallback(
+    async (isoDate: string) => {
+      if (checkedIds.size === 0 || !isoDate) return;
+      const rows = filteredItems.filter((r) => checkedIds.has(r.id));
+      if (rows.length === 0) return;
+
+      setBulkDeleting(true);
+      try {
+        const memberIds: string[] = [];
+        for (const row of rows) {
+          if (row.groupMemberIds && row.groupMemberIds.length > 0) {
+            memberIds.push(...row.groupMemberIds);
+          } else {
+            memberIds.push(row.id);
+          }
+        }
+        const unique = [...new Set(memberIds)];
+        for (const mid of unique) {
+          if (isLocalRow(mid) || !isAuthenticated) {
+            updateLocalCollectionItem(mid, { purchaseDate: isoDate });
+          } else {
+            const res = await fetch("/api/collection", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: mid, purchaseDate: isoDate }),
+            });
+            if (!res.ok) {
+              updateLocalCollectionItem(mid, { purchaseDate: isoDate });
+            }
+          }
+        }
+        loadLocal();
+        if (isAuthenticated) await loadCollection();
+      } finally {
+        setBulkDeleting(false);
+      }
+    },
+    [
+      checkedIds,
+      filteredItems,
+      isAuthenticated,
+      loadLocal,
+      loadCollection,
+    ],
+  );
 
   // Reset edit mode when switching cards
   useEffect(() => {
@@ -2673,43 +2715,16 @@ export function SammlungView() {
         </>
       )}
 
-      {/* Bulk actions for multi-select */}
-      {checkedIds.size > 0 && (
-        <div
-          className="fixed inset-x-0 bottom-20 z-50 flex justify-center px-4 lg:bottom-6"
-          role="toolbar"
-          aria-label="Auswahl-Aktionen"
-        >
-          <div className="flex max-w-full flex-wrap items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 shadow-xl shadow-black/20">
-            <p className="px-1 text-sm font-medium tabular-nums">
-              {checkedIds.size.toLocaleString("de-DE")} ausgewählt
-            </p>
-            <button
-              type="button"
-              onClick={toggleSelectAllFiltered}
-              className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]"
-            >
-              {allFilteredSelected ? "Keine" : "Alle"} (
-              {filteredItems.length.toLocaleString("de-DE")})
-            </button>
-            <button
-              type="button"
-              onClick={() => setCheckedIds(new Set())}
-              className="rounded-lg px-2.5 py-1.5 text-xs text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)]"
-            >
-              Aufheben
-            </button>
-            <Button
-              variant="danger"
-              className="!h-9"
-              disabled={bulkDeleting}
-              onClick={() => void removeChecked()}
-            >
-              {bulkDeleting ? "Löschen…" : "Löschen"}
-            </Button>
-          </div>
-        </div>
-      )}
+      <BulkActionBar
+        selectedCount={checkedIds.size}
+        totalCount={filteredItems.length}
+        allSelected={allFilteredSelected}
+        busy={bulkDeleting}
+        onSelectAll={toggleSelectAllFiltered}
+        onClear={() => setCheckedIds(new Set())}
+        onDelete={() => void removeChecked()}
+        onPurchaseDate={(d) => updateCheckedPurchaseDate(d)}
+      />
     </>
   );
 }
