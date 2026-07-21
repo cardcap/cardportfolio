@@ -287,7 +287,6 @@ export function SealedDetailPanel({
                 <DataRow label="Sprache" value={languageLabel(product.language)} />
                 <DataRow label="Zustand" value={product.condition} />
                 <DataRow label="Set" value={product.setName} />
-                {product.ean && <DataRow label="EAN" value={product.ean} />}
               </dl>
             </>
           ) : (
