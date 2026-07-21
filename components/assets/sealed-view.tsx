@@ -1421,6 +1421,8 @@ function SealedMetricsPanel({
   inventory: SealedProduct[];
   metrics: SealedMetrics;
 }) {
+  const [hoveredType, setHoveredType] = useState<string | null>(null);
+
   const weeklyAbs =
     Math.round(metrics.totalValue * (metrics.weeklyChange / 100) * 100) / 100;
   const avgPurchase =
@@ -1453,11 +1455,35 @@ function SealedMetricsPanel({
     byType.Tins +
     byType.Bundles;
 
-  const typeSegments = [
-    { key: "Displays", label: "Displays", count: byType.Displays, color: "#f9a8d4" },
-    { key: "etb", label: "Elite Trainer Boxen", count: byType["Elite Trainer Boxen"], color: "#f472b6" },
-    { key: "Tins", label: "Tins", count: byType.Tins, color: "#ec4899" },
-    { key: "Bundles", label: "Bundles", count: byType.Bundles, color: "#be185d" },
+  const typeItems = [
+    {
+      key: "Displays",
+      label: "Displays",
+      count: byType.Displays,
+      color: "#f9a8d4",
+      icon: "display" as const,
+    },
+    {
+      key: "etb",
+      label: "Elite Trainer Boxen",
+      count: byType["Elite Trainer Boxen"],
+      color: "#f472b6",
+      icon: "etb" as const,
+    },
+    {
+      key: "Tins",
+      label: "Tins",
+      count: byType.Tins,
+      color: "#ec4899",
+      icon: "tin" as const,
+    },
+    {
+      key: "Bundles",
+      label: "Bundles",
+      count: byType.Bundles,
+      color: "#be185d",
+      icon: "bundle" as const,
+    },
   ];
 
   return (
@@ -1534,64 +1560,60 @@ function SealedMetricsPanel({
         <p className="text-[11px] font-medium uppercase tracking-wider text-[var(--muted)]">
           Bestand nach Produkttyp
         </p>
-        <div className="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-[var(--border)]">
-          <div className="flex h-full w-full">
+        <div className="mt-4 flex h-2.5 w-full items-center overflow-visible rounded-full bg-[var(--border)]">
+          <div className="flex h-full w-full overflow-visible rounded-full">
             {typeTotal > 0 ? (
-              typeSegments.map((s) => (
-                <div
-                  key={s.key}
-                  className="h-full first:rounded-l-full last:rounded-r-full"
-                  style={{
-                    width: `${(s.count / typeTotal) * 100}%`,
-                    backgroundColor: s.color,
-                    minWidth: s.count > 0 ? 4 : 0,
-                  }}
-                  title={`${s.label}: ${s.count}`}
-                />
-              ))
+              typeItems.map((s, i) => {
+                const active = hoveredType === s.key;
+                const dimmed = hoveredType != null && !active;
+                return (
+                  <div
+                    key={s.key}
+                    className={[
+                      "relative h-full transition-[filter,opacity,transform] duration-200 ease-out",
+                      i === 0 ? "rounded-l-full" : "",
+                      i === typeItems.length - 1 ? "rounded-r-full" : "",
+                      active ? "z-10 origin-center scale-y-[1.55]" : "",
+                      dimmed ? "opacity-35" : "opacity-100",
+                      active ? "animate-[sealedBarPulse_1.4s_ease-in-out_infinite]" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    style={{
+                      width: `${(s.count / typeTotal) * 100}%`,
+                      backgroundColor: s.color,
+                      minWidth: s.count > 0 ? 4 : 0,
+                      boxShadow: active
+                        ? `0 0 10px 1px ${s.color}66`
+                        : undefined,
+                    }}
+                    title={`${s.label}: ${s.count}`}
+                  />
+                );
+              })
             ) : (
               <div className="h-full w-full rounded-full bg-[var(--border-strong)]/40" />
             )}
           </div>
         </div>
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-          {(
-            [
-              {
-                label: "Displays",
-                count: byType.Displays,
-                icon: "display" as const,
-                accent: "#f9a8d4",
-              },
-              {
-                label: "Elite Trainer Boxen",
-                count: byType["Elite Trainer Boxen"],
-                icon: "etb" as const,
-                accent: "#f472b6",
-              },
-              {
-                label: "Tins",
-                count: byType.Tins,
-                icon: "tin" as const,
-                accent: "#ec4899",
-              },
-              {
-                label: "Bundles",
-                count: byType.Bundles,
-                icon: "bundle" as const,
-                accent: "#be185d",
-              },
-            ] as const
-          ).map((item) => (
+          {typeItems.map((item) => (
             <div
-              key={item.label}
-              className="flex min-w-0 items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--background)]/50 px-3 py-3 sm:gap-3.5 sm:px-4"
+              key={item.key}
+              onMouseEnter={() => setHoveredType(item.key)}
+              onMouseLeave={() => setHoveredType(null)}
+              className={[
+                "flex min-w-0 cursor-default items-center gap-3 rounded-xl border bg-[var(--background)]/50 px-3 py-3 transition-colors sm:gap-3.5 sm:px-4",
+                hoveredType === item.key
+                  ? "border-[var(--accent)]/35 bg-[var(--accent-soft)]/40"
+                  : "border-[var(--border)]",
+              ].join(" ")}
             >
               <span
                 className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ring-[var(--border)] sm:h-11 sm:w-11"
                 style={{
-                  backgroundColor: `${item.accent}18`,
-                  color: item.accent,
+                  backgroundColor: `${item.color}18`,
+                  color: item.color,
                 }}
               >
                 <TypeIcon kind={item.icon} />
@@ -1606,6 +1628,7 @@ function SealedMetricsPanel({
           ))}
         </div>
       </div>
+
     </div>
   );
 }
