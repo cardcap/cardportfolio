@@ -1109,6 +1109,10 @@ export const portfolioAnalytics = {
   bestReturnPurchasePrice: 90,
   bestReturnMarketValue: 137,
   worstReturnPct: -20.0,
+  /** Card linked to worst return */
+  worstReturnCardId: "koraidon-ex",
+  worstReturnPurchasePrice: 92.5,
+  worstReturnMarketValue: 74.0,
   distinctAssets: 929,
   pricesUpdatedLabel: "heute, 06:00 Uhr",
 };

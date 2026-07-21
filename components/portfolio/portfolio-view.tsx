@@ -352,6 +352,11 @@ export function PortfolioView() {
                     value={formatPercent(a.worstReturnPct)}
                     icon="down"
                     negative
+                    hoverCardId={a.worstReturnCardId}
+                    hoverMarket={a.worstReturnMarketValue}
+                    hoverPurchase={a.worstReturnPurchasePrice}
+                    hoverReturnPct={a.worstReturnPct}
+                    href="/assets/karten"
                   />
                   <KpiTile
                     label="Verschiedene Assets"
