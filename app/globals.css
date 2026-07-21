@@ -192,20 +192,20 @@ body {
   }
 }
 
-/* Sealed: subtle pulse on bar segment when type card is hovered */
+/* Sealed: subtle pulse on bar segment when type card is hovered (no size change) */
 @keyframes sealedBarPulse {
   0%,
   100% {
-    filter: brightness(1.06);
+    filter: brightness(1.08);
   }
   50% {
-    filter: brightness(1.32);
+    filter: brightness(1.28);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .animate-\[sealedBarPulse_1\.4s_ease-in-out_infinite\] {
     animation: none !important;
-    filter: brightness(1.2);
+    filter: brightness(1.18);
   }
 }

@@ -1730,12 +1730,13 @@ function SealedMetricsPanel({
                   <div
                     key={s.key}
                     className={[
-                      "relative h-full transition-[filter,opacity,transform] duration-200 ease-out",
+                      "relative h-full transition-[filter,opacity] duration-200 ease-out",
                       i === 0 ? "rounded-l-full" : "",
                       i === typeItems.length - 1 ? "rounded-r-full" : "",
-                      active ? "z-10 origin-center scale-y-[1.55]" : "",
                       dimmed ? "opacity-35" : "opacity-100",
-                      active ? "animate-[sealedBarPulse_1.4s_ease-in-out_infinite]" : "",
+                      active
+                        ? "z-[1] animate-[sealedBarPulse_1.4s_ease-in-out_infinite]"
+                        : "",
                     ]
                       .filter(Boolean)
                       .join(" ")}
@@ -1743,9 +1744,6 @@ function SealedMetricsPanel({
                       width: `${(s.count / typeTotal) * 100}%`,
                       backgroundColor: s.color,
                       minWidth: s.count > 0 ? 4 : 0,
-                      boxShadow: active
-                        ? `0 0 10px 1px ${s.color}66`
-                        : undefined,
                     }}
                     title={`${s.label}: ${s.count}`}
                   />
