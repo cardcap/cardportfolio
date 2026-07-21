@@ -15,7 +15,9 @@ import { formatCurrency } from "@/lib/format";
 import { addToLocalCollectionDetailed } from "@/lib/local-collection";
 import {
   getLocalSealed,
+  openLocalSealedUnit,
   removeLocalSealed,
+  saveLocalSealed,
   updateLocalSealed,
   SEALED_CHANGED_EVENT,
 } from "@/lib/local-sealed";
@@ -26,6 +28,10 @@ import {
 } from "@/lib/mock-data";
 import type { TcgCard } from "@/lib/pokemon-tcg";
 import { BulkActionBar } from "@/components/ui/bulk-action-bar";
+import {
+  SealedDetailPanel,
+  type SealedDetailSave,
+} from "@/components/assets/sealed-detail-panel";
 
 type SortKey =
   | "newest"
@@ -123,6 +129,9 @@ export function SealedView() {
   const [loading, setLoading] = useState(true);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  /** Detail panel (like Assets → Karten) */
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [detailBusy, setDetailBusy] = useState(false);
 
   const loadInventory = useCallback(async () => {
     if (authLoading) return;
@@ -301,44 +310,56 @@ export function SealedView() {
         }),
       );
 
-      // 2) Remove sealed product from inventory (DB or local)
+      // 2) Open ONE unit: qty>1 → decrement, qty===1 → remove row
+      const prevQty = result.product.quantity;
+      let remainingQty = 0;
       if (isAuthenticated) {
         try {
-          // Full row was cost-allocated → delete entire row
-          const del = await fetch("/api/sealed", {
-            method: "DELETE",
+          const openRes = await fetch("/api/sealed", {
+            method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: result.product.id }),
+            body: JSON.stringify({
+              action: "open",
+              id: result.product.id,
+            }),
           });
-          if (!del.ok) {
-            // fallback: open one unit
-            await fetch("/api/sealed", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                action: "open",
-                id: result.product.id,
-              }),
-            });
+          if (!openRes.ok) {
+            errors.push("Sealed-Eintrag");
+          } else {
+            const data = await openRes.json().catch(() => ({}));
+            const items = (data.items ?? []) as Array<{
+              id: string;
+              quantity: number;
+            }>;
+            remainingQty =
+              items.find((i) => i.id === result.product.id)?.quantity ?? 0;
           }
           await loadInventory();
         } catch {
           errors.push("Sealed-Eintrag");
         }
       } else {
-        const next = removeLocalSealed(result.product.id);
+        const next = openLocalSealedUnit(result.product.id);
         setInventory(next);
+        remainingQty =
+          next.find((i) => i.id === result.product.id)?.quantity ?? 0;
       }
 
       const cardCount = result.cards.reduce((s, c) => s + c.quantity, 0);
       const target = isAuthenticated
         ? "Assets → Karten (Datenbank)"
         : "Assets → Karten (Demo)";
+      const stockNote =
+        prevQty > 1
+          ? remainingQty > 0
+            ? ` · 1× geöffnet, noch ${remainingQty} im Bestand`
+            : ` · 1× geöffnet, Bestand leer`
+          : ` · „${result.product.name}“ aus Sealed entfernt`;
       setToast(
         errors.length > 0
           ? `${cardCount - errors.length}/${cardCount} Karten gespeichert · Fehler bei: ${errors.slice(0, 3).join(", ")}`
           : `${cardCount} Karte${cardCount === 1 ? "" : "n"} unter ${target}` +
-              ` · „${result.product.name}“ aus Sealed entfernt` +
+              stockNote +
               (result.residual
                 ? ` · Restposten ${result.residual.name}`
                 : ""),
@@ -562,6 +583,88 @@ export function SealedView() {
   const safePage = Math.min(page, totalPages);
   const pageRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
+  const detailProduct =
+    (detailId && inventory.find((p) => p.id === detailId)) ||
+    (detailId && filtered.find((p) => p.id === detailId)) ||
+    null;
+  const detailIndex = detailProduct
+    ? filtered.findIndex((p) => p.id === detailProduct.id)
+    : -1;
+
+  async function saveDetail(patch: SealedDetailSave) {
+    if (!detailProduct) return;
+    setDetailBusy(true);
+    try {
+      if (!isAuthenticated) {
+        const items = getLocalSealed();
+        const idx = items.findIndex((p) => p.id === detailProduct.id);
+        if (idx >= 0) {
+          const next = [...items];
+          next[idx] = {
+            ...next[idx],
+            category: patch.category,
+            language: patch.language,
+            quantity: patch.quantity,
+            condition: patch.condition,
+            purchasePrice: patch.purchasePrice,
+            purchaseDate: patch.purchaseDate,
+            marketValue: patch.marketValue,
+          };
+          saveLocalSealed(next);
+          setInventory(next);
+        }
+        return;
+      }
+      const res = await fetch("/api/sealed", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: detailProduct.id,
+          quantity: patch.quantity,
+          condition: patch.condition,
+          language: patch.language,
+          category: patch.category,
+          purchasePrice: patch.purchasePrice,
+          purchaseDate: patch.purchaseDate,
+          marketValue: patch.marketValue,
+        }),
+      });
+      if (!res.ok) {
+        window.alert("Speichern fehlgeschlagen.");
+        return;
+      }
+      await loadInventory();
+    } finally {
+      setDetailBusy(false);
+    }
+  }
+
+  async function deleteDetail() {
+    if (!detailProduct) return;
+    const ok = window.confirm(
+      `„${detailProduct.name}“ komplett aus dem Sealed-Inventar entfernen?`,
+    );
+    if (!ok) return;
+    setDetailBusy(true);
+    try {
+      if (!isAuthenticated) {
+        const next = removeLocalSealed(detailProduct.id);
+        setInventory(next);
+      } else {
+        const res = await fetch("/api/sealed", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: detailProduct.id }),
+        });
+        if (!res.ok) removeLocalSealed(detailProduct.id);
+        await loadInventory();
+      }
+      setDetailId(null);
+    } finally {
+      setDetailBusy(false);
+    }
+  }
+
   return (
     <div className="pb-4">
       <SealedOpenDialog
@@ -570,6 +673,29 @@ export function SealedView() {
         onClose={() => setOpenProduct(null)}
         onConfirm={handleOpenConfirm}
       />
+
+      {detailProduct && (
+        <SealedDetailPanel
+          product={detailProduct}
+          busy={detailBusy}
+          onClose={() => setDetailId(null)}
+          hasPrev={detailIndex > 0}
+          hasNext={detailIndex >= 0 && detailIndex < filtered.length - 1}
+          onPrev={() => {
+            if (detailIndex > 0) setDetailId(filtered[detailIndex - 1].id);
+          }}
+          onNext={() => {
+            if (detailIndex >= 0 && detailIndex < filtered.length - 1) {
+              setDetailId(filtered[detailIndex + 1].id);
+            }
+          }}
+          onOpenProduct={() => {
+            setConfirmProduct(detailProduct);
+          }}
+          onDelete={() => void deleteDetail()}
+          onSave={(patch) => saveDetail(patch)}
+        />
+      )}
 
       {confirmProduct && (
         <>
@@ -907,6 +1033,7 @@ export function SealedView() {
                   checked={checkedIds.has(row.id)}
                   onCheckedChange={(on) => setRowChecked(row.id, on)}
                   onOpen={() => setConfirmProduct(row)}
+                  onSelect={() => setDetailId(row.id)}
                 />
               ))}
               {pageRows.length === 0 && (
@@ -970,6 +1097,8 @@ export function SealedView() {
                       checked={checkedIds.has(row.id)}
                       onCheckedChange={(on) => setRowChecked(row.id, on)}
                       onOpen={() => setConfirmProduct(row)}
+                      onSelect={() => setDetailId(row.id)}
+                      selected={detailId === row.id}
                     />
                   ))}
                   {pageRows.length === 0 && (
@@ -999,6 +1128,7 @@ export function SealedView() {
                 checked={checkedIds.has(row.id)}
                 onCheckedChange={(on) => setRowChecked(row.id, on)}
                 onOpen={() => setConfirmProduct(row)}
+                onSelect={() => setDetailId(row.id)}
               />
             ))}
           </div>
@@ -1116,11 +1246,13 @@ function SealedRow({
   checked,
   onCheckedChange,
   onOpen,
+  onSelect,
 }: {
   product: SealedProduct;
   checked: boolean;
   onCheckedChange: (on: boolean) => void;
   onOpen: () => void;
+  onSelect: () => void;
 }) {
   const totalMarket = product.marketValue * product.quantity;
   const totalCost = product.purchasePrice * product.quantity;
@@ -1145,46 +1277,48 @@ function SealedRow({
             aria-label={`${product.name} auswählen`}
           />
         </label>
-        <ProductThumb product={product} />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{product.name}</p>
-              <p className="truncate text-xs text-[var(--muted)]">
-                {product.setName}
-              </p>
+        <button
+          type="button"
+          onClick={onSelect}
+          className="flex min-w-0 flex-1 gap-3 text-left"
+        >
+          <ProductThumb product={product} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{product.name}</p>
+                <p className="truncate text-xs text-[var(--muted)]">
+                  {product.setName}
+                </p>
+              </div>
+              <CategoryBadge category={product.category} />
             </div>
-            <CategoryBadge category={product.category} />
-          </div>
-          <div className="mt-2 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
-            <span className="tabular-nums font-medium text-[var(--foreground)]">
-              Bestand ×{product.quantity}
-            </span>
-            <span>{product.language}</span>
-            <ConditionBadge condition={product.condition} />
-          </div>
-          <button type="button" onClick={onOpen} className={`mt-2 ${openBtnClass}`}>
-            Öffnen →
-          </button>
-          <div className="mt-2 flex items-end justify-between">
-            <div className="text-xs text-[var(--muted)]">
-              <span className="tabular-nums">
-                {formatCurrency(product.marketValue)}
+            <div className="mt-2 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
+              <span className="tabular-nums font-medium text-[var(--foreground)]">
+                Bestand ×{product.quantity}
               </span>
-              <span className="mx-1">·</span>
-              <span className="tabular-nums text-[var(--foreground)]">
-                {formatCurrency(totalMarket)}
-              </span>
+              <span>{product.language}</span>
+              <ConditionBadge condition={product.condition} />
             </div>
-            <p
-              className={`tabular-nums text-sm font-medium ${
-                positive ? "text-[var(--positive)]" : "text-[var(--negative)]"
-              }`}
-            >
-              {positive ? "+" : ""}
-              {formatCurrency(profit)}
-            </p>
           </div>
+        </button>
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-3 pl-10">
+        <button type="button" onClick={onOpen} className={openBtnClass}>
+          Öffnen →
+        </button>
+        <div className="text-right">
+          <p className="tabular-nums text-sm font-medium">
+            {formatCurrency(totalMarket)}
+          </p>
+          <p
+            className={`tabular-nums text-xs font-medium ${
+              positive ? "text-[var(--positive)]" : "text-[var(--negative)]"
+            }`}
+          >
+            {positive ? "+" : ""}
+            {formatCurrency(profit)}
+          </p>
         </div>
       </div>
     </li>
@@ -1197,11 +1331,15 @@ function SealedTableRow({
   checked,
   onCheckedChange,
   onOpen,
+  onSelect,
+  selected,
 }: {
   product: SealedProduct;
   checked: boolean;
   onCheckedChange: (on: boolean) => void;
   onOpen: () => void;
+  onSelect: () => void;
+  selected?: boolean;
 }) {
   const totalMarket = product.marketValue * product.quantity;
   const totalCost = product.purchasePrice * product.quantity;
@@ -1211,13 +1349,17 @@ function SealedTableRow({
 
   return (
     <tr
-      className={`border-b border-[var(--border)] last:border-0 transition-colors ${
-        checked
+      onClick={onSelect}
+      className={`cursor-pointer border-b border-[var(--border)] last:border-0 transition-colors ${
+        checked || selected
           ? "bg-[var(--accent-soft)]"
           : "hover:bg-[var(--surface-elevated)]/50"
       }`}
     >
-      <td className="px-3 py-3 align-middle">
+      <td
+        className="px-3 py-3 align-middle"
+        onClick={(e) => e.stopPropagation()}
+      >
         <input
           type="checkbox"
           checked={checked}
@@ -1276,7 +1418,10 @@ function SealedTableRow({
           {profitPct.toLocaleString("de-DE", { maximumFractionDigits: 2 })} %
         </p>
       </td>
-      <td className="px-3 py-3 text-right align-middle">
+      <td
+        className="px-3 py-3 text-right align-middle"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
           type="button"
           onClick={onOpen}
@@ -1295,17 +1440,18 @@ function SealedCard({
   checked,
   onCheckedChange,
   onOpen,
+  onSelect,
 }: {
   product: SealedProduct;
   checked: boolean;
   onCheckedChange: (on: boolean) => void;
   onOpen: () => void;
+  onSelect: () => void;
 }) {
   const totalMarket = product.marketValue * product.quantity;
   const profit =
     totalMarket - product.purchasePrice * product.quantity;
   const positive = profit >= 0;
-  const canOpen = true;
 
   return (
     <div
@@ -1315,7 +1461,10 @@ function SealedCard({
           : "border-[var(--border)] bg-[var(--surface-elevated)]/40"
       }`}
     >
-      <label className="absolute left-3 top-3 z-10 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md bg-[var(--surface)]/90 shadow-sm">
+      <label
+        className="absolute left-3 top-3 z-10 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md bg-[var(--surface)]/90 shadow-sm"
+        onClick={(e) => e.stopPropagation()}
+      >
         <input
           type="checkbox"
           checked={checked}
@@ -1324,22 +1473,32 @@ function SealedCard({
           aria-label={`${product.name} auswählen`}
         />
       </label>
-      <div className="flex gap-3">
-        <ProductThumb product={product} large />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{product.name}</p>
-          <p className="truncate text-xs text-[var(--muted)]">{product.setName}</p>
-          <div className="mt-2">
-            <CategoryBadge category={product.category} />
+      <button
+        type="button"
+        onClick={onSelect}
+        className="w-full text-left"
+      >
+        <div className="flex gap-3">
+          <ProductThumb product={product} large />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{product.name}</p>
+            <p className="truncate text-xs text-[var(--muted)]">
+              {product.setName}
+            </p>
+            <div className="mt-2">
+              <CategoryBadge category={product.category} />
+            </div>
           </div>
         </div>
-      </div>
-      <div className="mt-3 flex items-end justify-between gap-2">
-        <div>
-          <p className="tabular-nums text-sm font-medium">{formatCurrency(totalMarket)}</p>
-          <p className="text-[10px] text-[var(--muted)]">×{product.quantity}</p>
-        </div>
-        <div className="text-right">
+        <div className="mt-3 flex items-end justify-between gap-2">
+          <div>
+            <p className="tabular-nums text-sm font-medium">
+              {formatCurrency(totalMarket)}
+            </p>
+            <p className="text-[10px] text-[var(--muted)]">
+              ×{product.quantity}
+            </p>
+          </div>
           <p
             className={`tabular-nums text-sm font-medium ${
               positive ? "text-[var(--positive)]" : "text-[var(--negative)]"
@@ -1348,17 +1507,18 @@ function SealedCard({
             {positive ? "+" : ""}
             {formatCurrency(profit)}
           </p>
-          {canOpen && (
-            <button
-              type="button"
-              onClick={onOpen}
-              className="mt-1.5 inline-flex items-center rounded-full border border-[var(--accent)]/25 bg-[var(--accent-soft)] px-2.5 py-1 text-xs font-medium text-[var(--accent)] transition-colors hover:border-[var(--accent)]/40 hover:bg-[var(--accent)]/15"
-            >
-              Öffnen
-            </button>
-          )}
         </div>
-      </div>
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpen();
+        }}
+        className={`mt-2 w-full ${openBtnClass}`}
+      >
+        Öffnen
+      </button>
     </div>
   );
 }

@@ -207,6 +207,8 @@ export async function updateSealedItem(
   patch: {
     quantity?: number;
     condition?: string;
+    language?: string;
+    category?: string;
     purchasePrice?: number;
     purchaseDate?: string | null;
     marketValue?: number | null;
@@ -225,6 +227,8 @@ export async function updateSealedItem(
           ? Math.max(1, Math.floor(patch.quantity))
           : undefined,
       condition: patch.condition?.trim() || undefined,
+      language: patch.language?.trim() || undefined,
+      category: patch.category?.trim() || undefined,
       purchasePrice: patch.purchasePrice,
       purchaseDate:
         patch.purchaseDate !== undefined ? patch.purchaseDate : undefined,

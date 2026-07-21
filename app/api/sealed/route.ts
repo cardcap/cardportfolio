@@ -123,6 +123,8 @@ export async function PATCH(request: NextRequest) {
       id?: string;
       quantity?: number;
       condition?: string;
+      language?: string;
+      category?: string;
       purchasePrice?: number;
       purchaseDate?: string | null;
       marketValue?: number | null;
@@ -135,6 +137,8 @@ export async function PATCH(request: NextRequest) {
     const item = await updateSealedItem(userId, body.id.trim(), {
       quantity: body.quantity,
       condition: body.condition,
+      language: body.language,
+      category: body.category,
       purchasePrice: body.purchasePrice,
       purchaseDate: body.purchaseDate,
       marketValue: body.marketValue,

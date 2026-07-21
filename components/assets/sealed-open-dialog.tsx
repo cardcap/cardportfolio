@@ -363,8 +363,9 @@ export function SealedOpenDialog({
     );
   }, []);
 
+  // Opening always consumes ONE unit of the stack (not the full quantity).
   const sealedCost = product
-    ? product.purchasePrice * product.quantity
+    ? product.purchasePrice
     : 0;
 
   const bulkMarket = includeBulk
@@ -457,12 +458,16 @@ export function SealedOpenDialog({
 
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overflow-x-hidden px-5 py-4">
           <div className="rounded-xl border border-[var(--border)] bg-[var(--background)] px-4 py-3 text-sm">
-            <p className="text-[var(--muted)]">Einkaufspreis (gesamt)</p>
+            <p className="text-[var(--muted)]">EK für dieses Öffnen (1×)</p>
             <p className="tabular-nums text-xl font-semibold">
               {formatCurrency(sealedCost)}
             </p>
             <p className="mt-1 text-xs text-[var(--muted)]">
-              {product.quantity}× {formatCurrency(product.purchasePrice)} EK
+              Bestand: {product.quantity}× · EK/Stück{" "}
+              {formatCurrency(product.purchasePrice)}
+              {product.quantity > 1
+                ? " · nach dem Öffnen bleibt der Rest im Inventar"
+                : ""}
             </p>
           </div>
 
