@@ -513,7 +513,7 @@ export function PortfolioView() {
                           </p>
                         </div>
                         <span
-                          className={`rounded-md px-2 py-0.5 text-[10px] font-medium ${
+                          className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-medium ${
                             pos.kind === "Sealed"
                               ? "bg-violet-500/15 text-violet-300"
                               : "bg-[var(--accent-soft)] text-[var(--accent)]"
@@ -521,14 +521,9 @@ export function PortfolioView() {
                         >
                           {pos.kind}
                         </span>
-                        <div className="text-right">
-                          <p className="tabular-nums text-sm font-medium">
-                            {formatCurrency(pos.market)}
-                          </p>
-                          <p className="tabular-nums text-[10px] text-[var(--muted)]">
-                            {pos.sharePct.toLocaleString("de-DE")} %
-                          </p>
-                        </div>
+                        <p className="tabular-nums w-[5.75rem] shrink-0 text-right text-sm font-medium leading-snug">
+                          {formatCurrency(pos.market)}
+                        </p>
                       </Link>
                     </li>
                   );
