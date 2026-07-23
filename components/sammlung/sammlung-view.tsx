@@ -1475,27 +1475,8 @@ export function SammlungView() {
             </div>
           )}
 
-          {/* Metrics */}
+          {/* Metrics: value KPIs first, then counts */}
           <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-            <MetricCard
-              label="Exemplare gesamt"
-              value={displayMetrics.totalCards.toLocaleString("de-DE")}
-              periodNote={`${displayMetrics.uniqueCards.toLocaleString("de-DE")} verschiedene Karten`}
-            />
-            <MetricCard
-              label="Einzigartige Karten"
-              value={displayMetrics.uniqueCards.toLocaleString("de-DE")}
-              periodNote={
-                displayMetrics.totalCards > 0
-                  ? `${((displayMetrics.uniqueCards / displayMetrics.totalCards) * 100).toLocaleString("de-DE", { maximumFractionDigits: 1 })} % der Sammlung`
-                  : "—"
-              }
-            />
-            <MetricCard
-              label="Duplikate"
-              value={displayMetrics.duplicates.toLocaleString("de-DE")}
-              periodNote="zusätzliche Exemplare"
-            />
             <MetricCard
               label="Gesamtwert"
               value={formatMarketPrice(displayMetrics.totalValue)}
@@ -1516,6 +1497,25 @@ export function SammlungView() {
                   ? `${displayMetrics.profitLoss > 0 ? "+" : ""}${((displayMetrics.profitLoss / displayMetrics.invested) * 100).toLocaleString("de-DE", { maximumFractionDigits: 1 })} % Rendite`
                   : undefined
               }
+            />
+            <MetricCard
+              label="Exemplare gesamt"
+              value={displayMetrics.totalCards.toLocaleString("de-DE")}
+              periodNote={`${displayMetrics.uniqueCards.toLocaleString("de-DE")} verschiedene Karten`}
+            />
+            <MetricCard
+              label="Einzigartige Karten"
+              value={displayMetrics.uniqueCards.toLocaleString("de-DE")}
+              periodNote={
+                displayMetrics.totalCards > 0
+                  ? `${((displayMetrics.uniqueCards / displayMetrics.totalCards) * 100).toLocaleString("de-DE", { maximumFractionDigits: 1 })} % der Sammlung`
+                  : "—"
+              }
+            />
+            <MetricCard
+              label="Duplikate"
+              value={displayMetrics.duplicates.toLocaleString("de-DE")}
+              periodNote="zusätzliche Exemplare"
             />
           </div>
 
