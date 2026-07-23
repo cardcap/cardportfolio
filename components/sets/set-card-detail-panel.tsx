@@ -234,23 +234,38 @@ export function SetCardDetailPanel({
 
   const canPrev = Boolean(hasPrev && onPrev);
   const canNext = Boolean(hasNext && onNext);
+  const panelRef = useRef<HTMLElement | null>(null);
+
+  const blurNavFocus = useCallback(() => {
+    // Avoid sticky focus ring / “selected” look after mouse click
+    requestAnimationFrame(() => {
+      const el = document.activeElement;
+      if (el instanceof HTMLElement && panelRef.current?.contains(el)) {
+        el.blur();
+      }
+    });
+  }, []);
 
   const goPrev = useCallback(
     (e?: { stopPropagation?: () => void; preventDefault?: () => void }) => {
       e?.stopPropagation?.();
       e?.preventDefault?.();
-      if (canPrev) onPrev?.();
+      if (!canPrev) return;
+      onPrev?.();
+      blurNavFocus();
     },
-    [canPrev, onPrev],
+    [canPrev, onPrev, blurNavFocus],
   );
 
   const goNext = useCallback(
     (e?: { stopPropagation?: () => void; preventDefault?: () => void }) => {
       e?.stopPropagation?.();
       e?.preventDefault?.();
-      if (canNext) onNext?.();
+      if (!canNext) return;
+      onNext?.();
+      blurNavFocus();
     },
-    [canNext, onNext],
+    [canNext, onNext, blurNavFocus],
   );
 
   /** Horizontal drag (document-level so release outside panel still counts) */
@@ -316,8 +331,6 @@ export function SetCardDetailPanel({
     return () => window.removeEventListener("keydown", onKey);
   }, [goNext, goPrev, onClose]);
 
-  const panelRef = useRef<HTMLElement | null>(null);
-
   // Click outside closes — without blocking page scroll (no full-screen hit target)
   useEffect(() => {
     const onPointerDown = (e: PointerEvent) => {
@@ -345,18 +358,20 @@ export function SetCardDetailPanel({
       />
       <aside
         ref={panelRef}
-        className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-50 flex max-h-[min(88dvh,100%)] w-full flex-col overflow-hidden rounded-t-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl touch-pan-y lg:inset-x-auto lg:inset-y-4 lg:left-auto lg:right-4 lg:bottom-4 lg:top-4 lg:w-[min(100vw-2rem,26rem)] lg:max-h-none lg:rounded-2xl"
+        tabIndex={-1}
+        className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-50 flex max-h-[min(88dvh,100%)] w-full flex-col overflow-hidden rounded-t-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl outline-none touch-pan-y lg:inset-x-auto lg:inset-y-4 lg:left-auto lg:right-4 lg:bottom-4 lg:top-4 lg:w-[min(100vw-2rem,26rem)] lg:max-h-none lg:rounded-2xl"
         onPointerDown={onPanelPointerDown}
       >
-        {/* Header nav: larger prev/next buttons, no position number */}
+        {/* Header nav: larger prev/next buttons, no sticky focus selection */}
         <div className="flex shrink-0 items-center justify-between border-b border-[var(--border)] px-3 py-2.5">
           <div className="flex items-center gap-2" aria-label={positionLabel}>
             <button
               type="button"
               onClick={goPrev}
               onPointerDown={(e) => e.stopPropagation()}
+              onMouseUp={(e) => e.currentTarget.blur()}
               disabled={!canPrev}
-              className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--border-strong)] bg-[var(--surface-elevated)] text-[var(--foreground)] transition-colors hover:border-[var(--accent)]/40 hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] disabled:pointer-events-none disabled:opacity-30"
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--border-strong)] bg-[var(--surface-elevated)] text-[var(--foreground)] outline-none ring-0 transition-colors hover:border-[var(--accent)]/40 hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] active:scale-95 active:bg-[var(--accent-soft)] focus:outline-none focus:ring-0 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-30"
               aria-label="Vorherige Karte"
             >
               <svg
@@ -377,8 +392,9 @@ export function SetCardDetailPanel({
               type="button"
               onClick={goNext}
               onPointerDown={(e) => e.stopPropagation()}
+              onMouseUp={(e) => e.currentTarget.blur()}
               disabled={!canNext}
-              className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--border-strong)] bg-[var(--surface-elevated)] text-[var(--foreground)] transition-colors hover:border-[var(--accent)]/40 hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] disabled:pointer-events-none disabled:opacity-30"
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--border-strong)] bg-[var(--surface-elevated)] text-[var(--foreground)] outline-none ring-0 transition-colors hover:border-[var(--accent)]/40 hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] active:scale-95 active:bg-[var(--accent-soft)] focus:outline-none focus:ring-0 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-30"
               aria-label="Nächste Karte"
             >
               <svg
@@ -403,8 +419,9 @@ export function SetCardDetailPanel({
               onClose();
             }}
             onPointerDown={(e) => e.stopPropagation()}
+            onMouseUp={(e) => e.currentTarget.blur()}
             aria-label="Schließen"
-            className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--muted)] transition-colors hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)]"
+            className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--muted)] outline-none ring-0 transition-colors hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)] focus:outline-none focus:ring-0 focus-visible:outline-none"
           >
             <svg
               width="20"
