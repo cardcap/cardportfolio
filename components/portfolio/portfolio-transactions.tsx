@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   TransactionDrawer,
   type PositionOption,
@@ -18,30 +18,19 @@ import {
   invalidateSealedCache,
 } from "@/lib/assets-client-cache";
 import { formatCurrency, formatPercent } from "@/lib/format";
+import {
+  addLocalTransaction,
+  getLocalTransactions,
+  TRANSACTIONS_CHANGED_EVENT,
+  type RecordedTransaction,
+} from "@/lib/local-transactions";
 
 type TxKind = "Kauf" | "Verkauf";
 type TxRange = "30d" | "6m" | "1y" | "max";
 type CashMode = "monatlich" | "kumuliert";
 type SortKey = "newest" | "oldest" | "total-desc" | "total-asc";
 
-type DetailedTransaction = {
-  id: string;
-  dateIso: string;
-  dateLabel: string;
-  type: TxKind;
-  cardId: string;
-  name: string;
-  assetType: "Karte" | "Sealed";
-  setName: string;
-  quantity: number;
-  pricePerUnit: number;
-  fees: number;
-  total: number;
-  realizedProfit: number | null;
-  note: string;
-  imageUrl?: string;
-  imageFallbacks?: string[];
-};
+type DetailedTransaction = RecordedTransaction;
 
 type TxCashflowMonth = {
   label: string;
@@ -73,6 +62,18 @@ export function PortfolioTransactions() {
   const [pageSize, setPageSize] = useState(25);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [localTx, setLocalTx] = useState<DetailedTransaction[]>([]);
+
+  // Shared ledger (Karten-Verkauf, Portfolio-Drawer, …)
+  useEffect(() => {
+    const sync = () => setLocalTx(getLocalTransactions());
+    sync();
+    window.addEventListener(TRANSACTIONS_CHANGED_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(TRANSACTIONS_CHANGED_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
 
   const drawerPositions: PositionOption[] = useMemo(
     () =>
@@ -296,46 +297,29 @@ export function PortfolioTransactions() {
             live.refresh({ force: true });
           }
 
-          const total =
-            payload.pricePerUnit * payload.quantity + payload.fees;
-          const dateIso = payload.date;
-          const [y, mo, d] = dateIso.split("-");
           const pos = live.positions.find((p) => p.id === payload.positionId);
-          const displayName = payload.positionLabel
-            .replace(/\s*\([^)]+\)\s*$/, "")
-            .trim();
-          setLocalTx((prev) => [
-            {
-              id: `local-${Date.now()}`,
-              dateIso,
-              dateLabel: `${d}.${mo}.${y}`,
-              type: payload.type,
-              cardId: payload.positionId,
-              name: displayName || payload.positionLabel,
-              assetType: payload.kind,
-              setName: pos?.setName ?? payload.setName ?? "—",
-              quantity: payload.quantity,
-              pricePerUnit: payload.pricePerUnit,
-              fees: payload.fees,
-              total,
-              realizedProfit:
-                payload.type === "Verkauf"
-                  ? Math.round(
-                      (payload.pricePerUnit * payload.quantity -
-                        (pos
-                          ? (pos.invested / Math.max(1, pos.quantity)) *
-                            payload.quantity
-                          : 0) -
-                        payload.fees) *
-                        100,
-                    ) / 100
-                  : null,
-              note: payload.note || payload.source,
-              imageUrl: pos?.imageUrl ?? payload.imageUrl,
-              imageFallbacks: pos?.imageFallbacks,
-            },
-            ...prev,
-          ]);
+          const unitCost = pos
+            ? pos.invested / Math.max(1, pos.quantity)
+            : 0;
+          addLocalTransaction({
+            type: payload.type,
+            positionId: payload.positionId,
+            positionLabel: payload.positionLabel,
+            kind: payload.kind,
+            date: payload.date,
+            quantity: payload.quantity,
+            pricePerUnit: payload.pricePerUnit,
+            fees: payload.fees,
+            source: payload.source,
+            note: payload.note,
+            setName: pos?.setName ?? payload.setName,
+            imageUrl: pos?.imageUrl ?? payload.imageUrl,
+            imageFallbacks: pos?.imageFallbacks,
+            costBasisTotal:
+              payload.type === "Verkauf"
+                ? unitCost * payload.quantity
+                : null,
+          });
         }}
       />
 

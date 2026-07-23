@@ -30,6 +30,7 @@ import {
 import { SetCardDetailPanel } from "@/components/sets/set-card-detail-panel";
 import { applyCardGroupSale } from "@/lib/apply-asset-sale";
 import { clearPortfolioAssetsCache } from "@/hooks/use-portfolio-assets";
+import { addLocalTransaction } from "@/lib/local-transactions";
 import { PageHeader } from "@/components/layout/page-header";
 import { BulkActionBar } from "@/components/ui/bulk-action-bar";
 import { Button } from "@/components/ui/button";
@@ -2637,10 +2638,44 @@ export function SammlungView() {
             if (!result.ok) {
               throw new Error(result.error ?? "Verkauf fehlgeschlagen.");
             }
+
+            // Record sale in shared Transaktionen ledger
+            // purchasePrice on grouped rows is average EK per unit
+            const unitInvested = selectedRow.purchasePrice ?? 0;
+            let costBasisTotal =
+              Math.round(unitInvested * payload.quantity * 100) / 100;
+            if (
+              selectedRow.exemplars &&
+              selectedRow.exemplars.length > 0
+            ) {
+              // Prefer sum of first N exemplars sold
+              const sold = selectedRow.exemplars.slice(0, payload.quantity);
+              costBasisTotal =
+                Math.round(
+                  sold.reduce((s, e) => s + (e.purchasePrice ?? 0), 0) * 100,
+                ) / 100;
+            }
+            addLocalTransaction({
+              type: "Verkauf",
+              positionId: payload.positionId,
+              positionLabel: payload.positionLabel,
+              kind: "Karte",
+              date: payload.date,
+              quantity: payload.quantity,
+              pricePerUnit: payload.pricePerUnit,
+              fees: payload.fees,
+              source: payload.source,
+              note: payload.note,
+              setName: selectedRow.setName || payload.setName,
+              imageUrl: selectedRow.imageUrl || payload.imageUrl,
+              costBasisTotal,
+            });
+
             clearPortfolioAssetsCache();
             invalidateCollectionCache();
             setPanelOpen(false);
             setSelectedId(null);
+            setSellDrawerOpen(false);
             if (isAuthenticated) {
               await loadCollection(true);
             } else {
