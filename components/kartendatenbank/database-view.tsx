@@ -946,21 +946,24 @@ export function DatabaseView() {
             return idx >= 0 && idx < sortedCards.length - 1;
           })()}
           onAddToWishlist={() => toggleItem(wishlistItemFromTcg(selected))}
-          onEditCollection={() => {
-            if (!selected || collectionBusy) return;
+          onEditCollection={async () => {
+            if (!selected || collectionBusy) {
+              throw new Error("busy");
+            }
             setCollectionBusy(true);
             setCollectionMsg(null);
-            void (async () => {
+            try {
               const result = await addCard(selected, language);
-              setCollectionBusy(false);
               if (result.ok) {
                 await refreshOwned();
                 setCollectionMsg("Zur Sammlung hinzugefügt");
-                // Stay on panel with updated qty; optional: go to assets
               } else {
                 setCollectionMsg(result.error ?? "Konnte nicht speichern");
+                throw new Error(result.error ?? "Konnte nicht speichern");
               }
-            })();
+            } finally {
+              setCollectionBusy(false);
+            }
           }}
         />
       )}

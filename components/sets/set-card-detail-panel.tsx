@@ -54,7 +54,8 @@ type SetCardDetailPanelProps = {
   hasPrev?: boolean;
   hasNext?: boolean;
   onAddToWishlist?: () => void;
-  onEditCollection?: () => void;
+  /** Add +1 to collection (may be async) */
+  onEditCollection?: () => void | Promise<void>;
   /** Real collection values instead of demo estimates */
   collectionDetails?: CollectionDetails | null;
   /** Override primary collection button label */
@@ -119,8 +120,41 @@ export function SetCardDetailPanel({
   languageLabel = "DE",
 }: SetCardDetailPanelProps) {
   const [priceRange, setPriceRange] = useState<PriceRange>("30T");
+  const [addFeedback, setAddFeedback] = useState<
+    "idle" | "loading" | "success"
+  >("idle");
+  const [pulseKey, setPulseKey] = useState(0);
+  const addFeedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { isInWishlist, toggleItem } = useWishlist();
   const onWishlist = isInWishlist(card.id);
+
+  useEffect(() => {
+    return () => {
+      if (addFeedbackTimer.current) clearTimeout(addFeedbackTimer.current);
+    };
+  }, []);
+
+  // Reset feedback when switching cards
+  useEffect(() => {
+    setAddFeedback("idle");
+    if (addFeedbackTimer.current) clearTimeout(addFeedbackTimer.current);
+  }, [card.id]);
+
+  const handleAddToCollection = useCallback(async () => {
+    if (!onEditCollection || addFeedback === "loading") return;
+    setAddFeedback("loading");
+    setPulseKey((k) => k + 1);
+    try {
+      await onEditCollection();
+      setAddFeedback("success");
+      if (addFeedbackTimer.current) clearTimeout(addFeedbackTimer.current);
+      addFeedbackTimer.current = setTimeout(() => {
+        setAddFeedback("idle");
+      }, 1800);
+    } catch {
+      setAddFeedback("idle");
+    }
+  }, [onEditCollection, addFeedback]);
   const price =
     collectionDetails?.marketValue != null && qty > 0
       ? collectionDetails.marketValue / Math.max(1, qty)
@@ -625,14 +659,30 @@ export function SetCardDetailPanel({
           <div className="mt-4 space-y-2">
             <button
               type="button"
-              onClick={onEditCollection}
-              className="flex h-11 w-full items-center justify-center rounded-full bg-[var(--accent)] text-sm font-medium text-white hover:brightness-110 disabled:opacity-60"
+              key={pulseKey}
+              onClick={() => void handleAddToCollection()}
+              disabled={addFeedback === "loading" || !onEditCollection}
+              aria-live="polite"
+              className={`flex h-11 w-full items-center justify-center gap-2 rounded-full text-sm font-medium text-white transition-[filter,background-color] hover:brightness-110 disabled:opacity-80 ${
+                addFeedback === "success"
+                  ? "bg-emerald-500 collection-add-pulse"
+                  : "bg-[var(--accent)] collection-add-pulse"
+              }`}
             >
-              {collectionButtonLabel ??
-                (qty > 0
-                  ? `In Sammlung (×${qty}) · +1 hinzufügen`
-                  : "Zur Sammlung hinzufügen")}
+              {addFeedback === "loading"
+                ? "Wird hinzugefügt…"
+                : addFeedback === "success"
+                  ? "✓ Hinzugefügt"
+                  : (collectionButtonLabel ??
+                    (qty > 0
+                      ? `In Sammlung (×${qty}) · +1 hinzufügen`
+                      : "Zur Sammlung hinzufügen"))}
             </button>
+            {addFeedback === "success" && (
+              <p className="text-center text-xs font-medium text-emerald-400">
+                Karte ist in deiner Sammlung
+              </p>
+            )}
             {onRemoveFromCollection && qty > 0 && (
               <button
                 type="button"

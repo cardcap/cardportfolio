@@ -203,9 +203,32 @@ body {
   }
 }
 
+/* Collection add button: soft scale + glow pulse */
+@keyframes collectionAddPulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+  40% {
+    transform: scale(1.03);
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.collection-add-pulse {
+  animation: collectionAddPulse 0.7s ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-\[sealedBarPulse_1\.4s_ease-in-out_infinite\] {
     animation: none !important;
     filter: brightness(1.18);
+  }
+  .collection-add-pulse {
+    animation: none;
   }
 }
