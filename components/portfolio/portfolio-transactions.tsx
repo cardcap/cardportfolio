@@ -11,7 +11,6 @@ import { useAuthMode } from "@/components/auth/use-auth-mode";
 import {
   clearPortfolioAssetsCache,
   usePortfolioAssets,
-  type LivePosition,
 } from "@/hooks/use-portfolio-assets";
 import { applyAssetSale } from "@/lib/apply-asset-sale";
 import {
@@ -58,35 +57,6 @@ const ranges: { id: TxRange; label: string }[] = [
   { id: "max", label: "Max" },
 ];
 
-function posToTx(p: LivePosition): DetailedTransaction {
-  const dateIso = p.purchaseDate || "";
-  let dateLabel = "—";
-  if (dateIso) {
-    const [y, mo, d] = dateIso.split("-");
-    if (y && mo && d) dateLabel = `${d}.${mo}.${y}`;
-  }
-  const qty = Math.max(1, p.quantity);
-  const pricePerUnit = Math.round((p.invested / qty) * 100) / 100;
-  return {
-    id: p.id,
-    dateIso: dateIso || "1970-01-01",
-    dateLabel,
-    type: "Kauf",
-    cardId: p.id,
-    name: p.name,
-    assetType: p.kind,
-    setName: p.setName,
-    quantity: qty,
-    pricePerUnit,
-    fees: 0,
-    total: p.invested,
-    realizedProfit: null,
-    note: "Aus Assets",
-    imageUrl: p.imageUrl,
-    imageFallbacks: p.imageFallbacks,
-  };
-}
-
 export function PortfolioTransactions() {
   const live = usePortfolioAssets();
   const { isAuthenticated } = useAuthMode();
@@ -117,23 +87,24 @@ export function PortfolioTransactions() {
     [live.positions],
   );
 
-  const assetTx = useMemo(
-    () => live.positions.map(posToTx),
-    [live.positions],
-  );
-
+  // Only recorded transactions (drawer) — not inventory snapshots as fake "Käufe"
   const setNames = useMemo(
     () => [
       "Alle",
       ...Array.from(
-        new Set(assetTx.map((t) => t.setName).filter(Boolean)),
-      ).sort(),
+        new Set(
+          [
+            ...localTx.map((t) => t.setName),
+            ...live.positions.map((p) => p.setName),
+          ].filter(Boolean),
+        ),
+      ).sort((a, b) => a.localeCompare(b, "de")),
     ],
-    [assetTx],
+    [localTx, live.positions],
   );
 
   const filtered = useMemo(() => {
-    let rows = [...localTx, ...assetTx];
+    let rows = [...localTx];
     if (txType !== "Alle") rows = rows.filter((r) => r.type === txType);
     if (assetType !== "Alle")
       rows = rows.filter((r) => r.assetType === assetType);
@@ -160,7 +131,6 @@ export function PortfolioTransactions() {
     return rows;
   }, [
     localTx,
-    assetTx,
     txType,
     assetType,
     setFilter,
@@ -173,6 +143,10 @@ export function PortfolioTransactions() {
   const m = useMemo(() => {
     const buys = filtered.filter((t) => t.type === "Kauf");
     const sells = filtered.filter((t) => t.type === "Verkauf");
+    // Units (Stück) — not number of rows
+    const buyUnits = buys.reduce((s, t) => s + t.quantity, 0);
+    const sellUnits = sells.reduce((s, t) => s + t.quantity, 0);
+    const typeUnits = buyUnits + sellUnits;
     const buyVolume = buys.reduce((s, t) => s + t.total, 0);
     const sellVolume = sells.reduce((s, t) => s + t.total, 0);
     const fees = filtered.reduce((s, t) => s + t.fees, 0);
@@ -181,31 +155,59 @@ export function PortfolioTransactions() {
       0,
     );
     const last = filtered[0];
+    const cardUnits = filtered
+      .filter((t) => t.assetType === "Karte")
+      .reduce((s, t) => s + t.quantity, 0);
+    const sealedUnits = filtered
+      .filter((t) => t.assetType === "Sealed")
+      .reduce((s, t) => s + t.quantity, 0);
+    const assetUnits = cardUnits + sealedUnits;
+
+    // Busiest month by unit count
+    const monthMap = new Map<string, number>();
+    for (const t of filtered) {
+      const key = t.dateIso.slice(0, 7);
+      if (!key || key === "1970-01") continue;
+      monthMap.set(key, (monthMap.get(key) ?? 0) + t.quantity);
+    }
+    let busiestMonth = "—";
+    let busiestN = 0;
+    for (const [k, n] of monthMap) {
+      if (n > busiestN) {
+        busiestN = n;
+        const [y, mo] = k.split("-");
+        const d = new Date(Number(y), Number(mo) - 1, 1);
+        busiestMonth = d.toLocaleDateString("de-DE", {
+          month: "long",
+          year: "numeric",
+        });
+      }
+    }
+
     return {
-      buyCount: buys.length,
+      buyCount: buyUnits,
       buyVolume: Math.round(buyVolume * 100) / 100,
-      sellCount: sells.length,
+      sellCount: sellUnits,
       sellVolume: Math.round(sellVolume * 100) / 100,
       realizedProfit: Math.round(realizedProfit * 100) / 100,
       realizedReturnPct: 0,
       fees: Math.round(fees * 100) / 100,
-      avgBuy: buys.length ? Math.round((buyVolume / buys.length) * 100) / 100 : 0,
-      avgSell: sells.length
-        ? Math.round((sellVolume / sells.length) * 100) / 100
-        : 0,
+      avgBuy: buyUnits ? Math.round((buyVolume / buyUnits) * 100) / 100 : 0,
+      avgSell: sellUnits ? Math.round((sellVolume / sellUnits) * 100) / 100 : 0,
       lastTxDate: last?.dateLabel ?? "—",
       totalTx: filtered.length,
-      cardTx: filtered.filter((t) => t.assetType === "Karte").length,
-      sealedTx: filtered.filter((t) => t.assetType === "Sealed").length,
+      cardTx: cardUnits,
+      sealedTx: sealedUnits,
       buySharePct:
-        filtered.length > 0
-          ? Math.round((buys.length / filtered.length) * 100)
-          : 0,
+        typeUnits > 0 ? Math.round((buyUnits / typeUnits) * 100) : 0,
       sellSharePct:
-        filtered.length > 0
-          ? Math.round((sells.length / filtered.length) * 100)
-          : 0,
-      busiestMonth: "—",
+        typeUnits > 0 ? Math.round((sellUnits / typeUnits) * 100) : 0,
+      cardSharePct:
+        assetUnits > 0 ? Math.round((cardUnits / assetUnits) * 100) : 0,
+      sealedSharePct:
+        assetUnits > 0 ? Math.round((sealedUnits / assetUnits) * 100) : 0,
+      busiestMonth,
+      hasData: typeUnits > 0,
     };
   }, [filtered]);
 
@@ -441,17 +443,27 @@ export function PortfolioTransactions() {
         </div>
 
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
-          <h2 className="mb-3 text-sm font-medium">Transaktionsarten</h2>
-          <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
-            <Donut buys={m.buySharePct} sells={m.sellSharePct} />
-            <div className="w-full min-w-0 flex-1 space-y-4">
-              {/* Kauf / Verkauf — Menge + % as interactive bars */}
+          <h2 className="mb-1 text-sm font-medium">Transaktionsarten</h2>
+          <p className="mb-4 text-[11px] text-[var(--muted)]">
+            Anteil nach Stückzahl erfasster Transaktionen
+          </p>
+          {!m.hasData ? (
+            <p className="py-6 text-center text-xs text-[var(--muted)]">
+              Noch keine Transaktionen erfasst. Mit „Transaktion erfassen“
+              startest du.
+            </p>
+          ) : (
+            <div className="space-y-5">
               <div className="space-y-3">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-[var(--muted)]">
+                  Kauf / Verkauf
+                </p>
                 <ShareBar
                   color="#f472b6"
                   label="Käufe"
                   count={m.buyCount}
                   percent={m.buySharePct}
+                  unit="Stk"
                   filterActive={txType === "Kauf"}
                   onClick={() => {
                     setTxType((t) => (t === "Kauf" ? "Alle" : "Kauf"));
@@ -463,6 +475,7 @@ export function PortfolioTransactions() {
                   label="Verkäufe"
                   count={m.sellCount}
                   percent={m.sellSharePct}
+                  unit="Stk"
                   filterActive={txType === "Verkauf"}
                   onClick={() => {
                     setTxType((t) => (t === "Verkauf" ? "Alle" : "Verkauf"));
@@ -475,41 +488,30 @@ export function PortfolioTransactions() {
                 <p className="text-[10px] font-medium uppercase tracking-wider text-[var(--muted)]">
                   Nach Asset-Typ
                 </p>
-                {(() => {
-                  const assetTotal = m.cardTx + m.sealedTx || 1;
-                  const cardPct = Math.round((m.cardTx / assetTotal) * 100);
-                  const sealedPct = Math.round((m.sealedTx / assetTotal) * 100);
-                  return (
-                    <>
-                      <ShareBar
-                        color="#f472b6"
-                        label="Karten"
-                        count={m.cardTx}
-                        percent={cardPct}
-                        filterActive={assetType === "Karte"}
-                        onClick={() => {
-                          setAssetType((t) =>
-                            t === "Karte" ? "Alle" : "Karte",
-                          );
-                          setPage(1);
-                        }}
-                      />
-                      <ShareBar
-                        color="#a78bfa"
-                        label="Sealed"
-                        count={m.sealedTx}
-                        percent={sealedPct}
-                        filterActive={assetType === "Sealed"}
-                        onClick={() => {
-                          setAssetType((t) =>
-                            t === "Sealed" ? "Alle" : "Sealed",
-                          );
-                          setPage(1);
-                        }}
-                      />
-                    </>
-                  );
-                })()}
+                <ShareBar
+                  color="#f472b6"
+                  label="Karten"
+                  count={m.cardTx}
+                  percent={m.cardSharePct}
+                  unit="Stk"
+                  filterActive={assetType === "Karte"}
+                  onClick={() => {
+                    setAssetType((t) => (t === "Karte" ? "Alle" : "Karte"));
+                    setPage(1);
+                  }}
+                />
+                <ShareBar
+                  color="#a78bfa"
+                  label="Sealed"
+                  count={m.sealedTx}
+                  percent={m.sealedSharePct}
+                  unit="Stk"
+                  filterActive={assetType === "Sealed"}
+                  onClick={() => {
+                    setAssetType((t) => (t === "Sealed" ? "Alle" : "Sealed"));
+                    setPage(1);
+                  }}
+                />
               </div>
 
               <p className="text-xs text-[var(--muted)]">
@@ -517,7 +519,7 @@ export function PortfolioTransactions() {
                 <span className="text-[var(--foreground)]">{m.busiestMonth}</span>
               </p>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -940,12 +942,13 @@ function CashflowChart({
   );
 }
 
-/** Interactive share bar — count + percent, clickable filter (Dashboard style). */
+/** Interactive share bar — Stück + Anteil %, clickable filter. */
 function ShareBar({
   color,
   label,
   count,
   percent,
+  unit = "Stk",
   filterActive,
   onClick,
 }: {
@@ -953,6 +956,7 @@ function ShareBar({
   label: string;
   count: number;
   percent: number;
+  unit?: string;
   filterActive?: boolean;
   onClick?: () => void;
 }) {
@@ -960,11 +964,11 @@ function ShareBar({
     <button
       type="button"
       onClick={onClick}
-      className={`group w-full rounded-lg px-1 py-1 text-left transition-colors hover:bg-[var(--surface-elevated)]/60 ${
+      className={`group w-full rounded-lg px-1 py-1.5 text-left transition-colors hover:bg-[var(--surface-elevated)]/60 ${
         filterActive ? "bg-[var(--accent-soft)]/40" : ""
       }`}
     >
-      <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+      <div className="mb-1.5 flex items-center justify-between gap-2 text-xs">
         <span className="flex min-w-0 items-center gap-1.5">
           <span
             className="h-2 w-2 shrink-0 rounded-full"
@@ -974,14 +978,18 @@ function ShareBar({
             {label}
           </span>
         </span>
-        <span className="tabular-nums shrink-0 font-medium">
-          {count.toLocaleString("de-DE")}
-          <span className="ml-1.5 text-[var(--muted)]">
+        <span className="tabular-nums shrink-0 text-[var(--muted)]">
+          <span className="font-semibold text-[var(--foreground)]">
+            {count.toLocaleString("de-DE")}
+          </span>
+          <span className="ml-1">{unit}</span>
+          <span className="mx-1.5 opacity-40">·</span>
+          <span className="font-medium text-[var(--foreground)]">
             {percent.toLocaleString("de-DE")} %
           </span>
         </span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-[var(--border)]">
+      <div className="h-2 overflow-hidden rounded-full bg-[var(--border)]">
         <div
           className="h-full rounded-full transition-all group-hover:brightness-110"
           style={{
@@ -991,50 +999,6 @@ function ShareBar({
         />
       </div>
     </button>
-  );
-}
-
-function Donut({ buys, sells }: { buys: number; sells: number }) {
-  const size = 132;
-  const c = size / 2;
-  const r = 46;
-  const inner = 30;
-  const segs = [
-    { pct: buys, color: "#f472b6" },
-    { pct: sells, color: "#4ade80" },
-  ];
-  let cum = 0;
-  const arcs = segs.map((s) => {
-    const start = (cum / 100) * 360 - 90;
-    cum += s.pct;
-    const end = (cum / 100) * 360 - 90;
-    const large = s.pct > 50 ? 1 : 0;
-    const p = (ang: number, rad: number) => {
-      const rads = (ang * Math.PI) / 180;
-      return { x: c + rad * Math.cos(rads), y: c + rad * Math.sin(rads) };
-    };
-    const o0 = p(start, r);
-    const o1 = p(end, r);
-    const i0 = p(end, inner);
-    const i1 = p(start, inner);
-    return {
-      d: [
-        `M ${o0.x} ${o0.y}`,
-        `A ${r} ${r} 0 ${large} 1 ${o1.x} ${o1.y}`,
-        `L ${i0.x} ${i0.y}`,
-        `A ${inner} ${inner} 0 ${large} 0 ${i1.x} ${i1.y}`,
-        "Z",
-      ].join(" "),
-      color: s.color,
-    };
-  });
-
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
-      {arcs.map((a, i) => (
-        <path key={i} d={a.d} fill={a.color} />
-      ))}
-    </svg>
   );
 }
 
@@ -1111,26 +1075,6 @@ function Strip({
         </p>
         <p className="tabular-nums text-sm font-semibold">{value}</p>
       </div>
-    </div>
-  );
-}
-
-function Legend({
-  color,
-  label,
-  value,
-}: {
-  color: string;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="inline-flex items-center gap-2 text-[var(--muted)]">
-        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
-        {label}
-      </span>
-      <span className="tabular-nums font-medium">{value}</span>
     </div>
   );
 }
