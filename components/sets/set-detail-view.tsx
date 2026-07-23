@@ -608,7 +608,7 @@ export function SetDetailView({
           }}
           onSell={() => {
             setEditOpen(false);
-            window.location.href = "/portfolio?tab=transaktionen";
+            window.location.href = "/portfolio#transaktionen";
           }}
           onRemoveAll={() => {
             setCopyOverrides((prev) => ({

@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DonutChart } from "@/components/charts/donut-chart";
 import { PortfolioTransactions } from "@/components/portfolio/portfolio-transactions";
@@ -15,35 +14,18 @@ import {
 } from "@/hooks/use-portfolio-assets";
 
 type Scope = "gesamt" | "karten" | "sealed";
-type Tab = "uebersicht" | "transaktionen";
 type Range = "1W" | "1M" | "3M" | "6M" | "1J" | "MAX";
 type AllocDim = "assetType" | "set" | "language" | "condition";
 type ChartSeries = "gesamt" | "karten" | "sealed";
 
 const ranges: Range[] = ["1W", "1M", "3M", "6M", "1J", "MAX"];
 
-function tabFromSearch(raw: string | null): Tab {
-  if (raw === "transaktionen" || raw === "uebersicht") {
-    return raw;
-  }
-  // Legacy ?tab=analyse → Übersicht
-  return "uebersicht";
-}
-
 export function PortfolioView() {
-  const searchParams = useSearchParams();
   const [scope, setScope] = useState<Scope>("gesamt");
-  const [tab, setTab] = useState<Tab>(() =>
-    tabFromSearch(searchParams.get("tab")),
-  );
   const [range, setRange] = useState<Range>("1J");
   const [chartSeries, setChartSeries] = useState<ChartSeries>("gesamt");
   const [allocDim, setAllocDim] = useState<AllocDim>("assetType");
   const live = usePortfolioAssets();
-
-  useEffect(() => {
-    setTab(tabFromSearch(searchParams.get("tab")));
-  }, [searchParams]);
 
   const metrics = useMemo(() => {
     if (scope === "karten") {
@@ -205,31 +187,7 @@ export function PortfolioView() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="mb-5 flex gap-5 border-b border-[var(--border)]">
-        {(
-          [
-            ["uebersicht", "Übersicht"],
-            ["transaktionen", "Transaktionen"],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setTab(id)}
-            className={`-mb-px border-b-2 pb-2.5 text-sm font-medium transition-colors ${
-              tab === id
-                ? "border-[var(--accent)] text-[var(--accent)]"
-                : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {tab === "uebersicht" && (
-        <>
+      <>
           {/* All KPI boxes in one row (wraps on smaller screens) */}
           <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
             <PrimaryMetric
@@ -500,13 +458,12 @@ export function PortfolioView() {
             <div className="flex h-full min-h-[14rem] flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
               <div className="mb-2.5 flex shrink-0 items-center justify-between">
                 <h2 className="text-sm font-medium">Letzte Transaktionen</h2>
-                <button
-                  type="button"
-                  onClick={() => setTab("transaktionen")}
+                <a
+                  href="#transaktionen"
                   className="text-xs font-medium text-[var(--accent)] hover:opacity-80"
                 >
                   Alle Transaktionen →
-                </button>
+                </a>
               </div>
               <div className="min-h-0 flex-1 overflow-x-auto">
                 <table className="w-full min-w-[360px] text-sm">
@@ -737,10 +694,20 @@ export function PortfolioView() {
               </div>
             </div>
           </div>
-        </>
-      )}
 
-      {tab === "transaktionen" && <PortfolioTransactions />}
+          {/* Transaktionen — same page, below overview */}
+          <section id="transaktionen" className="mt-8 scroll-mt-6">
+            <div className="mb-4 border-t border-[var(--border)] pt-6">
+              <h2 className="text-lg font-semibold tracking-tight">
+                Transaktionen
+              </h2>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                Käufe und Verkäufe aus deinen Assets
+              </p>
+            </div>
+            <PortfolioTransactions />
+          </section>
+        </>
     </div>
   );
 }
