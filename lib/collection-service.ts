@@ -1,18 +1,44 @@
 import "server-only";
 
-import { getCardColors } from "@/lib/card-colors";
-import { getCardPriceForCondition } from "@/lib/card-conditions";
+import { getEffectiveCondition } from "@/lib/card-conditions";
 import {
   getCachedCardById,
   getCachedSetById,
   loadCachedCards,
   loadCachedSets,
   resolveCardImages,
-  tcgCardFromCached,
   type TcgdexCachedCard,
 } from "@/lib/tcgdex";
 import { DEFAULT_LANGUAGE, type CardLanguage } from "@/lib/tcgdex-constants";
 import { prisma } from "@/lib/prisma";
+
+/** Fast unit market price from catalog cache (no full TcgCard build). */
+function unitPriceFromCached(
+  card: TcgdexCachedCard | null,
+  condition: string,
+): number {
+  if (!card?.pricing) return 0;
+  const base = card.pricing.trend ?? card.pricing.avg ?? card.pricing.low ?? 0;
+  if (!base) return 0;
+  // Multipliers mirror getCardPriceForCondition / CONDITION_MULTIPLIERS
+  const effective = getEffectiveCondition(condition);
+  const mult: Record<string, number> = {
+    Mint: 1.05,
+    "Near Mint": 1,
+    Excellent: 0.85,
+    Good: 0.7,
+    "Light Played": 0.55,
+    Played: 0.4,
+    Poor: 0.25,
+    "PSA 10": 4,
+    "PSA 9": 2.2,
+    "PSA 8": 1.5,
+    "PSA 7": 1.2,
+    "PSA 6": 1,
+  };
+  const m = mult[effective] ?? 1;
+  return Math.round(base * m * 100) / 100;
+}
 
 export type CollectionExemplarDto = {
   condition: string;
@@ -101,17 +127,9 @@ function enrichItem(
   setName: string,
   lang: CardLanguage,
 ): CollectionItemDto {
-  const tcgCard = cachedCard
-    ? tcgCardFromCached(cachedCard, setName, lang)
-    : null;
-
-  const unitPrice =
-    tcgCard != null
-      ? getCardPriceForCondition(tcgCard, item.condition)
-      : null;
-
-  const marketValue =
-    unitPrice != null ? Math.round(unitPrice * item.quantity * 100) / 100 : 0;
+  // Fast path: pricing from catalog JSON fields (no full card object build)
+  const unitPrice = unitPriceFromCached(cachedCard, item.condition);
+  const marketValue = Math.round(unitPrice * item.quantity * 100) / 100;
 
   const exemplars = parseExemplars(item.exemplars);
   const investedFromExemplars =
@@ -162,18 +180,21 @@ function enrichItem(
         ) / 100
       : item.purchasePrice;
 
+  // types double as glow colors in the list UI — skip heavy getCardColors()
+  const types = cachedCard?.types ?? [];
+
   return {
     id: item.id,
     tcgCardId: item.tcgCardId,
     name: item.name,
     setId: item.setId,
-    setName: item.setName,
+    setName: item.setName || setName,
     number: item.number,
     imageUrl,
     imageFallbacks,
     rarity: item.rarity,
-    colors: cachedCard ? getCardColors(cachedCard, lang) : [],
-    types: cachedCard?.types ?? [],
+    colors: types,
+    types,
     category: cachedCard?.category,
     language: item.language,
     condition: item.condition,

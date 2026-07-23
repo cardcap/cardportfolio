@@ -34,6 +34,11 @@ import { Price, formatMarketPrice } from "@/components/ui/price";
 import { formatCurrency } from "@/lib/format";
 import { conditionRank } from "@/lib/card-conditions";
 import {
+  fetchCollectionCached,
+  invalidateCollectionCache,
+  peekCollectionCache,
+} from "@/lib/assets-client-cache";
+import {
   getLocalCollection,
   itemInvested,
   localCollectionMetrics,
@@ -457,14 +462,19 @@ function mapApiItem(item: CollectionItemDto): DisplayRow {
 }
 
 export function SammlungView() {
-  const { isAuthenticated, isDemo } = useAuthMode();
+  const { isAuthenticated, isDemo, isLoading: authLoading } = useAuthMode();
   const { toggleItem } = useWishlist();
   const [importOpen, setImportOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [items, setItems] = useState<CollectionItemDto[]>([]);
+  const cached = peekCollectionCache();
+  const [loading, setLoading] = useState(() => !cached);
+  const [items, setItems] = useState<CollectionItemDto[]>(
+    () => (cached?.items as CollectionItemDto[] | undefined) ?? [],
+  );
   const [localItems, setLocalItems] = useState<LocalCollectionItem[]>([]);
-  const [metrics, setMetrics] = useState<CollectionMetrics | null>(null);
+  const [metrics, setMetrics] = useState<CollectionMetrics | null>(
+    () => (cached?.metrics as CollectionMetrics | null) ?? null,
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [uiReady, setUiReady] = useState(false);
   const [search, setSearch] = useState("");
@@ -502,8 +512,10 @@ export function SammlungView() {
     {},
   );
 
-  // Load set release dates once (used in card detail)
+  // Set release dates: only when detail panel opens (not on every page load)
+  const setsLoadedRef = useRef(false);
   useEffect(() => {
+    if (!panelOpen || setsLoadedRef.current) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -520,6 +532,7 @@ export function SammlungView() {
           if (s.name) byName[s.name.toLowerCase()] = s.releaseDate;
         }
         if (!cancelled) {
+          setsLoadedRef.current = true;
           setSetReleaseById({ ...byName, ...byId });
         }
       } catch {
@@ -529,7 +542,7 @@ export function SammlungView() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [panelOpen]);
 
   const toggleRowExpand = (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -564,37 +577,63 @@ export function SammlungView() {
     setLocalItems(getLocalCollection());
   }, [isAuthenticated]);
 
-  const loadCollection = useCallback(async () => {
-    if (!isAuthenticated) {
-      setItems([]);
-      setMetrics(null);
-      loadLocal();
-      return;
-    }
+  const loadCollection = useCallback(
+    async (force = false) => {
+      if (authLoading) return;
 
-    setLoading(true);
-    setLocalItems([]);
-    try {
-      const res = await fetch("/api/collection");
-      if (!res.ok) {
+      if (!isAuthenticated) {
         setItems([]);
         setMetrics(null);
+        loadLocal();
+        setLoading(false);
         return;
       }
-      const data = await res.json();
-      const loaded: CollectionItemDto[] = data.items ?? [];
-      setItems(loaded);
-      setMetrics(data.metrics ?? null);
-      setSelectedId((current) => current ?? loaded[0]?.id ?? null);
-    } finally {
-      setLoading(false);
-    }
-  }, [isAuthenticated, loadLocal]);
+
+      setLocalItems([]);
+      // Warm cache → show immediately, no full-page spinner
+      if (!force) {
+        const warm = peekCollectionCache();
+        if (warm) {
+          const loaded = (warm.items as CollectionItemDto[]) ?? [];
+          setItems(loaded);
+          setMetrics((warm.metrics as CollectionMetrics | null) ?? null);
+          setSelectedId((current) => current ?? loaded[0]?.id ?? null);
+          setLoading(false);
+        } else {
+          setLoading(true);
+        }
+      } else {
+        setLoading(true);
+      }
+
+      try {
+        const data = await fetchCollectionCached(force);
+        if (!data) {
+          if (!peekCollectionCache()) {
+            setItems([]);
+            setMetrics(null);
+          }
+          return;
+        }
+        const loaded: CollectionItemDto[] = (data.items as CollectionItemDto[]) ?? [];
+        setItems(loaded);
+        setMetrics((data.metrics as CollectionMetrics | null) ?? null);
+        setSelectedId((current) => current ?? loaded[0]?.id ?? null);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [isAuthenticated, authLoading, loadLocal],
+  );
 
   useEffect(() => {
-    void loadCollection();
+    void loadCollection(false);
     const onLocal = () => {
       if (!isAuthenticated) loadLocal();
+      else {
+        invalidateCollectionCache();
+        void loadCollection(true);
+      }
     };
     window.addEventListener("cardcap-collection-changed", onLocal);
     window.addEventListener("storage", onLocal);
@@ -1167,7 +1206,8 @@ export function SammlungView() {
             purchaseDate,
           });
         }
-        await loadCollection();
+        invalidateCollectionCache();
+      await loadCollection(true);
         setEditing(false);
         return;
       }
@@ -1192,7 +1232,8 @@ export function SammlungView() {
           purchaseDate,
         });
       }
-      await loadCollection();
+      invalidateCollectionCache();
+      await loadCollection(true);
       setEditing(false);
     } finally {
       setSaving(false);
@@ -1233,7 +1274,8 @@ export function SammlungView() {
         }
       }
       loadLocal();
-      await loadCollection();
+      invalidateCollectionCache();
+      await loadCollection(true);
     },
     [isAuthenticated, loadLocal, loadCollection],
   );
@@ -1333,7 +1375,8 @@ export function SammlungView() {
           }
         }
         loadLocal();
-        if (isAuthenticated) await loadCollection();
+        if (isAuthenticated) invalidateCollectionCache();
+      await loadCollection(true);
       } finally {
         setBulkDeleting(false);
       }
@@ -1362,7 +1405,10 @@ export function SammlungView() {
       <CollectionImportDialog
         open={importOpen}
         onClose={() => setImportOpen(false)}
-        onImported={() => void loadCollection()}
+        onImported={() => {
+          invalidateCollectionCache();
+          void loadCollection(true);
+        }}
       />
       {/* Scroll via AppShell main only — no nested overflow (was blocking wheel scroll) */}
       <div className="w-full min-w-0 pb-4">

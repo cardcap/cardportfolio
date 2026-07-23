@@ -14,6 +14,11 @@ import { SealedProductImage } from "@/components/ui/sealed-product-image";
 import { formatCurrency } from "@/lib/format";
 import { addToLocalCollectionDetailed } from "@/lib/local-collection";
 import {
+  fetchSealedCached,
+  invalidateSealedCache,
+  peekSealedCache,
+} from "@/lib/assets-client-cache";
+import {
   getLocalSealed,
   openLocalSealedUnit,
   removeLocalSealed,
@@ -146,43 +151,61 @@ export function SealedView() {
   const [confirmProduct, setConfirmProduct] =
     useState<SealedProduct | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [inventory, setInventory] = useState<SealedProduct[]>([]);
-  const [loading, setLoading] = useState(true);
+  const warmSealed = peekSealedCache();
+  const [inventory, setInventory] = useState<SealedProduct[]>(() => {
+    if (!warmSealed?.items?.length) return [];
+    return (warmSealed.items as ApiSealedItem[]).map(mapApiSealed);
+  });
+  const [loading, setLoading] = useState(() => !warmSealed);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   /** Detail panel (like Assets → Karten) */
   const [detailId, setDetailId] = useState<string | null>(null);
   const [detailBusy, setDetailBusy] = useState(false);
 
-  const loadInventory = useCallback(async () => {
-    if (authLoading) return;
+  const loadInventory = useCallback(
+    async (force = false) => {
+      if (authLoading) return;
 
-    if (!isAuthenticated) {
-      setInventory(getLocalSealed());
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      // Plain load — no demo seed on every visit (faster, no extra DB writes)
-      const res = await fetch("/api/sealed");
-      if (!res.ok) {
-        setInventory([]);
+      if (!isAuthenticated) {
+        setInventory(getLocalSealed());
+        setLoading(false);
         return;
       }
-      const data = await res.json();
-      const items = (data.items ?? []) as ApiSealedItem[];
-      setInventory(items.map(mapApiSealed));
-    } catch {
-      setInventory([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [isAuthenticated, authLoading]);
+
+      if (!force) {
+        const warm = peekSealedCache();
+        if (warm) {
+          setInventory(
+            ((warm.items as ApiSealedItem[]) ?? []).map(mapApiSealed),
+          );
+          setLoading(false);
+        } else {
+          setLoading(true);
+        }
+      } else {
+        setLoading(true);
+      }
+
+      try {
+        const data = await fetchSealedCached(force);
+        if (!data) {
+          if (!peekSealedCache()) setInventory([]);
+          return;
+        }
+        const items = (data.items ?? []) as ApiSealedItem[];
+        setInventory(items.map(mapApiSealed));
+      } catch {
+        if (!peekSealedCache()) setInventory([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [isAuthenticated, authLoading],
+  );
 
   useEffect(() => {
-    void loadInventory();
+    void loadInventory(false);
   }, [loadInventory]);
 
   // Demo: keep listening to localStorage changes
@@ -523,7 +546,8 @@ export function SealedView() {
           );
           if (!res.ok) failures.push(row.name);
         }
-        await loadInventory();
+        invalidateSealedCache();
+        await loadInventory(true);
         // Notify portfolio/dashboard hooks to drop cached assets
         window.dispatchEvent(new Event(SEALED_CHANGED_EVENT));
         if (failures.length > 0) {
@@ -535,7 +559,8 @@ export function SealedView() {
         }
       }
     } catch {
-      await loadInventory();
+      invalidateSealedCache();
+        await loadInventory(true);
       window.alert("Löschen fehlgeschlagen. Bitte erneut versuchen.");
     } finally {
       setBulkBusy(false);
@@ -561,7 +586,8 @@ export function SealedView() {
           if (!res.ok) updateLocalSealed(row.id, { purchaseDate: isoDate });
         }
       }
-      await loadInventory();
+      invalidateSealedCache();
+        await loadInventory(true);
       if (!isAuthenticated) setInventory(getLocalSealed());
       setToast(
         `Einkaufsdatum für ${rows.length} Produkt${rows.length === 1 ? "" : "e"} gesetzt`,
@@ -675,7 +701,8 @@ export function SealedView() {
         window.alert("Speichern fehlgeschlagen.");
         return;
       }
-      await loadInventory();
+      invalidateSealedCache();
+        await loadInventory(true);
     } finally {
       setDetailBusy(false);
     }
@@ -701,14 +728,17 @@ export function SealedView() {
           { method: "DELETE" },
         );
         if (!res.ok) {
-          await loadInventory();
+          invalidateSealedCache();
+        await loadInventory(true);
           window.alert("Löschen fehlgeschlagen.");
           return;
         }
-        await loadInventory();
+        invalidateSealedCache();
+        await loadInventory(true);
       }
     } catch {
-      await loadInventory();
+      invalidateSealedCache();
+        await loadInventory(true);
       window.alert("Löschen fehlgeschlagen.");
     } finally {
       setDetailBusy(false);

@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuthMode } from "@/components/auth/use-auth-mode";
 import {
+  fetchCollectionCached,
+  fetchSealedCached,
+  invalidateAllAssetsCache,
+} from "@/lib/assets-client-cache";
+import {
   getLocalCollection,
   type LocalCollectionItem,
 } from "@/lib/local-collection";
@@ -338,24 +343,22 @@ export function usePortfolioAssets(): LivePortfolioSnapshot {
 
       const run = (async () => {
         try {
-          const [cRes, sRes] = await Promise.all([
-            fetch("/api/collection"),
-            fetch("/api/sealed"),
+          // Shared cache with Assets → Karten / Sealed (deduped network)
+          const [cData, sData] = await Promise.all([
+            fetchCollectionCached(opts?.force ?? false),
+            fetchSealedCached(opts?.force ?? false),
           ]);
 
           let nextCards: LivePosition[] = localCards;
           let nextSealed: LivePosition[] = localSealed;
 
-          // Logged-in: trust API only (even if empty). No mock/local mix-in.
-          if (cRes.ok) {
-            const data = await cRes.json();
-            const items = (data.items ?? data.data ?? []) as ApiCollectionItem[];
+          if (cData) {
+            const items = (cData.items ?? []) as ApiCollectionItem[];
             nextCards = Array.isArray(items) ? items.map(posFromCard) : [];
           }
 
-          if (sRes.ok) {
-            const data = await sRes.json();
-            const items = (data.items ?? []) as ApiSealedItem[];
+          if (sData) {
+            const items = (sData.items ?? []) as ApiSealedItem[];
             nextSealed = Array.isArray(items) ? items.map(posFromSealed) : [];
           }
 
@@ -388,6 +391,7 @@ export function usePortfolioAssets(): LivePortfolioSnapshot {
   useEffect(() => {
     const onChange = () => {
       assetsCache = null;
+      invalidateAllAssetsCache();
       void refresh({ force: true });
     };
     window.addEventListener("cardcap-collection-changed", onChange);
