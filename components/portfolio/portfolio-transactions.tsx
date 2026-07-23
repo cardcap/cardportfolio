@@ -384,33 +384,77 @@ export function PortfolioTransactions() {
 
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
           <h2 className="mb-3 text-sm font-medium">Transaktionsarten</h2>
-          <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-            <Donut
-              buys={m.buySharePct}
-              sells={m.sellSharePct}
-            />
-            <div className="w-full space-y-3 text-xs">
-              <Legend color="#f472b6" label="Käufe" value={`${m.buySharePct} %`} />
-              <Legend
-                color="#4ade80"
-                label="Verkäufe"
-                value={`${m.sellSharePct} %`}
-              />
-              <div className="grid grid-cols-2 gap-2 border-t border-[var(--border)] pt-3">
-                <div className="rounded-lg border border-[var(--border)] px-3 py-2">
-                  <p className="text-[var(--muted)]">Karten</p>
-                  <p className="tabular-nums text-base font-semibold">
-                    {m.cardTx}
-                  </p>
-                </div>
-                <div className="rounded-lg border border-[var(--border)] px-3 py-2">
-                  <p className="text-[var(--muted)]">Sealed</p>
-                  <p className="tabular-nums text-base font-semibold">
-                    {m.sealedTx}
-                  </p>
-                </div>
+          <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
+            <Donut buys={m.buySharePct} sells={m.sellSharePct} />
+            <div className="w-full min-w-0 flex-1 space-y-4">
+              {/* Kauf / Verkauf — Menge + % as interactive bars */}
+              <div className="space-y-3">
+                <ShareBar
+                  color="#f472b6"
+                  label="Käufe"
+                  count={m.buyCount}
+                  percent={m.buySharePct}
+                  filterActive={txType === "Kauf"}
+                  onClick={() => {
+                    setTxType((t) => (t === "Kauf" ? "Alle" : "Kauf"));
+                    setPage(1);
+                  }}
+                />
+                <ShareBar
+                  color="#4ade80"
+                  label="Verkäufe"
+                  count={m.sellCount}
+                  percent={m.sellSharePct}
+                  filterActive={txType === "Verkauf"}
+                  onClick={() => {
+                    setTxType((t) => (t === "Verkauf" ? "Alle" : "Verkauf"));
+                    setPage(1);
+                  }}
+                />
               </div>
-              <p className="text-[var(--muted)]">
+
+              <div className="space-y-3 border-t border-[var(--border)] pt-3">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-[var(--muted)]">
+                  Nach Asset-Typ
+                </p>
+                {(() => {
+                  const assetTotal = m.cardTx + m.sealedTx || 1;
+                  const cardPct = Math.round((m.cardTx / assetTotal) * 100);
+                  const sealedPct = Math.round((m.sealedTx / assetTotal) * 100);
+                  return (
+                    <>
+                      <ShareBar
+                        color="#f472b6"
+                        label="Karten"
+                        count={m.cardTx}
+                        percent={cardPct}
+                        filterActive={assetType === "Karte"}
+                        onClick={() => {
+                          setAssetType((t) =>
+                            t === "Karte" ? "Alle" : "Karte",
+                          );
+                          setPage(1);
+                        }}
+                      />
+                      <ShareBar
+                        color="#a78bfa"
+                        label="Sealed"
+                        count={m.sealedTx}
+                        percent={sealedPct}
+                        filterActive={assetType === "Sealed"}
+                        onClick={() => {
+                          setAssetType((t) =>
+                            t === "Sealed" ? "Alle" : "Sealed",
+                          );
+                          setPage(1);
+                        }}
+                      />
+                    </>
+                  );
+                })()}
+              </div>
+
+              <p className="text-xs text-[var(--muted)]">
                 <span className="text-[var(--accent)]">↗</span> Aktivster Monat:{" "}
                 <span className="text-[var(--foreground)]">{m.busiestMonth}</span>
               </p>
@@ -835,6 +879,60 @@ function CashflowChart({
         </div>
       )}
     </div>
+  );
+}
+
+/** Interactive share bar — count + percent, clickable filter (Dashboard style). */
+function ShareBar({
+  color,
+  label,
+  count,
+  percent,
+  filterActive,
+  onClick,
+}: {
+  color: string;
+  label: string;
+  count: number;
+  percent: number;
+  filterActive?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group w-full rounded-lg px-1 py-1 text-left transition-colors hover:bg-[var(--surface-elevated)]/60 ${
+        filterActive ? "bg-[var(--accent-soft)]/40" : ""
+      }`}
+    >
+      <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span
+            className="h-2 w-2 shrink-0 rounded-full"
+            style={{ backgroundColor: color }}
+          />
+          <span className="truncate font-medium text-[var(--foreground)]">
+            {label}
+          </span>
+        </span>
+        <span className="tabular-nums shrink-0 font-medium">
+          {count.toLocaleString("de-DE")}
+          <span className="ml-1.5 text-[var(--muted)]">
+            {percent.toLocaleString("de-DE")} %
+          </span>
+        </span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-[var(--border)]">
+        <div
+          className="h-full rounded-full transition-all group-hover:brightness-110"
+          style={{
+            width: `${Math.min(100, Math.max(0, percent))}%`,
+            backgroundColor: color,
+          }}
+        />
+      </div>
+    </button>
   );
 }
 
