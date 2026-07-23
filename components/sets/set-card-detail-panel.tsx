@@ -348,31 +348,52 @@ export function SetCardDetailPanel({
         className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-50 flex max-h-[min(88dvh,100%)] w-full flex-col overflow-hidden rounded-t-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl touch-pan-y lg:inset-x-auto lg:inset-y-4 lg:left-auto lg:right-4 lg:bottom-4 lg:top-4 lg:w-[min(100vw-2rem,26rem)] lg:max-h-none lg:rounded-2xl"
         onPointerDown={onPanelPointerDown}
       >
-        {/* Header nav */}
+        {/* Header nav: larger prev/next buttons, no position number */}
         <div className="flex shrink-0 items-center justify-between border-b border-[var(--border)] px-3 py-2.5">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2" aria-label={positionLabel}>
             <button
               type="button"
               onClick={goPrev}
               onPointerDown={(e) => e.stopPropagation()}
               disabled={!canPrev}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)] disabled:pointer-events-none disabled:opacity-30"
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--border-strong)] bg-[var(--surface-elevated)] text-[var(--foreground)] transition-colors hover:border-[var(--accent)]/40 hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] disabled:pointer-events-none disabled:opacity-30"
               aria-label="Vorherige Karte"
             >
-              ‹
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.25"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M15 6 9 12l6 6" />
+              </svg>
             </button>
-            <span className="tabular-nums min-w-[4.5rem] select-none text-center text-xs font-medium text-[var(--muted)]">
-              {positionLabel}
-            </span>
             <button
               type="button"
               onClick={goNext}
               onPointerDown={(e) => e.stopPropagation()}
               disabled={!canNext}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)] disabled:pointer-events-none disabled:opacity-30"
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--border-strong)] bg-[var(--surface-elevated)] text-[var(--foreground)] transition-colors hover:border-[var(--accent)]/40 hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] disabled:pointer-events-none disabled:opacity-30"
               aria-label="Nächste Karte"
             >
-              ›
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.25"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="m9 6 6 6-6 6" />
+              </svg>
             </button>
           </div>
           <button
@@ -383,9 +404,20 @@ export function SetCardDetailPanel({
             }}
             onPointerDown={(e) => e.stopPropagation()}
             aria-label="Schließen"
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)]"
+            className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--muted)] transition-colors hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)]"
           >
-            ×
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              aria-hidden
+            >
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
           </button>
         </div>
 
