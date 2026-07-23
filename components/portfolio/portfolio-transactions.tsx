@@ -367,21 +367,14 @@ export function PortfolioTransactions() {
           value={String(m.sellCount)}
         />
         <Metric
-          icon="trend"
-          label="Realisierter Gewinn"
-          value={formatCurrency(m.realizedProfit)}
-          positive={
-            m.realizedProfit > 0
-              ? true
-              : m.realizedProfit < 0
-                ? false
-                : undefined
-          }
+          icon="cal"
+          label="Letzte Transaktion"
+          value={m.lastTxDate}
         />
         <Metric
-          icon="pct"
-          label="Gebühren"
-          value={formatCurrency(m.fees)}
+          icon="list"
+          label="Transaktionen gesamt"
+          value={String(m.totalTx)}
         />
       </div>
 
@@ -397,11 +390,22 @@ export function PortfolioTransactions() {
           value={formatCurrency(m.sellVolume)}
           icon="cart"
         />
-        <Strip label="Letzte Transaktion" value={m.lastTxDate} icon="cal" />
         <Strip
-          label="Transaktionen gesamt"
-          value={String(m.totalTx)}
-          icon="list"
+          label="Realisierter Gewinn"
+          value={formatCurrency(m.realizedProfit)}
+          icon="trend"
+          positive={
+            m.realizedProfit > 0
+              ? true
+              : m.realizedProfit < 0
+                ? false
+                : undefined
+          }
+        />
+        <Strip
+          label="Gebühren"
+          value={formatCurrency(m.fees)}
+          icon="fee"
         />
       </div>
 
@@ -1064,21 +1068,41 @@ function Strip({
   label,
   value,
   icon,
+  positive,
 }: {
   label: string;
   value: string;
   icon: string;
+  /** true = grün, false = rot, undefined = neutral */
+  positive?: boolean;
 }) {
+  const isPos = positive === true;
+  const isNeg = positive === false;
+  const toneIcon = isPos
+    ? "bg-[var(--positive-soft)] text-[var(--positive)] ring-[var(--positive)]/20"
+    : isNeg
+      ? "bg-[var(--negative-soft)] text-[var(--negative)] ring-[var(--negative)]/20"
+      : "bg-[var(--surface-elevated)] text-[var(--muted)] ring-[var(--border)]";
+  const toneValue = isPos
+    ? "text-[var(--positive)]"
+    : isNeg
+      ? "text-[var(--negative)]"
+      : "";
+
   return (
     <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-      <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[var(--surface-elevated)] text-[var(--muted)] ring-1 ring-[var(--border)]">
+      <span
+        className={`inline-flex h-11 w-11 items-center justify-center rounded-full ring-1 ${toneIcon}`}
+      >
         <MIcon type={icon} />
       </span>
       <div>
         <p className="text-[11px] uppercase tracking-wider text-[var(--muted)]">
           {label}
         </p>
-        <p className="tabular-nums text-sm font-semibold">{value}</p>
+        <p className={`tabular-nums text-sm font-semibold ${toneValue}`}>
+          {value}
+        </p>
       </div>
     </div>
   );
@@ -1203,6 +1227,15 @@ function MIcon({ type }: { type: string }) {
           <circle cx="8" cy="8" r="2.5" />
           <circle cx="16" cy="16" r="2.5" />
           <path d="M7 17 17 7" strokeLinecap="round" />
+        </svg>
+      );
+    case "fee":
+      // Banknote / Gebühren — no percent sign
+      return (
+        <svg {...p}>
+          <rect x="3" y="6" width="18" height="12" rx="2" />
+          <circle cx="12" cy="12" r="2.25" />
+          <path d="M7 10v4M17 10v4" strokeLinecap="round" />
         </svg>
       );
     case "bag":
