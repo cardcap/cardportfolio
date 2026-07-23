@@ -357,47 +357,24 @@ export function PortfolioTransactions() {
         </div>
       </div>
 
-      {/* Primary metrics */}
+      {/* Primary metrics (larger) — volumes + P/L */}
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <Metric
           icon="cart"
-          label="Käufe"
-          value={String(m.buyCount)}
-          accent
+          label="Gesamt Kauf"
+          value={formatCurrency(m.buyVolume)}
+          tone="buy"
         />
         <Metric
           icon="moneybag"
-          label="Verkäufe"
-          value={String(m.sellCount)}
-        />
-        <Metric
-          icon="cal"
-          label="Letzte Transaktion"
-          value={m.lastTxDate}
-        />
-        <Metric
-          icon="list"
-          label="Transaktionen gesamt"
-          value={String(m.totalTx)}
-        />
-      </div>
-
-      {/* Secondary */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Strip
-          label="Gesamt Kauf"
-          value={formatCurrency(m.buyVolume)}
-          icon="bag"
-        />
-        <Strip
           label="Gesamt Verkauf"
           value={formatCurrency(m.sellVolume)}
-          icon="cart"
+          tone="sell"
         />
-        <Strip
+        <Metric
+          icon="trend"
           label="Realisierter Gewinn"
           value={formatCurrency(m.realizedProfit)}
-          icon="trend"
           positive={
             m.realizedProfit > 0
               ? true
@@ -406,10 +383,32 @@ export function PortfolioTransactions() {
                 : undefined
           }
         />
-        <Strip
+        <Metric
+          icon="fee"
           label="Gebühren"
           value={formatCurrency(m.fees)}
-          icon="fee"
+        />
+      </div>
+
+      {/* Secondary — counts + meta */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Strip
+          label="Käufe"
+          value={String(m.buyCount)}
+          icon="cart"
+          tone="buy"
+        />
+        <Strip
+          label="Verkäufe"
+          value={String(m.sellCount)}
+          icon="moneybag"
+          tone="sell"
+        />
+        <Strip label="Letzte Transaktion" value={m.lastTxDate} icon="cal" />
+        <Strip
+          label="Transaktionen gesamt"
+          value={String(m.totalTx)}
+          icon="list"
         />
       </div>
 
@@ -994,13 +993,50 @@ function ShareBar({
   );
 }
 
+/** Chart-aligned tones: Käufe pink, Verkäufe green */
+type MetricTone = "buy" | "sell";
+
+function toneClasses(
+  tone: MetricTone | undefined,
+  positive?: boolean,
+): { icon: string; value: string } {
+  if (tone === "buy") {
+    return {
+      icon: "bg-pink-500/15 text-pink-400",
+      value: "text-pink-400",
+    };
+  }
+  if (tone === "sell") {
+    return {
+      icon: "bg-emerald-500/15 text-emerald-400",
+      value: "text-emerald-400",
+    };
+  }
+  if (positive === true) {
+    return {
+      icon: "bg-[var(--positive-soft)] text-[var(--positive)]",
+      value: "text-[var(--positive)]",
+    };
+  }
+  if (positive === false) {
+    return {
+      icon: "bg-[var(--negative-soft)] text-[var(--negative)]",
+      value: "text-[var(--negative)]",
+    };
+  }
+  return {
+    icon: "bg-[var(--surface-elevated)] text-[var(--muted)]",
+    value: "",
+  };
+}
+
 function Metric({
   icon,
   label,
   value,
   hint,
   positive,
-  accent,
+  tone,
 }: {
   icon: string;
   label: string;
@@ -1008,45 +1044,31 @@ function Metric({
   hint?: string;
   /** true = grün (Gewinn), false = rot (Verlust), undefined = neutral */
   positive?: boolean;
-  accent?: boolean;
+  tone?: MetricTone;
 }) {
-  const isPos = positive === true;
-  const isNeg = positive === false;
-  const toneIcon = accent
-    ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-    : isPos
-      ? "bg-[var(--positive-soft)] text-[var(--positive)]"
-      : isNeg
-        ? "bg-[var(--negative-soft)] text-[var(--negative)]"
-        : "bg-[var(--accent-soft)] text-[var(--accent)]";
-  const toneValue = isPos
-    ? "text-[var(--positive)]"
-    : isNeg
-      ? "text-[var(--negative)]"
-      : accent
-        ? "text-[var(--accent)]"
-        : "";
-  const toneHint = isPos
-    ? "text-[var(--positive)]"
-    : isNeg
-      ? "text-[var(--negative)]"
-      : "text-[var(--muted)]";
+  const t = toneClasses(tone, positive);
 
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
+    <div className="flex items-center gap-3.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-4 sm:px-5 sm:py-5">
       <span
-        className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${toneIcon}`}
+        className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full sm:h-14 sm:w-14 ${t.icon}`}
       >
         <MIcon type={icon} />
       </span>
       <div className="min-w-0">
-        <p className="text-[11px] uppercase tracking-wider text-[var(--muted)]">
+        <p className="text-xs font-medium uppercase tracking-wider text-[var(--muted)] sm:text-[13px]">
           {label}
         </p>
-        <p className={`tabular-nums mt-0.5 text-xl font-semibold ${toneValue}`}>
+        <p
+          className={`tabular-nums mt-0.5 text-2xl font-semibold tracking-tight sm:text-[1.65rem] ${t.value}`}
+        >
           {value}
         </p>
-        {hint && <p className={`text-xs ${toneHint}`}>{hint}</p>}
+        {hint && (
+          <p className={`text-xs ${t.value || "text-[var(--muted)]"}`}>
+            {hint}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -1057,30 +1079,25 @@ function Strip({
   value,
   icon,
   positive,
+  tone,
 }: {
   label: string;
   value: string;
   icon: string;
   /** true = grün, false = rot, undefined = neutral */
   positive?: boolean;
+  tone?: MetricTone;
 }) {
-  const isPos = positive === true;
-  const isNeg = positive === false;
-  const toneIcon = isPos
-    ? "bg-[var(--positive-soft)] text-[var(--positive)] ring-[var(--positive)]/20"
-    : isNeg
-      ? "bg-[var(--negative-soft)] text-[var(--negative)] ring-[var(--negative)]/20"
-      : "bg-[var(--surface-elevated)] text-[var(--muted)] ring-[var(--border)]";
-  const toneValue = isPos
-    ? "text-[var(--positive)]"
-    : isNeg
-      ? "text-[var(--negative)]"
-      : "";
+  const t = toneClasses(tone, positive);
+  const iconRing =
+    tone || positive !== undefined
+      ? t.icon
+      : "bg-[var(--surface-elevated)] text-[var(--muted)] ring-1 ring-[var(--border)]";
 
   return (
     <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
       <span
-        className={`inline-flex h-11 w-11 items-center justify-center rounded-full ring-1 ${toneIcon}`}
+        className={`inline-flex h-11 w-11 items-center justify-center rounded-full ${iconRing}`}
       >
         <MIcon type={icon} />
       </span>
@@ -1088,7 +1105,7 @@ function Strip({
         <p className="text-[11px] uppercase tracking-wider text-[var(--muted)]">
           {label}
         </p>
-        <p className={`tabular-nums text-sm font-semibold ${toneValue}`}>
+        <p className={`tabular-nums text-sm font-semibold ${t.value}`}>
           {value}
         </p>
       </div>
