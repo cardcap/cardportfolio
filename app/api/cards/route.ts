@@ -5,7 +5,8 @@ import {
 } from "@/lib/tcgdex";
 import { NextRequest, NextResponse } from "next/server";
 
-export const dynamic = "force-dynamic";
+// Catalog is static JSON on disk — allow edge/CDN caching of responses
+export const revalidate = 300;
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
@@ -23,7 +24,12 @@ export async function GET(request: NextRequest) {
       color: searchParams.get("color") ?? undefined,
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json(result, {
+      headers: {
+        // Public catalog — browser/CDN can reuse for 5 minutes
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+      },
+    });
   } catch (error) {
     console.error("Cards API error:", error);
     return NextResponse.json(

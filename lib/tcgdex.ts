@@ -90,9 +90,23 @@ const DATA_DIR = path.join(process.cwd(), "data");
 
 const cacheMem = {
   cards: new Map<CardLanguage, CacheEntry<TcgdexCachedCard[]>>(),
+  /** O(1) lookup by card id per language — built with the cards cache */
+  cardsById: new Map<CardLanguage, Map<string, TcgdexCachedCard>>(),
   sets: new Map<CardLanguage, CacheEntry<TcgdexCachedSet[]>>(),
+  setsById: new Map<CardLanguage, Map<string, TcgdexCachedSet>>(),
   series: new Map<CardLanguage, CacheEntry<Map<string, string>>>(),
 };
+
+/** File mtime stamp without reading/parsing the full JSON body. */
+function fileMtimeStamp(filePath: string): string | null {
+  try {
+    if (!fs.existsSync(filePath)) return null;
+    const st = fs.statSync(filePath);
+    return `${st.mtimeMs}:${st.size}`;
+  } catch {
+    return null;
+  }
+}
 
 export function extractSetId(cardId: string): string {
   const dash = cardId.lastIndexOf("-");
@@ -282,34 +296,57 @@ function cacheStamp(file: { updatedAt: string; pricesUpdatedAt?: string }): stri
 }
 
 export function loadCachedCards(lang: CardLanguage): TcgdexCachedCard[] | null {
-  const file = readJsonFile<CardsCacheFile>(
-    path.join(DATA_DIR, "cards", `${lang}.json`),
-  );
+  const filePath = path.join(DATA_DIR, "cards", `${lang}.json`);
+  const mtimeStamp = fileMtimeStamp(filePath);
+  if (!mtimeStamp) return null;
+
+  // Hot path: serve from memory without re-reading/parsing ~4MB JSON
+  const cached = cacheMem.cards.get(lang);
+  if (cached && cached.stamp === mtimeStamp) return cached.data;
+
+  const file = readJsonFile<CardsCacheFile>(filePath);
   if (!file?.cards?.length) return null;
 
-  const stamp = cacheStamp(file);
-  const cached = cacheMem.cards.get(lang);
-  if (cached && cached.stamp === stamp) return cached.data;
-
+  // Prefer mtime stamp so we don't re-parse only to compare content stamps
+  const stamp = mtimeStamp;
   cacheMem.cards.set(lang, { stamp, data: file.cards });
+
+  const byId = new Map<string, TcgdexCachedCard>();
+  for (const card of file.cards) byId.set(card.id, card);
+  cacheMem.cardsById.set(lang, byId);
+
   return file.cards;
 }
 
-export function loadCachedSets(lang: CardLanguage): TcgdexCachedSet[] | null {
-  const file = readJsonFile<SetsCacheFile>(
-    path.join(DATA_DIR, "sets", `${lang}.json`),
-  );
-  if (!file?.sets?.length) return null;
+/** O(1) card lookup from the in-memory catalog index. */
+export function getCachedCardById(
+  lang: CardLanguage,
+  tcgCardId: string,
+): TcgdexCachedCard | null {
+  // Ensure index is warm
+  if (!cacheMem.cardsById.has(lang)) {
+    loadCachedCards(lang);
+  }
+  return cacheMem.cardsById.get(lang)?.get(tcgCardId) ?? null;
+}
 
-  // Include EN asset stamp so logo enrichment invalidates when EN updates
-  const enFile =
-    lang === "en"
-      ? null
-      : readJsonFile<SetsCacheFile>(path.join(DATA_DIR, "sets", "en.json"));
-  const stamp = `${file.updatedAt}|${enFile?.updatedAt ?? ""}|assets-v2`;
+export function loadCachedSets(lang: CardLanguage): TcgdexCachedSet[] | null {
+  const filePath = path.join(DATA_DIR, "sets", `${lang}.json`);
+  const enPath = path.join(DATA_DIR, "sets", "en.json");
+  const mtimeStamp = fileMtimeStamp(filePath);
+  if (!mtimeStamp) return null;
+  const enStamp = lang === "en" ? "" : (fileMtimeStamp(enPath) ?? "");
+  const stamp = `${mtimeStamp}|${enStamp}|assets-v2`;
+
   const cached = cacheMem.sets.get(lang);
   if (cached && cached.stamp === stamp) return cached.data;
 
+  const file = readJsonFile<SetsCacheFile>(filePath);
+  if (!file?.sets?.length) return null;
+
+  // Include EN assets so logo enrichment invalidates when EN updates
+  const enFile =
+    lang === "en" ? null : readJsonFile<SetsCacheFile>(enPath);
   const enSets = enFile?.sets?.length ? enFile.sets : null;
   const data =
     lang === "en" || !enSets
@@ -317,7 +354,22 @@ export function loadCachedSets(lang: CardLanguage): TcgdexCachedSet[] | null {
       : enrichLocalizedSetsWithEnAssets(file.sets, enSets);
 
   cacheMem.sets.set(lang, { stamp, data });
+
+  const byId = new Map<string, TcgdexCachedSet>();
+  for (const set of data) byId.set(set.id, set);
+  cacheMem.setsById.set(lang, byId);
+
   return data;
+}
+
+export function getCachedSetById(
+  lang: CardLanguage,
+  setId: string,
+): TcgdexCachedSet | null {
+  if (!cacheMem.setsById.has(lang)) {
+    loadCachedSets(lang);
+  }
+  return cacheMem.setsById.get(lang)?.get(setId) ?? null;
 }
 
 function buildSetMaps(sets: TcgdexCachedSet[] | null) {
@@ -766,6 +818,8 @@ export async function fetchSetsFromTcgdex(
 
 export function clearTcgdexCache(): void {
   cacheMem.cards.clear();
+  cacheMem.cardsById.clear();
   cacheMem.sets.clear();
+  cacheMem.setsById.clear();
   cacheMem.series.clear();
 }

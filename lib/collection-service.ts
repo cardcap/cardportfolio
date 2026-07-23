@@ -3,6 +3,8 @@ import "server-only";
 import { getCardColors } from "@/lib/card-colors";
 import { getCardPriceForCondition } from "@/lib/card-conditions";
 import {
+  getCachedCardById,
+  getCachedSetById,
   loadCachedCards,
   loadCachedSets,
   resolveCardImages,
@@ -52,10 +54,10 @@ export type CollectionMetrics = {
 };
 
 function findCachedCard(
-  cards: TcgdexCachedCard[] | null,
+  lang: CardLanguage,
   tcgCardId: string,
 ): TcgdexCachedCard | null {
-  return cards?.find((card) => card.id === tcgCardId) ?? null;
+  return getCachedCardById(lang, tcgCardId);
 }
 
 function parseExemplars(raw: unknown): CollectionExemplarDto[] | undefined {
@@ -188,13 +190,20 @@ export async function getUserCollection(userId: string): Promise<{
     orderBy: { updatedAt: "desc" },
   });
 
+  // Warm catalog cache once per language (not per row)
+  const langs = new Set(
+    rows.map((r) => (r.language as CardLanguage) || DEFAULT_LANGUAGE),
+  );
+  for (const lang of langs) {
+    loadCachedCards(lang);
+    loadCachedSets(lang);
+  }
+
   const items = rows.map((row) => {
     const lang = (row.language as CardLanguage) || DEFAULT_LANGUAGE;
-    const cachedCards = loadCachedCards(lang);
-    const cachedSets = loadCachedSets(lang);
-    const cachedCard = findCachedCard(cachedCards, row.tcgCardId);
+    const cachedCard = getCachedCardById(lang, row.tcgCardId);
     const setName =
-      cachedSets?.find((set) => set.id === row.setId)?.name ?? row.setName;
+      getCachedSetById(lang, row.setId)?.name ?? row.setName;
 
     return enrichItem(row, cachedCard, setName, lang);
   });
@@ -262,9 +271,8 @@ export async function addCardToCollection(
   const purchaseDate =
     params.purchaseDate ?? new Date().toISOString().slice(0, 10);
 
-  const cachedCards = loadCachedCards(lang);
   const cachedSets = loadCachedSets(lang);
-  const cachedCard = findCachedCard(cachedCards, params.tcgCardId);
+  const cachedCard = findCachedCard(lang, params.tcgCardId);
 
   if (!cachedCard && !params.snapshot) return null;
 
@@ -414,8 +422,7 @@ export async function updateCollectionItem(
       });
       await prisma.collectionItem.delete({ where: { id: existing.id } });
       const lang = (clash.language as CardLanguage) || DEFAULT_LANGUAGE;
-      const cachedCards = loadCachedCards(lang);
-      const cachedCard = findCachedCard(cachedCards, clash.tcgCardId);
+      const cachedCard = findCachedCard(lang, clash.tcgCardId);
       if (!cachedCard) return null;
       const merged = await prisma.collectionItem.findUnique({
         where: { id: clash.id },
@@ -458,8 +465,7 @@ export async function updateCollectionItem(
   });
 
   const lang = (updated.language as CardLanguage) || DEFAULT_LANGUAGE;
-  const cachedCards = loadCachedCards(lang);
-  const cachedCard = findCachedCard(cachedCards, updated.tcgCardId);
+  const cachedCard = findCachedCard(lang, updated.tcgCardId);
   if (!cachedCard) {
     // Still return enriched with stored fields
     return {
@@ -509,19 +515,12 @@ export async function importCollectionRows(
 
   for (const row of rows) {
     const lang = (row.language as CardLanguage) || DEFAULT_LANGUAGE;
-    const cachedCards = loadCachedCards(lang);
-    const cachedSets = loadCachedSets(lang);
-    const cachedCard = findCachedCard(cachedCards, row.tcgCardId);
+    const cachedCard = findCachedCard(lang, row.tcgCardId);
     if (!cachedCard) continue;
 
-    const setName =
-      cachedSets?.find((set) => set.id === cachedCard.setId)?.name ??
-      cachedCard.setId;
-    const images = resolveCardImages(
-      cachedCard,
-      lang,
-      cachedSets?.find((set) => set.id === cachedCard.setId),
-    );
+    const setMeta = getCachedSetById(lang, cachedCard.setId);
+    const setName = setMeta?.name ?? cachedCard.setId;
+    const images = resolveCardImages(cachedCard, lang, setMeta ?? undefined);
 
     const existing = await prisma.collectionItem.findUnique({
       where: {
