@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { createPortal } from "react-dom";
 import {
   TransactionDrawer,
   type PositionOption,
@@ -691,11 +692,21 @@ export function PortfolioTransactions() {
 function TxRow({ row }: { row: DetailedTransaction }) {
   const profit = row.realizedProfit;
   const [hover, setHover] = useState(false);
+  const [mouse, setMouse] = useState({ x: 0, y: 0 });
+
+  function onMove(e: MouseEvent<HTMLLIElement>) {
+    setMouse({ x: e.clientX, y: e.clientY });
+    if (!hover) setHover(true);
+  }
 
   return (
     <li
       className="relative px-4 py-3 transition-colors hover:bg-[var(--surface-elevated)]/40 sm:px-5"
-      onMouseEnter={() => setHover(true)}
+      onMouseEnter={(e) => {
+        setHover(true);
+        setMouse({ x: e.clientX, y: e.clientY });
+      }}
+      onMouseMove={onMove}
       onMouseLeave={() => setHover(false)}
     >
       {/* mobile */}
@@ -791,19 +802,46 @@ function TxRow({ row }: { row: DetailedTransaction }) {
         </span>
       </div>
 
-      {hover && <TxHoverDetail row={row} />}
+      {hover && (
+        <TxHoverDetail row={row} x={mouse.x} y={mouse.y} />
+      )}
     </li>
   );
 }
 
-/** Compact detail card — same pattern as Portfolio-Kennzahlen KpiTile */
-function TxHoverDetail({ row }: { row: DetailedTransaction }) {
+const TX_TIP_W = 272; // ~17rem
+const TX_TIP_H = 220;
+const TX_TIP_GAP = 14;
+
+/** Compact detail card that follows the mouse cursor */
+function TxHoverDetail({
+  row,
+  x,
+  y,
+}: {
+  row: DetailedTransaction;
+  x: number;
+  y: number;
+}) {
   const profit = row.realizedProfit;
   const isBuy = row.type === "Kauf";
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
-  return (
+  // Prefer above-right of cursor; flip if near edges
+  const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
+  const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+  let left = x + TX_TIP_GAP;
+  let top = y - TX_TIP_H - TX_TIP_GAP;
+  if (left + TX_TIP_W > vw - 8) left = x - TX_TIP_W - TX_TIP_GAP;
+  if (left < 8) left = 8;
+  if (top < 8) top = y + TX_TIP_GAP;
+  if (top + TX_TIP_H > vh - 8) top = Math.max(8, vh - TX_TIP_H - 8);
+
+  const node = (
     <div
-      className="pointer-events-none absolute left-1/2 top-0 z-40 w-[17rem] -translate-x-1/2 -translate-y-[calc(100%+0.45rem)] rounded-xl border border-[var(--border-strong)] bg-[var(--surface-elevated)] p-3 shadow-xl"
+      className="pointer-events-none fixed z-[100] w-[17rem] rounded-xl border border-[var(--border-strong)] bg-[var(--surface-elevated)] p-3 shadow-xl"
+      style={{ left, top }}
       role="tooltip"
     >
       <div className="flex gap-2.5">
@@ -890,14 +928,11 @@ function TxHoverDetail({ row }: { row: DetailedTransaction }) {
           {row.note || row.source}
         </p>
       )}
-
-      {/* arrow */}
-      <span
-        aria-hidden
-        className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-x-[6px] border-t-[6px] border-x-transparent border-t-[var(--border-strong)]"
-      />
     </div>
   );
+
+  if (!mounted || typeof document === "undefined") return null;
+  return createPortal(node, document.body);
 }
 
 function TypeBadge({ type }: { type: "Kauf" | "Verkauf" }) {
