@@ -22,6 +22,8 @@ export type LivePosition = {
   name: string;
   setId?: string;
   setName: string;
+  /** Collector / card number e.g. "POR 12/88" or "12" */
+  number?: string;
   kind: "Karte" | "Sealed";
   market: number;
   invested: number;
@@ -93,6 +95,7 @@ type ApiCollectionItem = {
   name: string;
   setId?: string;
   setName?: string;
+  number?: string;
   quantity: number;
   marketValue: number;
   purchasePrice?: number | null;
@@ -147,11 +150,14 @@ function posFromCard(item: ApiCollectionItem | LocalCollectionItem): LivePositio
   const invested = investedFromCollectionItem(item);
   const returnPct =
     invested > 0 ? ((market - invested) / invested) * 100 : market > 0 ? 100 : 0;
+  const number =
+    "number" in item && item.number ? String(item.number) : undefined;
   return {
     id: item.id,
     name: item.name,
     setId: "setId" in item ? item.setId : undefined,
     setName: item.setName ?? "",
+    number,
     kind: "Karte",
     market: Math.round(market * 100) / 100,
     invested: Math.round(invested * 100) / 100,

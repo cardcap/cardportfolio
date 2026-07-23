@@ -2580,12 +2580,22 @@ export function SammlungView() {
             {
               id: selectedRow.groupMemberIds?.[0] ?? selectedRow.id,
               label: selectedRow.setName
-                ? `${selectedRow.name} (${selectedRow.setName})`
-                : selectedRow.name,
+                ? `${selectedRow.name}${selectedRow.number ? ` · ${selectedRow.number}` : ""} (${selectedRow.setName})`
+                : `${selectedRow.name}${selectedRow.number ? ` · ${selectedRow.number}` : ""}`,
               kind: "Karte",
               quantity: selectedRow.quantity,
               setName: selectedRow.setName,
               imageUrl: selectedRow.imageUrl,
+              collectorId: selectedRow.number || undefined,
+              searchText: [
+                selectedRow.name,
+                selectedRow.setName,
+                selectedRow.number,
+                selectedRow.id,
+              ]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase(),
             },
           ]}
           onSave={async (payload: TransactionSavePayload) => {

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { formatCurrency } from "@/lib/format";
+import { getCardImageUrl, type TcgCard } from "@/lib/pokemon-tcg";
 
 type TxType = "Kauf" | "Verkauf";
 
@@ -25,6 +26,10 @@ export type PositionOption = {
   quantity?: number;
   setName?: string;
   imageUrl?: string;
+  /** Collector id e.g. "POR 12/88" or local number for search */
+  collectorId?: string;
+  /** Extra haystack for search (name, set, number, id) */
+  searchText?: string;
 };
 
 export type TransactionSavePayload = {
@@ -39,12 +44,14 @@ export type TransactionSavePayload = {
   source: string;
   note: string;
   availableQty: number;
+  setName?: string;
+  imageUrl?: string;
 };
 
 type TransactionDrawerProps = {
   open: boolean;
   onClose: () => void;
-  /** Live asset positions for search (preferred over mock list). */
+  /** Live asset positions for Verkauf search. */
   positions?: PositionOption[];
   initialType?: TxType;
   initialPositionId?: string;
@@ -52,6 +59,67 @@ type TransactionDrawerProps = {
     payload: TransactionSavePayload,
   ) => void | Promise<void>;
 };
+
+function cardToOption(c: TcgCard): PositionOption {
+  const setName = c.set?.name ?? c.set?.id ?? "";
+  const collector =
+    c.collectorId?.trim() ||
+    (c.setCode && c.number ? `${c.setCode} ${c.number}` : "") ||
+    c.number ||
+    "";
+  const numPart = collector ? ` ${collector}` : "";
+  const label = setName
+    ? `${c.name}${numPart ? ` ·${numPart}` : ""} (${setName})`
+    : `${c.name}${numPart ? ` ·${numPart}` : ""}`;
+  return {
+    id: c.id,
+    label,
+    kind: "Karte",
+    setName: setName || undefined,
+    imageUrl: getCardImageUrl(c) ?? undefined,
+    collectorId: collector || undefined,
+    searchText: [c.name, collector, setName, c.id, c.number, c.setCode]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase(),
+  };
+}
+
+/** Match inventory labels + collector numbers ("POR 12/88", "12/88", name). */
+function matchesPositionQuery(p: PositionOption, raw: string): boolean {
+  const q = raw.trim().toLowerCase();
+  if (!q) return false;
+
+  const hay = (
+    p.searchText ||
+    [p.label, p.setName, p.collectorId, p.id].filter(Boolean).join(" ")
+  ).toLowerCase();
+
+  // Direct substring (name, set, full label)
+  if (hay.includes(q)) return true;
+  // Compact: "por12/88" vs "por 12/88"
+  const compact = (s: string) => s.replace(/[\s/_-]+/g, "");
+  if (compact(hay).includes(compact(q))) return true;
+
+  // Number / set-code pattern
+  const m = q.match(/^(?:([a-z0-9]{1,6})\s+)?(\d+[a-z]?)(?:\s*\/\s*(\d+))?$/i);
+  if (m) {
+    const wantNum = m[2].replace(/^0+(\d)/, "$1").toLowerCase();
+    const coll = (p.collectorId ?? "").toLowerCase();
+    const collNum = coll.match(/(\d+[a-z]?)(?:\s*\/\s*\d+)?$/i)?.[1];
+    const collNumNorm = collNum
+      ? collNum.replace(/^0+(\d)/, "$1").toLowerCase()
+      : "";
+    if (collNumNorm === wantNum || coll.includes(wantNum)) {
+      if (!m[1]) return true;
+      const code = m[1].toUpperCase();
+      if (coll.toUpperCase().includes(code) || hay.toUpperCase().includes(code)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 export function TransactionDrawer({
   open,
@@ -63,7 +131,8 @@ export function TransactionDrawer({
 }: TransactionDrawerProps) {
   const [type, setType] = useState<TxType>(initialType);
   const [query, setQuery] = useState("");
-  const [positionId, setPositionId] = useState(initialPositionId);
+  const [selectedPosition, setSelectedPosition] =
+    useState<PositionOption | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [quantity, setQuantity] = useState(1);
@@ -76,6 +145,16 @@ export function TransactionDrawer({
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [catalogHits, setCatalogHits] = useState<PositionOption[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+
+  /** Only true for the duration of one open session — prevents mid-session resets. */
+  const sessionActiveRef = useRef(false);
+  const searchOpenRef = useRef(false);
+  searchOpenRef.current = searchOpen;
+  const catalogSearchId = useRef(0);
+  /** Snapshot of positions at open time (stable for initial selection). */
+  const positionsAtOpenRef = useRef<PositionOption[]>([]);
 
   const resolvedSource = useCustomSource
     ? customSource.trim() || SOURCE_CUSTOM
@@ -86,8 +165,10 @@ export function TransactionDrawer({
     [positionsProp],
   );
 
+  // Reset ONLY when drawer transitions closed → open (never on search focus / type click)
   useEffect(() => {
     if (!open) {
+      sessionActiveRef.current = false;
       setSaved(false);
       setSearchOpen(false);
       setQuery("");
@@ -95,38 +176,99 @@ export function TransactionDrawer({
       setCustomSource("");
       setError(null);
       setSaving(false);
+      setCatalogHits([]);
+      setCatalogLoading(false);
       return;
     }
+
+    if (sessionActiveRef.current) {
+      // Already open this session — do not reset type/form
+      return;
+    }
+    sessionActiveRef.current = true;
+    positionsAtOpenRef.current = positionsProp ?? [];
+
     setType(initialType);
-    setPositionId(initialPositionId);
+    const initial =
+      initialPositionId
+        ? (positionsProp ?? []).find((p) => p.id === initialPositionId) ?? null
+        : null;
+    setSelectedPosition(initial);
     setQuery("");
     setQuantity(1);
     setPrice("");
     setFees("0");
     setNote("");
+    setCatalogHits([]);
+    setSearchOpen(false);
+    setError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open-edge only
+  }, [open]);
+
+  // Escape: close dropdown first, then drawer
+  useEffect(() => {
+    if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        if (searchOpen) {
-          setSearchOpen(false);
-          return;
-        }
-        onClose();
+      if (e.key !== "Escape") return;
+      if (searchOpenRef.current) {
+        setSearchOpen(false);
+        e.preventDefault();
+        e.stopPropagation();
+        return;
       }
+      onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose, searchOpen, initialType, initialPositionId]);
+  }, [open, onClose]);
 
-  // Only show results after the user types — no default suggestions
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+  // Kauf: full catalog via /api/cards (supports "POR 12/88", names, …)
+  useEffect(() => {
+    if (!open || type !== "Kauf") {
+      setCatalogHits([]);
+      setCatalogLoading(false);
+      return;
+    }
+    const q = query.trim();
+    if (q.length < 1) {
+      setCatalogHits([]);
+      setCatalogLoading(false);
+      return;
+    }
+    const id = ++catalogSearchId.current;
+    setCatalogLoading(true);
+    const t = window.setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({
+          search: q,
+          pageSize: "24",
+          page: "1",
+        });
+        const res = await fetch(`/api/cards?${params}`);
+        if (!res.ok) throw new Error("search failed");
+        const json = (await res.json()) as { data?: TcgCard[] };
+        if (id !== catalogSearchId.current) return;
+        const hits = (json.data ?? []).map(cardToOption).slice(0, 16);
+        setCatalogHits(hits);
+      } catch {
+        if (id === catalogSearchId.current) setCatalogHits([]);
+      } finally {
+        if (id === catalogSearchId.current) setCatalogLoading(false);
+      }
+    }, 220);
+    return () => window.clearTimeout(t);
+  }, [open, type, query]);
+
+  // Verkauf: only assets in inventory (name + collector #)
+  const inventoryFiltered = useMemo(() => {
+    const q = query.trim();
     if (!q) return [];
-    return positions
-      .filter((p) => p.label.toLowerCase().includes(q))
-      .slice(0, 12);
+    return positions.filter((p) => matchesPositionQuery(p, q)).slice(0, 16);
   }, [positions, query]);
 
-  const selected = positions.find((p) => p.id === positionId);
+  const filtered = type === "Kauf" ? catalogHits : inventoryFiltered;
+
+  const selected = selectedPosition;
   const maxQty =
     type === "Verkauf" && selected?.quantity != null
       ? Math.max(1, selected.quantity)
@@ -143,6 +285,17 @@ export function TransactionDrawer({
   const total =
     (Number.isFinite(priceNum) ? priceNum : 0) * Math.max(1, quantity) +
     (Number.isFinite(feesNum) ? feesNum : 0);
+
+  function handleTypeChange(t: TxType) {
+    if (t === type) return;
+    setType(t);
+    setSelectedPosition(null);
+    setQuery("");
+    setSearchOpen(false);
+    setCatalogHits([]);
+    setQuantity(1);
+    setError(null);
+  }
 
   if (!open) return null;
 
@@ -167,6 +320,8 @@ export function TransactionDrawer({
         source: resolvedSource,
         note,
         availableQty: selected.quantity ?? quantity,
+        setName: selected.setName,
+        imageUrl: selected.imageUrl,
       });
       setSaved(true);
       setTimeout(() => {
@@ -181,6 +336,22 @@ export function TransactionDrawer({
       setSaving(false);
     }
   }
+
+  const emptyHint =
+    type === "Kauf"
+      ? catalogLoading
+        ? "Suche…"
+        : query.trim().length === 0
+          ? "Tippe z. B. Namen oder POR 12/88"
+          : "Keine Treffer im Katalog"
+      : positions.length === 0
+        ? "Keine Assets in Karten/Sealed."
+        : "Keine Treffer im Bestand";
+
+  const searchHint =
+    type === "Kauf"
+      ? "Name oder Nummer (z. B. POR 12/88) im Katalog suchen."
+      : "Name oder Nummer im Bestand suchen.";
 
   return (
     <>
@@ -211,12 +382,22 @@ export function TransactionDrawer({
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
-          <div className="flex rounded-full border border-[var(--border)] bg-[var(--background)] p-0.5">
+          <div
+            className="flex rounded-full border border-[var(--border)] bg-[var(--background)] p-0.5"
+            role="tablist"
+            aria-label="Transaktionstyp"
+          >
             {(["Kauf", "Verkauf"] as const).map((t) => (
               <button
                 key={t}
                 type="button"
-                onClick={() => setType(t)}
+                role="tab"
+                aria-selected={type === t}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleTypeChange(t);
+                }}
                 className={`flex-1 rounded-full py-2 text-sm font-medium transition-colors ${
                   type === t
                     ? t === "Kauf"
@@ -236,32 +417,40 @@ export function TransactionDrawer({
                 ⌕
               </span>
               <input
-                type="search"
+                type="text"
+                inputMode="search"
+                enterKeyHint="search"
                 value={selected && !query ? selected.label : query}
                 onFocus={() => setSearchOpen(true)}
                 onClick={() => setSearchOpen(true)}
                 onChange={(e) => {
                   setQuery(e.target.value);
-                  setPositionId("");
+                  setSelectedPosition(null);
                   setSearchOpen(true);
                 }}
                 onBlur={() => {
-                  window.setTimeout(() => setSearchOpen(false), 150);
+                  window.setTimeout(() => setSearchOpen(false), 180);
                 }}
-                placeholder="Karte oder Sealed Produkt suchen…"
+                placeholder={
+                  type === "Kauf"
+                    ? "z. B. Glurak oder POR 12/88…"
+                    : "Im Bestand suchen…"
+                }
                 autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
                 className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] py-0 pl-9 pr-3 text-sm outline-none focus:border-[var(--accent)]"
               />
             </div>
             {searchOpen && query.trim().length > 0 && (
-              <ul className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--background)]">
+              <ul className="mt-1 max-h-48 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--background)]">
                 {filtered.map((p) => (
                   <li key={p.id}>
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => {
-                        setPositionId(p.id);
+                        setSelectedPosition(p);
                         setQuery("");
                         setSearchOpen(false);
                         if (type === "Verkauf" && p.quantity) {
@@ -270,7 +459,14 @@ export function TransactionDrawer({
                       }}
                       className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-[var(--surface-elevated)]"
                     >
-                      <span className="truncate">{p.label}</span>
+                      <span className="min-w-0 truncate">
+                        <span className="block truncate">{p.label}</span>
+                        {p.collectorId && (
+                          <span className="block text-[10px] text-[var(--muted)]">
+                            {p.collectorId}
+                          </span>
+                        )}
+                      </span>
                       <span className="shrink-0 text-[10px] text-[var(--muted)]">
                         {p.kind}
                         {p.quantity != null ? ` · ×${p.quantity}` : ""}
@@ -280,22 +476,23 @@ export function TransactionDrawer({
                 ))}
                 {filtered.length === 0 && (
                   <li className="px-3 py-2 text-sm text-[var(--muted)]">
-                    {positions.length === 0
-                      ? "Keine Assets in Karten/Sealed."
-                      : "Keine Treffer"}
+                    {emptyHint}
                   </li>
                 )}
               </ul>
             )}
             {searchOpen && query.trim().length === 0 && (
-              <p className="mt-1.5 text-xs text-[var(--muted)]">
-                Tippe einen Namen, um in deinen Assets zu suchen.
-              </p>
+              <p className="mt-1.5 text-xs text-[var(--muted)]">{searchHint}</p>
             )}
             {type === "Verkauf" && selected && (
               <p className="mt-1.5 text-xs text-[var(--muted)]">
                 Im Bestand: {selected.quantity ?? "—"} · Verkauf entfernt die
                 Karte aus Assets.
+              </p>
+            )}
+            {type === "Kauf" && selected && (
+              <p className="mt-1.5 text-xs text-[var(--muted)]">
+                Aus Katalog gewählt · wird als Kauf verbucht.
               </p>
             )}
           </Field>

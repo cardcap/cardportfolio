@@ -76,14 +76,25 @@ export function PortfolioTransactions() {
 
   const drawerPositions: PositionOption[] = useMemo(
     () =>
-      live.positions.map((p) => ({
-        id: p.id,
-        label: p.setName ? `${p.name} (${p.setName})` : p.name,
-        kind: p.kind,
-        quantity: p.quantity,
-        setName: p.setName,
-        imageUrl: p.imageUrl,
-      })),
+      live.positions.map((p) => {
+        const collector = p.number?.trim() || undefined;
+        const label = p.setName
+          ? `${p.name}${collector ? ` · ${collector}` : ""} (${p.setName})`
+          : `${p.name}${collector ? ` · ${collector}` : ""}`;
+        return {
+          id: p.id,
+          label,
+          kind: p.kind,
+          quantity: p.quantity,
+          setName: p.setName,
+          imageUrl: p.imageUrl,
+          collectorId: collector,
+          searchText: [p.name, p.setName, collector, p.setId, p.id]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase(),
+        };
+      }),
     [live.positions],
   );
 
@@ -290,6 +301,9 @@ export function PortfolioTransactions() {
           const dateIso = payload.date;
           const [y, mo, d] = dateIso.split("-");
           const pos = live.positions.find((p) => p.id === payload.positionId);
+          const displayName = payload.positionLabel
+            .replace(/\s*\([^)]+\)\s*$/, "")
+            .trim();
           setLocalTx((prev) => [
             {
               id: `local-${Date.now()}`,
@@ -297,9 +311,9 @@ export function PortfolioTransactions() {
               dateLabel: `${d}.${mo}.${y}`,
               type: payload.type,
               cardId: payload.positionId,
-              name: payload.positionLabel,
+              name: displayName || payload.positionLabel,
               assetType: payload.kind,
-              setName: pos?.setName ?? "—",
+              setName: pos?.setName ?? payload.setName ?? "—",
               quantity: payload.quantity,
               pricePerUnit: payload.pricePerUnit,
               fees: payload.fees,
@@ -317,7 +331,7 @@ export function PortfolioTransactions() {
                     ) / 100
                   : null,
               note: payload.note || payload.source,
-              imageUrl: pos?.imageUrl,
+              imageUrl: pos?.imageUrl ?? payload.imageUrl,
               imageFallbacks: pos?.imageFallbacks,
             },
             ...prev,
