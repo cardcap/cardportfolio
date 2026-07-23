@@ -37,7 +37,9 @@ import {
   fetchCollectionCached,
   invalidateCollectionCache,
   peekCollectionCache,
+  setCollectionCache,
 } from "@/lib/assets-client-cache";
+import { clearPortfolioAssetsCache } from "@/hooks/use-portfolio-assets";
 import {
   getLocalCollection,
   itemInvested,
@@ -401,6 +403,30 @@ type CollectionMetrics = {
   invested: number;
   profitLoss: number;
 };
+
+function metricsFromItems(list: CollectionItemDto[]): CollectionMetrics {
+  const totalCards = list.reduce((s, i) => s + i.quantity, 0);
+  const uniqueCards = list.length;
+  const duplicates = Math.max(0, totalCards - uniqueCards);
+  const totalValue = list.reduce((s, i) => s + (i.marketValue ?? 0), 0);
+  const invested = list.reduce((s, i) => {
+    if (i.exemplars && i.exemplars.length > 0) {
+      return (
+        s + i.exemplars.reduce((a, e) => a + (e.purchasePrice ?? 0), 0)
+      );
+    }
+    return s + (i.purchasePrice ?? 0) * i.quantity;
+  }, 0);
+  const profitLoss = totalValue - invested;
+  return {
+    totalCards,
+    uniqueCards,
+    duplicates,
+    totalValue: Math.round(totalValue * 100) / 100,
+    invested: Math.round(invested * 100) / 100,
+    profitLoss: Math.round(profitLoss * 100) / 100,
+  };
+}
 
 function mapLocalItem(item: LocalCollectionItem): DisplayRow {
   const invested = itemInvested(item);
@@ -1152,6 +1178,8 @@ export function SammlungView() {
 
       // Multi-condition / multi-row groups need rebuild; simple qty/EK edits use PATCH
       if (needsSplit || memberIds.length > 1) {
+        // Close editor immediately so UI feels instant
+        setEditing(false);
         for (const mid of memberIds) {
           await fetch("/api/collection", {
             method: "DELETE",
@@ -1171,47 +1199,50 @@ export function SammlungView() {
           });
           byCond.set(c.condition, list);
         }
-        for (const [condition, copies] of byCond) {
-          const qty = copies.length;
-          const avg =
-            Math.round(
-              (copies.reduce((s, p) => s + (p.purchasePrice ?? 0), 0) / qty) *
-                100,
-            ) / 100;
-          await fetch("/api/collection", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              tcgCardId: selectedRow.tcgCardId,
-              condition,
-              quantity: qty,
-              language: selectedRow.language,
-              purchasePrice: avg,
-              purchaseDate: copies[0]?.purchaseDate ?? purchaseDate,
-              exemplars: copies.map((c) => ({
+        await Promise.all(
+          [...byCond.entries()].map(async ([condition, copies]) => {
+            const qty = copies.length;
+            const avg =
+              Math.round(
+                (copies.reduce((s, p) => s + (p.purchasePrice ?? 0), 0) / qty) *
+                  100,
+              ) / 100;
+            await fetch("/api/collection", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                tcgCardId: selectedRow.tcgCardId,
                 condition,
-                purchasePrice: c.purchasePrice,
-                purchaseDate: c.purchaseDate,
-              })),
-              snapshot: {
-                name: selectedRow.name,
-                setId: selectedRow.setId,
-                setName: selectedRow.setName,
-                number: selectedRow.number,
-                imageUrl: selectedRow.imageUrl,
-                imageFallbacks: selectedRow.imageFallbacks,
-                rarity: selectedRow.rarity,
-              },
-            }),
-          });
-        }
+                quantity: qty,
+                language: selectedRow.language,
+                purchasePrice: avg,
+                purchaseDate: copies[0]?.purchaseDate ?? purchaseDate,
+                exemplars: copies.map((c) => ({
+                  condition,
+                  purchasePrice: c.purchasePrice,
+                  purchaseDate: c.purchaseDate,
+                })),
+                snapshot: {
+                  name: selectedRow.name,
+                  setId: selectedRow.setId,
+                  setName: selectedRow.setName,
+                  number: selectedRow.number,
+                  imageUrl: selectedRow.imageUrl,
+                  imageFallbacks: selectedRow.imageFallbacks,
+                  rarity: selectedRow.rarity,
+                },
+              }),
+            });
+          }),
+        );
         invalidateCollectionCache();
-        await loadCollection(true);
-        setEditing(false);
+        // Background refresh — don't block the button longer than needed
+        void loadCollection(true);
         return;
       }
 
-      // Single storage row: PATCH qty + EK + date (exemplars updated server-side)
+      // Single storage row: PATCH qty + EK + date, then update UI from response
+      // (no full collection reload — that was the main delay)
       const condition = conditions[0] || "Near Mint";
       const res = await fetch("/api/collection", {
         method: "PATCH",
@@ -1227,18 +1258,31 @@ export function SammlungView() {
       if (!res.ok) {
         const errText = await res.text().catch(() => "");
         console.error("Collection PATCH failed", res.status, errText);
-        updateLocalCollectionItem(selectedRow.id, {
-          quantity,
-          condition,
-          purchasePrice: singlePrice,
-          purchaseDate,
-        });
         window.alert(
-          "EK konnte nicht gespeichert werden. Bitte erneut versuchen.",
+          "Speichern fehlgeschlagen. Bitte erneut versuchen.",
         );
+        return;
       }
-      invalidateCollectionCache();
-      await loadCollection(true);
+
+      const body = (await res.json()) as { data?: CollectionItemDto };
+      const updated = body.data;
+      if (updated) {
+        setItems((prev) => {
+          const next = prev.map((i) =>
+            i.id === updated.id ? { ...i, ...updated } : i,
+          );
+          const nextMetrics = metricsFromItems(next);
+          setMetrics(nextMetrics);
+          setCollectionCache({ items: next, metrics: nextMetrics });
+          return next;
+        });
+        // Portfolio/Dashboard re-fetch on next open; keep Karten list hot
+        clearPortfolioAssetsCache();
+      } else {
+        // Fallback only if API omitted body
+        invalidateCollectionCache();
+        void loadCollection(true);
+      }
       setEditing(false);
     } finally {
       setSaving(false);

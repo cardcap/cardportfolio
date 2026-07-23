@@ -281,6 +281,12 @@ let assetsCache: AssetsCache | null = null;
 const ASSETS_CACHE_MS = 30_000;
 let assetsInflight: Promise<void> | null = null;
 
+/** Drop portfolio snapshot only (keep Assets Karten/Sealed list cache). */
+export function clearPortfolioAssetsCache(): void {
+  assetsCache = null;
+  assetsInflight = null;
+}
+
 /**
  * Live portfolio totals from Assets → Karten + Sealed only
  * (API when logged in, localStorage in demo).

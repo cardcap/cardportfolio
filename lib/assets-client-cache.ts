@@ -38,6 +38,36 @@ export function setCollectionCache(data: CollectionCachePayload): void {
   collectionEntry = { at: Date.now(), data };
 }
 
+/** Patch one item in the cached collection list (keeps TTL fresh). */
+export function patchCollectionCacheItem(
+  id: string,
+  item: unknown,
+  metrics?: unknown | null,
+): void {
+  const base = collectionEntry?.data;
+  if (!base || !Array.isArray(base.items)) {
+    setCollectionCache({
+      items: [item],
+      metrics: metrics ?? null,
+    });
+    return;
+  }
+  const items = base.items.map((row) =>
+    row && typeof row === "object" && (row as { id?: string }).id === id
+      ? item
+      : row,
+  );
+  // If id not found, append
+  const has = items.some(
+    (row) =>
+      row && typeof row === "object" && (row as { id?: string }).id === id,
+  );
+  setCollectionCache({
+    items: has ? items : [...items, item],
+    metrics: metrics !== undefined ? metrics : base.metrics,
+  });
+}
+
 export function setSealedCache(data: SealedCachePayload): void {
   sealedEntry = { at: Date.now(), data };
 }
