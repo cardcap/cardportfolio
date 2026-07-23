@@ -366,7 +366,7 @@ export function PortfolioTransactions() {
           accent
         />
         <Metric
-          icon="sell"
+          icon="moneybag"
           label="Verkäufe"
           value={String(m.sellCount)}
         />
@@ -1219,11 +1219,36 @@ function MIcon({ type }: { type: string }) {
   } as const;
   switch (type) {
     case "cart":
+      // Einkaufswagen
       return (
         <svg {...p}>
-          <path d="M3 5h2l2 12h10l2-8H7" strokeLinecap="round" strokeLinejoin="round" />
-          <circle cx="10" cy="20" r="1" />
-          <circle cx="17" cy="20" r="1" />
+          <path
+            d="M3 4h1.5l1.2 2.2M6 9h12.5l1.5-4H5.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M6 9 7.5 16.5h10L19.5 9"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <circle cx="9" cy="19.5" r="1.25" />
+          <circle cx="16.5" cy="19.5" r="1.25" />
+        </svg>
+      );
+    case "moneybag":
+      // Geldsack / Money bag
+      return (
+        <svg {...p}>
+          <path
+            d="M9.5 8.5c0-1.8 1.1-3 2.5-3s2.5 1.2 2.5 3c0 .7-.2 1.3-.6 1.8L15.5 11H8.5l1.6-.7c-.4-.5-.6-1.1-.6-1.8Z"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M8.5 11h7c1.4 1.6 2.5 3.5 2.5 5.5 0 2.5-2.7 4.5-6 4.5s-6-2-6-4.5c0-2 1.1-3.9 2.5-5.5Z"
+            strokeLinejoin="round"
+          />
+          <path d="M12 14v4M10.5 15.5h3" strokeLinecap="round" />
         </svg>
       );
     case "sell":
