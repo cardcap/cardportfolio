@@ -28,7 +28,26 @@ export const mainNav: NavEntry[] = [
       { label: "Sealed", href: "/assets/sealed", icon: "box", shortLabel: "Sealed" },
     ],
   },
-  { label: "Portfolio", href: "/portfolio", icon: "chart" },
+  {
+    type: "group",
+    label: "Portfolio",
+    icon: "chart",
+    matchPrefix: "/portfolio",
+    children: [
+      {
+        label: "Übersicht",
+        href: "/portfolio",
+        icon: "chart",
+        shortLabel: "Übersicht",
+      },
+      {
+        label: "Transaktionen",
+        href: "/portfolio/transaktionen",
+        icon: "list",
+        shortLabel: "Tx",
+      },
+    ],
+  },
   { label: "Sets", href: "/sets", icon: "folder" },
   {
     label: "Datenbank",

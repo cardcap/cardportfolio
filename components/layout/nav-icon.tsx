@@ -91,6 +91,12 @@ export function NavIcon({ type, className }: NavIconProps) {
           <path d="M12 12 4 7M12 12l8-5M12 12v10" />
         </svg>
       );
+    case "list":
+      return (
+        <svg {...props}>
+          <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+        </svg>
+      );
     case "chevron":
       return (
         <svg {...props}>

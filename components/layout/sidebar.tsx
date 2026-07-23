@@ -11,7 +11,10 @@ import { ThemeToggleButton } from "@/components/theme-toggle";
 import { mainNav, type NavEntry, type NavGroup } from "@/lib/nav-config";
 
 function isActive(pathname: string, href: string): boolean {
-  return pathname === href || pathname.startsWith(`${href}/`);
+  if (pathname === href) return true;
+  // /portfolio is exact-only so /portfolio/transaktionen doesn't mark Übersicht active
+  if (href === "/portfolio") return false;
+  return pathname.startsWith(`${href}/`);
 }
 
 function isGroupActive(pathname: string, group: NavGroup): boolean {

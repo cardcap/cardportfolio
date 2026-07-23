@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DonutChart } from "@/components/charts/donut-chart";
-import { PortfolioTransactions } from "@/components/portfolio/portfolio-transactions";
 import { CardImage } from "@/components/ui/card-image";
 import { InfoTip } from "@/components/ui/metric-card";
 import { formatCurrency, formatPercent } from "@/lib/format";
@@ -458,12 +457,12 @@ export function PortfolioView() {
             <div className="flex h-full min-h-[14rem] flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
               <div className="mb-2.5 flex shrink-0 items-center justify-between">
                 <h2 className="text-sm font-medium">Letzte Transaktionen</h2>
-                <a
-                  href="#transaktionen"
+                <Link
+                  href="/portfolio/transaktionen"
                   className="text-xs font-medium text-[var(--accent)] hover:opacity-80"
                 >
                   Alle Transaktionen →
-                </a>
+                </Link>
               </div>
               <div className="min-h-0 flex-1 overflow-x-auto">
                 <table className="w-full min-w-[360px] text-sm">
@@ -694,19 +693,6 @@ export function PortfolioView() {
               </div>
             </div>
           </div>
-
-          {/* Transaktionen — same page, below overview */}
-          <section id="transaktionen" className="mt-8 scroll-mt-6">
-            <div className="mb-4 border-t border-[var(--border)] pt-6">
-              <h2 className="text-lg font-semibold tracking-tight">
-                Transaktionen
-              </h2>
-              <p className="mt-1 text-sm text-[var(--muted)]">
-                Käufe und Verkäufe aus deinen Assets
-              </p>
-            </div>
-            <PortfolioTransactions />
-          </section>
         </>
     </div>
   );
