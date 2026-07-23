@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   TransactionDrawer,
   type PositionOption,
@@ -620,8 +619,8 @@ export function PortfolioTransactions() {
         </button>
       </div>
 
-      {/* History table — overflow visible so row hover details are not clipped */}
-      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]">
+      {/* History table */}
+      <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]">
         <div className="border-b border-[var(--border)] px-4 py-4 sm:px-5">
           <h2 className="text-sm font-medium">Transaktionshistorie</h2>
           <p className="mt-0.5 text-xs text-[var(--muted)]">
@@ -629,7 +628,7 @@ export function PortfolioTransactions() {
           </p>
         </div>
 
-        <div className="hidden border-b border-[var(--border)] px-4 py-2.5 text-[10px] uppercase tracking-wider text-[var(--muted)] 2xl:grid 2xl:grid-cols-[6rem_5rem_minmax(11rem,1.4fr)_4rem_3rem_5.5rem_4.5rem_5.5rem_6rem_minmax(5rem,0.9fr)_1.5rem] 2xl:gap-2 2xl:px-5">
+        <div className="hidden border-b border-[var(--border)] px-4 py-2.5 text-[10px] uppercase tracking-wider text-[var(--muted)] 2xl:grid 2xl:grid-cols-[6rem_5rem_minmax(11rem,1.4fr)_4rem_3rem_5.5rem_4.5rem_5.5rem_6rem_minmax(5rem,0.9fr)] 2xl:gap-2 2xl:px-5">
           <span>Datum</span>
           <span>Transaktion</span>
           <span>Position</span>
@@ -640,7 +639,6 @@ export function PortfolioTransactions() {
           <span className="text-right">Gesamt</span>
           <span className="text-right">Realisierter Gewinn</span>
           <span>Notiz</span>
-          <span />
         </div>
 
         <ul className="divide-y divide-[var(--border)]">
@@ -690,24 +688,9 @@ export function PortfolioTransactions() {
 
 function TxRow({ row }: { row: DetailedTransaction }) {
   const profit = row.realizedProfit;
-  const [hover, setHover] = useState(false);
-  const [mouse, setMouse] = useState({ x: 0, y: 0 });
-
-  function onMove(e: MouseEvent<HTMLLIElement>) {
-    setMouse({ x: e.clientX, y: e.clientY });
-    if (!hover) setHover(true);
-  }
 
   return (
-    <li
-      className="relative px-4 py-3 transition-colors hover:bg-[var(--surface-elevated)]/40 sm:px-5"
-      onMouseEnter={(e) => {
-        setHover(true);
-        setMouse({ x: e.clientX, y: e.clientY });
-      }}
-      onMouseMove={onMove}
-      onMouseLeave={() => setHover(false)}
-    >
+    <li className="px-4 py-3 transition-colors hover:bg-[var(--surface-elevated)]/40 sm:px-5">
       {/* mobile */}
       <div className="flex gap-3 2xl:hidden">
         <CardImage
@@ -755,7 +738,7 @@ function TxRow({ row }: { row: DetailedTransaction }) {
       </div>
 
       {/* desktop */}
-      <div className="hidden items-center gap-2 2xl:grid 2xl:grid-cols-[6rem_5rem_minmax(11rem,1.4fr)_4rem_3rem_5.5rem_4.5rem_5.5rem_6rem_minmax(5rem,0.9fr)_1.5rem]">
+      <div className="hidden items-center gap-2 2xl:grid 2xl:grid-cols-[6rem_5rem_minmax(11rem,1.4fr)_4rem_3rem_5.5rem_4.5rem_5.5rem_6rem_minmax(5rem,0.9fr)]">
         <span className="text-sm text-[var(--muted)]">{row.dateLabel}</span>
         <TypeBadge type={row.type} />
         <div className="flex min-w-0 items-center gap-2">
@@ -792,146 +775,9 @@ function TxRow({ row }: { row: DetailedTransaction }) {
             : `${profit >= 0 ? "+" : ""}${formatCurrency(profit)}`}
         </span>
         <span className="truncate text-sm text-[var(--muted)]">{row.note}</span>
-        <span
-          className="text-center text-[var(--muted)]"
-          aria-hidden
-          title="Hover für Details"
-        >
-          ···
-        </span>
       </div>
-
-      {hover && (
-        <TxHoverDetail row={row} x={mouse.x} y={mouse.y} />
-      )}
     </li>
   );
-}
-
-const TX_TIP_W = 272; // ~17rem
-const TX_TIP_H = 220;
-const TX_TIP_GAP = 14;
-
-/** Compact detail card that follows the mouse cursor */
-function TxHoverDetail({
-  row,
-  x,
-  y,
-}: {
-  row: DetailedTransaction;
-  x: number;
-  y: number;
-}) {
-  const profit = row.realizedProfit;
-  const isBuy = row.type === "Kauf";
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
-  // Prefer above-right of cursor; flip if near edges
-  const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
-  const vh = typeof window !== "undefined" ? window.innerHeight : 800;
-  let left = x + TX_TIP_GAP;
-  let top = y - TX_TIP_H - TX_TIP_GAP;
-  if (left + TX_TIP_W > vw - 8) left = x - TX_TIP_W - TX_TIP_GAP;
-  if (left < 8) left = 8;
-  if (top < 8) top = y + TX_TIP_GAP;
-  if (top + TX_TIP_H > vh - 8) top = Math.max(8, vh - TX_TIP_H - 8);
-
-  const node = (
-    <div
-      className="pointer-events-none fixed z-[100] w-[17rem] rounded-xl border border-[var(--border-strong)] bg-[var(--surface-elevated)] p-3 shadow-xl"
-      style={{ left, top }}
-      role="tooltip"
-    >
-      <div className="flex gap-2.5">
-        <CardImage
-          src={row.imageUrl ?? ""}
-          fallbacks={row.imageFallbacks}
-          alt={row.name}
-          size="sm"
-          className="shrink-0"
-        />
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold leading-tight">
-            {row.name}
-          </p>
-          <p className="mt-0.5 truncate text-[11px] text-[var(--muted)]">
-            {row.setName !== "—" ? row.setName : "Ohne Set"}
-          </p>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            <TypeBadge type={row.type} />
-            <AssetBadge type={row.assetType} />
-            <span className="text-[10px] text-[var(--muted)]">
-              {row.dateLabel}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-2.5 grid grid-cols-2 gap-1.5 text-xs">
-        <div className="rounded-lg bg-[var(--background)] px-2 py-1.5">
-          <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
-            Menge
-          </p>
-          <p className="tabular-nums font-semibold">×{row.quantity}</p>
-        </div>
-        <div className="rounded-lg bg-[var(--background)] px-2 py-1.5">
-          <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
-            Preis / Stück
-          </p>
-          <p className="tabular-nums font-semibold">
-            {formatCurrency(row.pricePerUnit)}
-          </p>
-        </div>
-        <div className="rounded-lg bg-[var(--background)] px-2 py-1.5">
-          <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
-            Gebühren
-          </p>
-          <p className="tabular-nums font-semibold">
-            {formatCurrency(row.fees)}
-          </p>
-        </div>
-        <div className="rounded-lg bg-[var(--background)] px-2 py-1.5">
-          <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
-            Gesamt
-          </p>
-          <p className="tabular-nums font-semibold">
-            {formatCurrency(row.total)}
-          </p>
-        </div>
-      </div>
-
-      {!isBuy && (
-        <div className="mt-1.5 rounded-lg bg-[var(--background)] px-2 py-1.5 text-xs">
-          <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
-            Realisierter Gewinn
-          </p>
-          <p
-            className={`tabular-nums font-semibold ${
-              profit == null
-                ? "text-[var(--muted)]"
-                : profit >= 0
-                  ? "text-[var(--positive)]"
-                  : "text-[var(--negative)]"
-            }`}
-          >
-            {profit == null
-              ? "—"
-              : `${profit >= 0 ? "+" : ""}${formatCurrency(profit)}`}
-          </p>
-        </div>
-      )}
-
-      {(row.note || row.source) && (
-        <p className="mt-2 line-clamp-2 text-[11px] text-[var(--muted)]">
-          {row.note || row.source}
-        </p>
-      )}
-    </div>
-  );
-
-  if (!mounted || typeof document === "undefined") return null;
-  return createPortal(node, document.body);
 }
 
 function TypeBadge({ type }: { type: "Kauf" | "Verkauf" }) {
