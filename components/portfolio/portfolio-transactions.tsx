@@ -372,8 +372,20 @@ export function PortfolioTransactions() {
           icon="trend"
           label="Realisierter Gewinn"
           value={formatCurrency(m.realizedProfit)}
-          hint="Verkäufe folgen, sobald sie erfasst werden"
-          positive={m.realizedProfit >= 0}
+          hint={
+            m.realizedProfit < 0
+              ? "Verlust aus erfassten Verkäufen"
+              : m.hasData
+                ? "Gewinn aus erfassten Verkäufen"
+                : "Verkäufe folgen, sobald sie erfasst werden"
+          }
+          positive={
+            m.realizedProfit > 0
+              ? true
+              : m.realizedProfit < 0
+                ? false
+                : undefined
+          }
         />
         <Metric
           icon="pct"
@@ -1012,19 +1024,36 @@ function Metric({
   label: string;
   value: string;
   hint?: string;
+  /** true = grün (Gewinn), false = rot (Verlust), undefined = neutral */
   positive?: boolean;
   accent?: boolean;
 }) {
+  const isPos = positive === true;
+  const isNeg = positive === false;
+  const toneIcon = accent
+    ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+    : isPos
+      ? "bg-[var(--positive-soft)] text-[var(--positive)]"
+      : isNeg
+        ? "bg-[var(--negative-soft)] text-[var(--negative)]"
+        : "bg-[var(--accent-soft)] text-[var(--accent)]";
+  const toneValue = isPos
+    ? "text-[var(--positive)]"
+    : isNeg
+      ? "text-[var(--negative)]"
+      : accent
+        ? "text-[var(--accent)]"
+        : "";
+  const toneHint = isPos
+    ? "text-[var(--positive)]"
+    : isNeg
+      ? "text-[var(--negative)]"
+      : "text-[var(--muted)]";
+
   return (
     <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
       <span
-        className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
-          accent
-            ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-            : positive
-              ? "bg-[var(--positive-soft)] text-[var(--positive)]"
-              : "bg-[var(--accent-soft)] text-[var(--accent)]"
-        }`}
+        className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${toneIcon}`}
       >
         <MIcon type={icon} />
       </span>
@@ -1032,22 +1061,10 @@ function Metric({
         <p className="text-[11px] uppercase tracking-wider text-[var(--muted)]">
           {label}
         </p>
-        <p
-          className={`tabular-nums mt-0.5 text-xl font-semibold ${
-            positive ? "text-[var(--positive)]" : accent ? "text-[var(--accent)]" : ""
-          }`}
-        >
+        <p className={`tabular-nums mt-0.5 text-xl font-semibold ${toneValue}`}>
           {value}
         </p>
-        {hint && (
-          <p
-            className={`text-xs ${
-              positive ? "text-[var(--positive)]" : "text-[var(--muted)]"
-            }`}
-          >
-            {hint}
-          </p>
-        )}
+        {hint && <p className={`text-xs ${toneHint}`}>{hint}</p>}
       </div>
     </div>
   );

@@ -1136,12 +1136,33 @@ function PrimaryMetric({
   label: string;
   value: string;
   hint?: string;
+  /** true = grün, false = rot (Verlust), undefined = neutral */
   positive?: boolean;
   infoText?: string;
 }) {
+  const isPos = positive === true;
+  const isNeg = positive === false;
+  const toneValue = isPos
+    ? "text-[var(--positive)]"
+    : isNeg
+      ? "text-[var(--negative)]"
+      : "";
+  const toneHint = isPos
+    ? "text-[var(--positive)]"
+    : isNeg
+      ? "text-[var(--negative)]"
+      : "text-[var(--muted)]";
+  const toneIcon = isPos
+    ? "bg-[var(--positive-soft)] text-[var(--positive)]"
+    : isNeg
+      ? "bg-[var(--negative-soft)] text-[var(--negative)]"
+      : "bg-[var(--accent-soft)] text-[var(--accent)]";
+
   return (
     <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
-      <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">
+      <span
+        className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${toneIcon}`}
+      >
         <MetricIcon type={icon} />
       </span>
       <div className="min-w-0">
@@ -1150,20 +1171,12 @@ function PrimaryMetric({
           {infoText && <InfoTip text={infoText} />}
         </p>
         <p
-          className={`tabular-nums mt-0.5 text-lg font-semibold tracking-tight ${
-            positive ? "text-[var(--positive)]" : ""
-          }`}
+          className={`tabular-nums mt-0.5 text-lg font-semibold tracking-tight ${toneValue}`}
         >
           {value}
         </p>
         {hint && (
-          <p
-            className={`tabular-nums text-xs ${
-              positive ? "text-[var(--positive)]" : "text-[var(--muted)]"
-            }`}
-          >
-            {hint}
-          </p>
+          <p className={`tabular-nums text-xs ${toneHint}`}>{hint}</p>
         )}
       </div>
     </div>
