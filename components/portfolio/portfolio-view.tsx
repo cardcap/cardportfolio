@@ -242,7 +242,14 @@ export function PortfolioView() {
               label={metrics.valueLabel}
               value={formatCurrency(metrics.totalValue)}
               hint={`${metrics.weeklyChange >= 0 ? "+" : ""}${metrics.weeklyChange.toLocaleString("de-DE")} % (7 Tage)`}
-              positive={metrics.weeklyChange >= 0}
+              // Euro amount stays neutral white; only the 7-day hint is green/red
+              hintPositive={
+                metrics.weeklyChange > 0
+                  ? true
+                  : metrics.weeklyChange < 0
+                    ? false
+                    : undefined
+              }
               infoText="Aktueller Marktwert im gewählten Bereich (Gesamt / Karten / Sealed)."
             />
             <PrimaryMetric
@@ -1190,26 +1197,31 @@ function PrimaryMetric({
   value,
   hint,
   positive,
+  hintPositive,
   infoText,
 }: {
   icon: string;
   label: string;
   value: string;
   hint?: string;
-  /** true = grün, false = rot (Verlust), undefined = neutral */
+  /** Colors the main value (and icon unless neutral). */
   positive?: boolean;
+  /** Colors only the hint line; value stays default (white). */
+  hintPositive?: boolean;
   infoText?: string;
 }) {
   const isPos = positive === true;
   const isNeg = positive === false;
+  const hintPos = hintPositive === true || (hintPositive === undefined && isPos);
+  const hintNeg = hintPositive === false || (hintPositive === undefined && isNeg);
   const toneValue = isPos
     ? "text-[var(--positive)]"
     : isNeg
       ? "text-[var(--negative)]"
-      : "";
-  const toneHint = isPos
+      : "text-[var(--foreground)]";
+  const toneHint = hintPos
     ? "text-[var(--positive)]"
-    : isNeg
+    : hintNeg
       ? "text-[var(--negative)]"
       : "text-[var(--muted)]";
   const toneIcon = isPos
