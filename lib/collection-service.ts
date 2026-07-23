@@ -459,17 +459,58 @@ export async function updateCollectionItem(
     }
   }
 
-  let nextExemplars:
-    | CollectionExemplarDto[]
-    | undefined = undefined;
-  if (patch.purchaseDate !== undefined) {
-    const currentEx = parseExemplars(existing.exemplars);
-    if (currentEx && currentEx.length > 0) {
-      nextExemplars = currentEx.map((e) => ({
-        ...e,
-        purchaseDate: patch.purchaseDate,
-      }));
-    }
+  // Keep exemplars in sync — list UI prefers exemplar EK over row purchasePrice
+  const currentEx = parseExemplars(existing.exemplars);
+  let nextExemplars: CollectionExemplarDto[] | undefined = undefined;
+
+  if (
+    currentEx &&
+    currentEx.length > 0 &&
+    (patch.purchasePrice !== undefined ||
+      patch.purchaseDate !== undefined ||
+      patch.quantity !== undefined ||
+      patch.condition !== undefined)
+  ) {
+    const targetQty = nextQuantity;
+    const baseEx =
+      currentEx.length === targetQty
+        ? currentEx
+        : Array.from({ length: targetQty }, (_, i) =>
+            currentEx[i] ?? {
+              condition: nextCondition,
+              purchasePrice: existing.purchasePrice,
+              purchaseDate: existing.purchaseDate,
+            },
+          );
+
+    nextExemplars = baseEx.map((e) => ({
+      condition:
+        patch.condition !== undefined ? nextCondition : e.condition || nextCondition,
+      purchasePrice:
+        patch.purchasePrice !== undefined
+          ? patch.purchasePrice
+          : (e.purchasePrice ?? existing.purchasePrice),
+      purchaseDate:
+        patch.purchaseDate !== undefined
+          ? patch.purchaseDate
+          : (e.purchaseDate ?? existing.purchaseDate),
+    }));
+  } else if (
+    (!currentEx || currentEx.length === 0) &&
+    (patch.purchasePrice !== undefined || patch.purchaseDate !== undefined)
+  ) {
+    // Create exemplars so future loads keep the saved EK
+    nextExemplars = Array.from({ length: nextQuantity }, () => ({
+      condition: nextCondition,
+      purchasePrice:
+        patch.purchasePrice !== undefined
+          ? patch.purchasePrice
+          : existing.purchasePrice,
+      purchaseDate:
+        patch.purchaseDate !== undefined
+          ? patch.purchaseDate
+          : existing.purchaseDate,
+    }));
   }
 
   const updated = await prisma.collectionItem.update({

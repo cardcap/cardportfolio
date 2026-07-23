@@ -1150,8 +1150,8 @@ export function SammlungView() {
         return;
       }
 
-      if (needsSplit || quantity > 1 || memberIds.length > 1) {
-        // Remove every storage row of this card, then re-add by condition
+      // Multi-condition / multi-row groups need rebuild; simple qty/EK edits use PATCH
+      if (needsSplit || memberIds.length > 1) {
         for (const mid of memberIds) {
           await fetch("/api/collection", {
             method: "DELETE",
@@ -1159,19 +1159,26 @@ export function SammlungView() {
             body: JSON.stringify({ id: mid }),
           });
         }
-        const byCond = new Map<string, number[]>();
+        const byCond = new Map<
+          string,
+          Array<{ purchasePrice: number | null; purchaseDate: string | null }>
+        >();
         for (const c of perCopy) {
           const list = byCond.get(c.condition) ?? [];
-          list.push(c.purchasePrice ?? 0);
+          list.push({
+            purchasePrice: c.purchasePrice,
+            purchaseDate: c.purchaseDate ?? null,
+          });
           byCond.set(c.condition, list);
         }
-        for (const [condition, priceList] of byCond) {
-          const qty = priceList.length;
+        for (const [condition, copies] of byCond) {
+          const qty = copies.length;
           const avg =
             Math.round(
-              (priceList.reduce((s, p) => s + p, 0) / qty) * 100,
+              (copies.reduce((s, p) => s + (p.purchasePrice ?? 0), 0) / qty) *
+                100,
             ) / 100;
-          const addRes = await fetch("/api/collection", {
+          await fetch("/api/collection", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -1179,39 +1186,32 @@ export function SammlungView() {
               condition,
               quantity: qty,
               language: selectedRow.language,
+              purchasePrice: avg,
+              purchaseDate: copies[0]?.purchaseDate ?? purchaseDate,
+              exemplars: copies.map((c) => ({
+                condition,
+                purchasePrice: c.purchasePrice,
+                purchaseDate: c.purchaseDate,
+              })),
+              snapshot: {
+                name: selectedRow.name,
+                setId: selectedRow.setId,
+                setName: selectedRow.setName,
+                number: selectedRow.number,
+                imageUrl: selectedRow.imageUrl,
+                imageFallbacks: selectedRow.imageFallbacks,
+                rarity: selectedRow.rarity,
+              },
             }),
-          });
-          if (addRes.ok) {
-            const body = (await addRes.json()) as {
-              data?: { id?: string };
-            };
-            if (body.data?.id) {
-              await fetch("/api/collection", {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  id: body.data.id,
-                  purchasePrice: avg,
-                  purchaseDate,
-                }),
-              });
-            }
-          }
-        }
-        const localTemplate = getLocalCollection().find(
-          (i) => i.tcgCardId === selectedRow.tcgCardId,
-        );
-        if (localTemplate) {
-          replaceLocalCollectionForCard(localTemplate, perCopy, {
-            purchaseDate,
           });
         }
         invalidateCollectionCache();
-      await loadCollection(true);
+        await loadCollection(true);
         setEditing(false);
         return;
       }
 
+      // Single storage row: PATCH qty + EK + date (exemplars updated server-side)
       const condition = conditions[0] || "Near Mint";
       const res = await fetch("/api/collection", {
         method: "PATCH",
@@ -1225,12 +1225,17 @@ export function SammlungView() {
         }),
       });
       if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        console.error("Collection PATCH failed", res.status, errText);
         updateLocalCollectionItem(selectedRow.id, {
           quantity,
           condition,
           purchasePrice: singlePrice,
           purchaseDate,
         });
+        window.alert(
+          "EK konnte nicht gespeichert werden. Bitte erneut versuchen.",
+        );
       }
       invalidateCollectionCache();
       await loadCollection(true);
