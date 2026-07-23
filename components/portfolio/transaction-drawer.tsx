@@ -6,15 +6,18 @@ import { getCard, sealedProducts, type Card } from "@/lib/mock-data";
 
 type TxType = "Kauf" | "Verkauf";
 
+/** Fixed sources, alphabetically sorted (de locale). */
 const SOURCES = [
   "Cardmarket",
-  "Privatverkauf",
-  "Messe München",
-  "Messe Stuttgart",
-  "Excel-Import",
   "eBay",
+  "Flohmarkt",
+  "Kleinanzeigen",
+  "Messe",
+  "Privatverkauf",
   "Sonstige",
-] as const;
+].sort((a, b) => a.localeCompare(b, "de"));
+
+const SOURCE_CUSTOM = "Weitere hinzufügen";
 
 type PositionOption = {
   id: string;
@@ -174,23 +177,33 @@ export function TransactionDrawer({
               <input
                 type="search"
                 value={selected && !query ? selected.label : query}
+                onFocus={() => setSearchOpen(true)}
+                onClick={() => setSearchOpen(true)}
                 onChange={(e) => {
                   setQuery(e.target.value);
                   setPositionId("");
+                  setSearchOpen(true);
                 }}
-                placeholder="Karte oder Sealed Produkt auswählen"
+                onBlur={() => {
+                  // Delay so option click registers first
+                  window.setTimeout(() => setSearchOpen(false), 150);
+                }}
+                placeholder="Karte oder Sealed Produkt suchen…"
+                autoComplete="off"
                 className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] py-0 pl-9 pr-3 text-sm outline-none focus:border-[var(--accent)]"
               />
             </div>
-            {(query || !positionId) && (
+            {searchOpen && query.trim().length > 0 && (
               <ul className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--background)]">
                 {filtered.map((p) => (
                   <li key={p.id}>
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => {
                         setPositionId(p.id);
                         setQuery("");
+                        setSearchOpen(false);
                       }}
                       className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-[var(--surface-elevated)]"
                     >
@@ -207,6 +220,11 @@ export function TransactionDrawer({
                   </li>
                 )}
               </ul>
+            )}
+            {searchOpen && query.trim().length === 0 && (
+              <p className="mt-1.5 text-xs text-[var(--muted)]">
+                Tippe einen Namen, um zu suchen — keine Vorschläge.
+              </p>
             )}
           </Field>
 
