@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AreaChart } from "@/components/charts/area-chart";
 import { DonutChart } from "@/components/charts/donut-chart";
 import { PageHeader } from "@/components/layout/page-header";
@@ -18,13 +18,70 @@ import {
   usePortfolioAssets,
 } from "@/hooks/use-portfolio-assets";
 import { setDetailPath } from "@/lib/set-path";
+import { resolveSetImageUrls } from "@/lib/set-images";
+import { DEFAULT_LANGUAGE } from "@/lib/tcgdex-constants";
 
 type Scope = "gesamt" | "karten" | "sealed";
+
+type SetLogoInfo = { logo: string; fallbacks: string[] };
 
 export function DashboardView() {
   const [scope, setScope] = useState<Scope>("gesamt");
   const { count: wishlistCount } = useWishlist();
   const live = usePortfolioAssets();
+  const [setLogos, setSetLogos] = useState<{
+    byId: Record<string, SetLogoInfo>;
+    byName: Record<string, SetLogoInfo>;
+  }>({ byId: {}, byName: {} });
+
+  // Load set logos for "Sets in deiner Sammlung"
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/sets?lang=${DEFAULT_LANGUAGE}`);
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          data?: Array<{
+            id?: string;
+            name?: string;
+            seriesId?: string;
+            images?: { logo?: string; symbol?: string; fallbacks?: string[] };
+          }>;
+        };
+        const byId: Record<string, SetLogoInfo> = {};
+        const byName: Record<string, SetLogoInfo> = {};
+        for (const s of data.data ?? []) {
+          if (!s.id) continue;
+          const full = resolveSetImageUrls(
+            {
+              id: s.id,
+              logo: s.images?.logo,
+              symbol: s.images?.symbol,
+              serieId: s.seriesId,
+            },
+            DEFAULT_LANGUAGE,
+          );
+          const logoInfo: SetLogoInfo = {
+            logo: s.images?.logo || full.logo,
+            fallbacks: [
+              ...(s.images?.fallbacks ?? []),
+              ...full.fallbacks,
+              full.symbol,
+            ].filter(Boolean),
+          };
+          byId[s.id] = logoInfo;
+          if (s.name) byName[s.name.toLowerCase()] = logoInfo;
+        }
+        if (!cancelled) setSetLogos({ byId, byName });
+      } catch {
+        /* ignore — initials fallback in SetLogo */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const scoped = useMemo(() => {
     if (scope === "karten") {
@@ -419,13 +476,29 @@ export function DashboardView() {
                     100,
                     Math.round((item.owned / maxOwned) * 100),
                   );
+                  const fromApi =
+                    setLogos.byId[item.setId] ??
+                    setLogos.byName[item.setName.toLowerCase()];
+                  const fallbackResolved = resolveSetImageUrls(
+                    { id: item.setId, serieId: "" },
+                    DEFAULT_LANGUAGE,
+                  );
+                  const logoSrc = fromApi?.logo || fallbackResolved.logo;
+                  const logoFallbacks = fromApi?.fallbacks?.length
+                    ? fromApi.fallbacks
+                    : fallbackResolved.fallbacks;
                   return (
                     <Link
                       key={item.setId}
                       href={setDetailPath(item.setId)}
                       className="flex items-center gap-3 rounded-lg transition-colors hover:bg-[var(--surface-elevated)]/60"
                     >
-                      <SetLogo src="" alt={item.setName} size="sm" />
+                      <SetLogo
+                        src={logoSrc}
+                        fallbacks={logoFallbacks}
+                        alt={item.setName}
+                        size="sm"
+                      />
                       <div className="min-w-0 flex-1 py-0.5">
                         <div className="flex items-center justify-between gap-2 text-sm">
                           <span className="truncate font-medium">
