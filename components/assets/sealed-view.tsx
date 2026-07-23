@@ -165,8 +165,8 @@ export function SealedView() {
 
     setLoading(true);
     try {
-      // seed=1: empty user inventory gets demo products once
-      const res = await fetch("/api/sealed?seed=1");
+      // Plain load — no demo seed on every visit (faster, no extra DB writes)
+      const res = await fetch("/api/sealed");
       if (!res.ok) {
         setInventory([]);
         return;

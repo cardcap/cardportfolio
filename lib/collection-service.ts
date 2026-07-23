@@ -139,12 +139,18 @@ function enrichItem(
     }
   }
 
-  if (cachedCard) {
-    const sets = loadCachedSets(lang);
-    const setMeta = sets?.find((set) => set.id === cachedCard.setId);
-    const images = resolveCardImages(cachedCard, lang, setMeta);
-    imageUrl = images.large || images.small || imageUrl;
-    imageFallbacks = images.fallbacks.length ? images.fallbacks : imageFallbacks;
+  // Prefer stored snapshot images; only resolve from catalog when missing
+  if (cachedCard && (!imageUrl || imageFallbacks.length === 0)) {
+    const setMeta = getCachedSetById(lang, cachedCard.setId);
+    const images = resolveCardImages(
+      cachedCard,
+      lang,
+      setMeta ?? undefined,
+    );
+    if (!imageUrl) imageUrl = images.large || images.small || imageUrl;
+    if (imageFallbacks.length === 0 && images.fallbacks.length) {
+      imageFallbacks = images.fallbacks;
+    }
   }
 
   const purchasePrice =

@@ -3,5 +3,13 @@
 import { SessionProvider as NextAuthSessionProvider } from "next-auth/react";
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
-  return <NextAuthSessionProvider>{children}</NextAuthSessionProvider>;
+  return (
+    <NextAuthSessionProvider
+      // Avoid extra /api/auth/session round-trips on every tab focus / navigation
+      refetchOnWindowFocus={false}
+      refetchInterval={5 * 60}
+    >
+      {children}
+    </NextAuthSessionProvider>
+  );
 }

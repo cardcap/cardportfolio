@@ -216,18 +216,18 @@ function groupAllocation(
 
 /**
  * Synthetic daily history ending at current live totals.
- * No mock portfolio — last point is always the real Assets value.
+ * Keep point count modest — charts downsample further by range.
  */
 export function buildLiveHistory(
   cardsValue: number,
   sealedValue: number,
   invested: number,
-  days = 365,
+  days = 120,
 ): LiveHistoryPoint[] {
   const total = cardsValue + sealedValue;
   const end = new Date();
   end.setHours(12, 0, 0, 0);
-  const points: LiveHistoryPoint[] = [];
+  const points: LiveHistoryPoint[] = new Array(days);
 
   for (let i = 0; i < days; i++) {
     const d = new Date(end);
@@ -239,15 +239,18 @@ export function buildLiveHistory(
     const s = round2(sealedValue * factor);
     const m = round2(c + s);
     const inv = round2(invested * (0.98 + 0.02 * t));
-    points.push({
-      date: d.toISOString().slice(0, 10),
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    points[i] = {
+      date: `${y}-${mo}-${day}`,
       label: d.toLocaleDateString("de-DE", { day: "numeric", month: "short" }),
       value: m,
       cards: c,
       sealed: s,
       market: m,
       invested: inv,
-    });
+    };
   }
 
   // Force last point exactly to live totals
@@ -263,66 +266,130 @@ export function buildLiveHistory(
   return points;
 }
 
+/** Shared in-memory cache so Dashboard ↔ Portfolio don't re-fetch every time. */
+type AssetsCache = {
+  at: number;
+  cards: LivePosition[];
+  sealed: LivePosition[];
+};
+let assetsCache: AssetsCache | null = null;
+const ASSETS_CACHE_MS = 30_000;
+let assetsInflight: Promise<void> | null = null;
+
 /**
  * Live portfolio totals from Assets → Karten + Sealed only
  * (API when logged in, localStorage in demo).
  */
 export function usePortfolioAssets(): LivePortfolioSnapshot {
   const { isAuthenticated, isLoading: authLoading } = useAuthMode();
-  const [loading, setLoading] = useState(true);
-  const [cards, setCards] = useState<LivePosition[]>([]);
-  const [sealed, setSealed] = useState<LivePosition[]>([]);
-
-  const refresh = useCallback(async () => {
-    if (authLoading) return;
-
-    const localCards = getLocalCollection().map(posFromCard);
-    const localSealed = getLocalSealed().map(posFromSealed);
-
-    if (!isAuthenticated) {
-      setCards(localCards);
-      setSealed(localSealed);
-      setLoading(false);
-      return;
+  const [loading, setLoading] = useState(() => {
+    if (assetsCache && Date.now() - assetsCache.at < ASSETS_CACHE_MS) {
+      return false;
     }
+    return true;
+  });
+  const [cards, setCards] = useState<LivePosition[]>(
+    () => assetsCache?.cards ?? [],
+  );
+  const [sealed, setSealed] = useState<LivePosition[]>(
+    () => assetsCache?.sealed ?? [],
+  );
 
-    setLoading(true);
-    try {
-      const [cRes, sRes] = await Promise.all([
-        fetch("/api/collection"),
-        fetch("/api/sealed"),
-      ]);
+  const refresh = useCallback(
+    async (opts?: { force?: boolean }) => {
+      if (authLoading) return;
 
-      // Logged-in: trust API only (even if empty). No mock/local mix-in.
-      if (cRes.ok) {
-        const data = await cRes.json();
-        const items = (data.items ?? data.data ?? []) as ApiCollectionItem[];
-        setCards(Array.isArray(items) ? items.map(posFromCard) : []);
-      } else {
+      const localCards = getLocalCollection().map(posFromCard);
+      const localSealed = getLocalSealed().map(posFromSealed);
+
+      if (!isAuthenticated) {
         setCards(localCards);
+        setSealed(localSealed);
+        assetsCache = { at: Date.now(), cards: localCards, sealed: localSealed };
+        setLoading(false);
+        return;
       }
 
-      if (sRes.ok) {
-        const data = await sRes.json();
-        const items = (data.items ?? []) as ApiSealedItem[];
-        setSealed(Array.isArray(items) ? items.map(posFromSealed) : []);
-      } else {
-        setSealed(localSealed);
+      // Serve warm cache immediately when navigating Dashboard ↔ Portfolio
+      if (
+        !opts?.force &&
+        assetsCache &&
+        Date.now() - assetsCache.at < ASSETS_CACHE_MS
+      ) {
+        setCards(assetsCache.cards);
+        setSealed(assetsCache.sealed);
+        setLoading(false);
+        return;
       }
-    } catch {
-      setCards(localCards);
-      setSealed(localSealed);
-    } finally {
-      setLoading(false);
-    }
-  }, [isAuthenticated, authLoading]);
+
+      // Deduplicate concurrent mounts
+      if (assetsInflight && !opts?.force) {
+        await assetsInflight;
+        if (assetsCache) {
+          setCards(assetsCache.cards);
+          setSealed(assetsCache.sealed);
+          setLoading(false);
+        }
+        return;
+      }
+
+      // Only show loading spinner if we have nothing to display yet
+      if (!assetsCache) setLoading(true);
+
+      const run = (async () => {
+        try {
+          const [cRes, sRes] = await Promise.all([
+            fetch("/api/collection"),
+            fetch("/api/sealed"),
+          ]);
+
+          let nextCards: LivePosition[] = localCards;
+          let nextSealed: LivePosition[] = localSealed;
+
+          // Logged-in: trust API only (even if empty). No mock/local mix-in.
+          if (cRes.ok) {
+            const data = await cRes.json();
+            const items = (data.items ?? data.data ?? []) as ApiCollectionItem[];
+            nextCards = Array.isArray(items) ? items.map(posFromCard) : [];
+          }
+
+          if (sRes.ok) {
+            const data = await sRes.json();
+            const items = (data.items ?? []) as ApiSealedItem[];
+            nextSealed = Array.isArray(items) ? items.map(posFromSealed) : [];
+          }
+
+          assetsCache = {
+            at: Date.now(),
+            cards: nextCards,
+            sealed: nextSealed,
+          };
+          setCards(nextCards);
+          setSealed(nextSealed);
+        } catch {
+          setCards(localCards);
+          setSealed(localSealed);
+        } finally {
+          setLoading(false);
+          assetsInflight = null;
+        }
+      })();
+
+      assetsInflight = run;
+      await run;
+    },
+    [isAuthenticated, authLoading],
+  );
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
   useEffect(() => {
-    const onChange = () => void refresh();
+    const onChange = () => {
+      assetsCache = null;
+      void refresh({ force: true });
+    };
     window.addEventListener("cardcap-collection-changed", onChange);
     window.addEventListener(SEALED_CHANGED_EVENT, onChange);
     window.addEventListener("storage", onChange);
@@ -439,7 +506,8 @@ export function usePortfolioAssets(): LivePortfolioSnapshot {
       ),
     };
 
-    const history = buildLiveHistory(cardsValue, sealedValue, invested, 730);
+    // 120 points is enough for 1W–MAX chart ranges after downsampling
+    const history = buildLiveHistory(cardsValue, sealedValue, invested, 120);
 
     return {
       loading,
