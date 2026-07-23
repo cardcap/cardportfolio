@@ -620,8 +620,8 @@ export function PortfolioTransactions() {
         </button>
       </div>
 
-      {/* History table */}
-      <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]">
+      {/* History table — overflow visible so row hover details are not clipped */}
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]">
         <div className="border-b border-[var(--border)] px-4 py-4 sm:px-5">
           <h2 className="text-sm font-medium">Transaktionshistorie</h2>
           <p className="mt-0.5 text-xs text-[var(--muted)]">
@@ -689,11 +689,15 @@ export function PortfolioTransactions() {
 }
 
 function TxRow({ row }: { row: DetailedTransaction }) {
-  const isBuy = row.type === "Kauf";
   const profit = row.realizedProfit;
+  const [hover, setHover] = useState(false);
 
   return (
-    <li className="px-4 py-3 transition-colors hover:bg-[var(--surface-elevated)]/40 sm:px-5">
+    <li
+      className="relative px-4 py-3 transition-colors hover:bg-[var(--surface-elevated)]/40 sm:px-5"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
       {/* mobile */}
       <div className="flex gap-3 2xl:hidden">
         <CardImage
@@ -778,15 +782,121 @@ function TxRow({ row }: { row: DetailedTransaction }) {
             : `${profit >= 0 ? "+" : ""}${formatCurrency(profit)}`}
         </span>
         <span className="truncate text-sm text-[var(--muted)]">{row.note}</span>
-        <button
-          type="button"
-          className="text-[var(--muted)] hover:text-[var(--foreground)]"
-          aria-label="Menü"
+        <span
+          className="text-center text-[var(--muted)]"
+          aria-hidden
+          title="Hover für Details"
         >
-          ⋮
-        </button>
+          ···
+        </span>
       </div>
+
+      {hover && <TxHoverDetail row={row} />}
     </li>
+  );
+}
+
+/** Compact detail card — same pattern as Portfolio-Kennzahlen KpiTile */
+function TxHoverDetail({ row }: { row: DetailedTransaction }) {
+  const profit = row.realizedProfit;
+  const isBuy = row.type === "Kauf";
+
+  return (
+    <div
+      className="pointer-events-none absolute left-1/2 top-0 z-40 w-[17rem] -translate-x-1/2 -translate-y-[calc(100%+0.45rem)] rounded-xl border border-[var(--border-strong)] bg-[var(--surface-elevated)] p-3 shadow-xl"
+      role="tooltip"
+    >
+      <div className="flex gap-2.5">
+        <CardImage
+          src={row.imageUrl ?? ""}
+          fallbacks={row.imageFallbacks}
+          alt={row.name}
+          size="sm"
+          className="shrink-0"
+        />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold leading-tight">
+            {row.name}
+          </p>
+          <p className="mt-0.5 truncate text-[11px] text-[var(--muted)]">
+            {row.setName !== "—" ? row.setName : "Ohne Set"}
+          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <TypeBadge type={row.type} />
+            <AssetBadge type={row.assetType} />
+            <span className="text-[10px] text-[var(--muted)]">
+              {row.dateLabel}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-2.5 grid grid-cols-2 gap-1.5 text-xs">
+        <div className="rounded-lg bg-[var(--background)] px-2 py-1.5">
+          <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
+            Menge
+          </p>
+          <p className="tabular-nums font-semibold">×{row.quantity}</p>
+        </div>
+        <div className="rounded-lg bg-[var(--background)] px-2 py-1.5">
+          <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
+            Preis / Stück
+          </p>
+          <p className="tabular-nums font-semibold">
+            {formatCurrency(row.pricePerUnit)}
+          </p>
+        </div>
+        <div className="rounded-lg bg-[var(--background)] px-2 py-1.5">
+          <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
+            Gebühren
+          </p>
+          <p className="tabular-nums font-semibold">
+            {formatCurrency(row.fees)}
+          </p>
+        </div>
+        <div className="rounded-lg bg-[var(--background)] px-2 py-1.5">
+          <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
+            Gesamt
+          </p>
+          <p className="tabular-nums font-semibold">
+            {formatCurrency(row.total)}
+          </p>
+        </div>
+      </div>
+
+      {!isBuy && (
+        <div className="mt-1.5 rounded-lg bg-[var(--background)] px-2 py-1.5 text-xs">
+          <p className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
+            Realisierter Gewinn
+          </p>
+          <p
+            className={`tabular-nums font-semibold ${
+              profit == null
+                ? "text-[var(--muted)]"
+                : profit >= 0
+                  ? "text-[var(--positive)]"
+                  : "text-[var(--negative)]"
+            }`}
+          >
+            {profit == null
+              ? "—"
+              : `${profit >= 0 ? "+" : ""}${formatCurrency(profit)}`}
+          </p>
+        </div>
+      )}
+
+      {(row.note || row.source) && (
+        <p className="mt-2 line-clamp-2 text-[11px] text-[var(--muted)]">
+          {row.note || row.source}
+        </p>
+      )}
+
+      {/* arrow */}
+      <span
+        aria-hidden
+        className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-x-[6px] border-t-[6px] border-x-transparent border-t-[var(--border-strong)]"
+      />
+    </div>
   );
 }
 
