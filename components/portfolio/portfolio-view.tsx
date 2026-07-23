@@ -11,6 +11,11 @@ import {
   type LiveHistoryPoint,
   type LivePosition,
 } from "@/hooks/use-portfolio-assets";
+import {
+  getLocalTransactions,
+  TRANSACTIONS_CHANGED_EVENT,
+  type RecordedTransaction,
+} from "@/lib/local-transactions";
 
 type Scope = "gesamt" | "karten" | "sealed";
 type Range = "1W" | "1M" | "3M" | "6M" | "1J" | "MAX";
@@ -25,6 +30,41 @@ export function PortfolioView() {
   const [chartSeries, setChartSeries] = useState<ChartSeries>("gesamt");
   const [allocDim, setAllocDim] = useState<AllocDim>("assetType");
   const live = usePortfolioAssets();
+  const [recordedTx, setRecordedTx] = useState<RecordedTransaction[]>([]);
+
+  // Shared ledger (same as Portfolio → Transaktionen / Karten-Verkauf)
+  useEffect(() => {
+    const sync = () => setRecordedTx(getLocalTransactions());
+    sync();
+    window.addEventListener(TRANSACTIONS_CHANGED_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(TRANSACTIONS_CHANGED_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
+
+  const recentTx = useMemo(
+    () =>
+      [...recordedTx]
+        .sort((a, b) => {
+          const byDate = b.dateIso.localeCompare(a.dateIso);
+          if (byDate !== 0) return byDate;
+          return (b.createdAt ?? 0) - (a.createdAt ?? 0);
+        })
+        .slice(0, 5),
+    [recordedTx],
+  );
+
+  const realizedProfit = useMemo(
+    () =>
+      Math.round(
+        recordedTx
+          .filter((t) => t.type === "Verkauf")
+          .reduce((s, t) => s + (t.realizedProfit ?? 0), 0) * 100,
+      ) / 100,
+    [recordedTx],
+  );
 
   const metrics = useMemo(() => {
     if (scope === "karten") {
@@ -112,23 +152,38 @@ export function PortfolioView() {
     ];
   }, [live]);
 
-  /** Monthly buy bars from live assets (sells 0 until sales are tracked). */
+  /**
+   * Monthly cashflow: recorded transactions first; inventory purchaseDate
+   * only fills buy months when no Kauf rows exist yet.
+   */
   const liveCashflow = useMemo(() => {
     const map = new Map<string, { buys: number; sells: number }>();
-    // Last 12 calendar months as buckets
     const now = new Date();
     for (let i = 11; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       map.set(key, { buys: 0, sells: 0 });
     }
-    for (const p of live.positions) {
-      if (!p.purchaseDate || p.invested <= 0) continue;
-      const key = p.purchaseDate.slice(0, 7);
+
+    const hasRecordedBuys = recordedTx.some((t) => t.type === "Kauf");
+    for (const t of recordedTx) {
+      const key = t.dateIso.slice(0, 7);
       if (!map.has(key)) continue;
       const row = map.get(key)!;
-      row.buys += p.invested;
+      if (t.type === "Kauf") row.buys += t.total;
+      else row.sells += t.total;
     }
+
+    // Fallback: inventory as proxy buys when nothing was logged as Kauf
+    if (!hasRecordedBuys) {
+      for (const p of live.positions) {
+        if (!p.purchaseDate || p.invested <= 0) continue;
+        const key = p.purchaseDate.slice(0, 7);
+        if (!map.has(key)) continue;
+        map.get(key)!.buys += p.invested;
+      }
+    }
+
     return [...map.entries()].map(([key, v]) => {
       const [y, mo] = key.split("-");
       const d = new Date(Number(y), Number(mo) - 1, 1);
@@ -141,7 +196,7 @@ export function PortfolioView() {
         sells: Math.round(v.sells * 100) / 100,
       };
     });
-  }, [live.positions]);
+  }, [live.positions, recordedTx]);
 
   // Keep chart series toggle in sync with header scope
   useEffect(() => {
@@ -220,9 +275,15 @@ export function PortfolioView() {
             <PrimaryMetric
               icon="tag"
               label="Realisierter Gewinn"
-              value={formatCurrency(0)}
-              positive
-              infoText="Gewinn aus bereits verkauften Positionen."
+              value={formatCurrency(realizedProfit)}
+              positive={
+                realizedProfit > 0
+                  ? true
+                  : realizedProfit < 0
+                    ? false
+                    : undefined
+              }
+              infoText="Gewinn/Verlust aus erfassten Verkäufen (Transaktionen)."
             />
             <PrimaryMetric
               icon="bars"
@@ -478,59 +539,65 @@ export function PortfolioView() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border)]">
-                    {[...live.positions]
-                      .filter((p) => p.invested > 0 || p.market > 0)
-                      .sort((a, b) => {
-                        const da = a.purchaseDate ?? "";
-                        const db = b.purchaseDate ?? "";
-                        return db.localeCompare(da);
-                      })
-                      .slice(0, 5)
-                      .map((pos) => (
-                        <tr key={pos.id}>
+                    {recentTx.map((tx) => {
+                      const isBuy = tx.type === "Kauf";
+                      return (
+                        <tr key={tx.id}>
                           <td className="whitespace-nowrap py-2 pr-2 text-xs text-[var(--muted)]">
-                            {pos.purchaseDate
-                              ? new Date(pos.purchaseDate).toLocaleDateString(
-                                  "de-DE",
-                                )
-                              : "—"}
+                            {tx.dateLabel}
                           </td>
                           <td className="py-2 pr-2">
-                            <span className="rounded-md bg-[var(--accent-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--accent)]">
-                              Kauf
+                            <span
+                              className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${
+                                isBuy
+                                  ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+                                  : "bg-emerald-500/15 text-emerald-400"
+                              }`}
+                            >
+                              {tx.type}
                             </span>
                           </td>
                           <td className="py-2 pr-2">
                             <Link
-                              href={pos.href}
+                              href={
+                                tx.assetType === "Sealed"
+                                  ? "/assets/sealed"
+                                  : "/assets/karten"
+                              }
                               className="flex min-w-0 max-w-[11rem] items-center gap-2 hover:opacity-90"
                             >
                               <CardImage
-                                src={pos.imageUrl ?? ""}
-                                fallbacks={pos.imageFallbacks}
-                                alt={pos.name}
+                                src={tx.imageUrl ?? ""}
+                                fallbacks={tx.imageFallbacks}
+                                alt={tx.name}
                                 size="sm"
                               />
-                              <span className="truncate text-sm">
-                                {pos.name}
-                              </span>
+                              <span className="truncate text-sm">{tx.name}</span>
                             </Link>
                           </td>
                           <td className="tabular-nums py-2 pr-2 text-right">
-                            {pos.quantity}
+                            {tx.quantity}
                           </td>
                           <td className="tabular-nums py-2 text-right font-medium">
-                            {formatCurrency(pos.invested || pos.market)}
+                            {formatCurrency(tx.total)}
                           </td>
                         </tr>
-                      ))}
-                    {live.positions.length === 0 && (
+                      );
+                    })}
+                    {recentTx.length === 0 && (
                       <tr>
                         <td
                           colSpan={5}
                           className="py-10 text-center text-xs text-[var(--muted)]"
                         >
-                          Noch keine Assets in Karten oder Sealed.
+                          Noch keine erfassten Transaktionen.
+                          <br />
+                          <Link
+                            href="/portfolio/transaktionen"
+                            className="mt-1 inline-block text-[var(--accent)] hover:opacity-80"
+                          >
+                            Transaktion erfassen →
+                          </Link>
                         </td>
                       </tr>
                     )}
