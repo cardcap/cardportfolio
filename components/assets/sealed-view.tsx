@@ -1963,14 +1963,6 @@ function ImportIcon() {
   );
 }
 
-function BellIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9" strokeLinecap="round" />
-      <path d="M10 21a2 2 0 0 0 4 0" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 function ListIcon() {
   return (

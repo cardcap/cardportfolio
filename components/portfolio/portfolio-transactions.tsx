@@ -42,7 +42,16 @@ type TxCashflowMonth = {
 const TX_GRID =
   "2xl:grid 2xl:grid-cols-[5.5rem_4.75rem_minmax(9rem,1.15fr)_3.5rem_3rem_5.5rem_4.75rem_5.5rem_6.5rem_minmax(4.5rem,0.85fr)] 2xl:items-center 2xl:gap-x-3";
 
-export function PortfolioTransactions() {
+type PortfolioTransactionsProps = {
+  /** Controlled drawer (e.g. header CTA on the page). */
+  drawerOpen?: boolean;
+  onDrawerOpenChange?: (open: boolean) => void;
+};
+
+export function PortfolioTransactions({
+  drawerOpen: drawerOpenProp,
+  onDrawerOpenChange,
+}: PortfolioTransactionsProps = {}) {
   const live = usePortfolioAssets();
   const { isAuthenticated } = useAuthMode();
   const [cashMode, setCashMode] = useState<CashMode>("monatlich");
@@ -55,7 +64,9 @@ export function PortfolioTransactions() {
   const [sort, setSort] = useState<SortKey>("newest");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerOpenLocal, setDrawerOpenLocal] = useState(false);
+  const drawerOpen = drawerOpenProp ?? drawerOpenLocal;
+  const setDrawerOpen = onDrawerOpenChange ?? setDrawerOpenLocal;
   const [localTx, setLocalTx] = useState<DetailedTransaction[]>([]);
 
   // Shared ledger (Karten-Verkauf, Portfolio-Drawer, …)
@@ -317,18 +328,6 @@ export function PortfolioTransactions() {
           });
         }}
       />
-
-      {/* Primary action — far right */}
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <button
-          type="button"
-          onClick={() => setDrawerOpen(true)}
-          className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 text-sm font-medium text-white hover:brightness-110"
-        >
-          <span className="text-base leading-none">+</span>
-          Transaktion erfassen
-        </button>
-      </div>
 
       {/* KPI stack — same grid + padding so icons align column-wise */}
       <div className="space-y-3">
