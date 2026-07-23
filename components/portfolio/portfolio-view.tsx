@@ -441,10 +441,10 @@ export function PortfolioView() {
             </div>
           </div>
 
-          {/* Row 1: Wertvollste Positionen | Letzte Transaktionen */}
-          <div className="mb-5 grid items-start gap-5 xl:grid-cols-2">
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
-              <div className="mb-2.5 flex items-center justify-between">
+          {/* Row 1: Wertvollste Positionen | Letzte Transaktionen — equal height */}
+          <div className="mb-5 grid gap-5 xl:grid-cols-2 xl:items-stretch">
+            <div className="flex h-full min-h-[14rem] flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
+              <div className="mb-2.5 flex shrink-0 items-center justify-between">
                 <h2 className="text-sm font-medium">Wertvollste Positionen</h2>
                 <Link
                   href="/portfolio/positionen"
@@ -453,7 +453,7 @@ export function PortfolioView() {
                   Alle →
                 </Link>
               </div>
-              <ul className="space-y-0.5">
+              <ul className="flex min-h-0 flex-1 flex-col space-y-0.5">
                 {live.topPositions.map((pos, i) => (
                   <li key={pos.id}>
                     <Link
@@ -491,15 +491,15 @@ export function PortfolioView() {
                   </li>
                 ))}
                 {live.topPositions.length === 0 && (
-                  <li className="px-1 py-3 text-xs text-[var(--muted)]">
+                  <li className="flex flex-1 items-center justify-center px-1 py-6 text-center text-xs text-[var(--muted)]">
                     Noch keine Assets in Karten oder Sealed.
                   </li>
                 )}
               </ul>
             </div>
 
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
-              <div className="mb-2.5 flex items-center justify-between">
+            <div className="flex h-full min-h-[14rem] flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
+              <div className="mb-2.5 flex shrink-0 items-center justify-between">
                 <h2 className="text-sm font-medium">Letzte Transaktionen</h2>
                 <button
                   type="button"
@@ -509,7 +509,7 @@ export function PortfolioView() {
                   Alle Transaktionen →
                 </button>
               </div>
-              <div className="overflow-x-auto">
+              <div className="min-h-0 flex-1 overflow-x-auto">
                 <table className="w-full min-w-[360px] text-sm">
                   <thead>
                     <tr className="border-b border-[var(--border)] text-[10px] uppercase tracking-wider text-[var(--muted)]">
@@ -573,7 +573,7 @@ export function PortfolioView() {
                       <tr>
                         <td
                           colSpan={5}
-                          className="py-4 text-center text-xs text-[var(--muted)]"
+                          className="py-10 text-center text-xs text-[var(--muted)]"
                         >
                           Noch keine Assets in Karten oder Sealed.
                         </td>
@@ -585,13 +585,13 @@ export function PortfolioView() {
             </div>
           </div>
 
-          {/* Row 2: Performance | Käufe & Verkäufe — compact, no stretch */}
-          <div className="mb-5 grid items-start gap-5 xl:grid-cols-2">
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
-              <h2 className="mb-2.5 text-sm font-medium">
+          {/* Row 2: Performance | Käufe & Verkäufe — equal height */}
+          <div className="mb-5 grid gap-5 xl:grid-cols-2 xl:items-stretch">
+            <div className="flex h-full min-h-[14rem] flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
+              <h2 className="mb-2.5 shrink-0 text-sm font-medium">
                 Performance nach Asset-Typ
               </h2>
-              <div className="overflow-x-auto">
+              <div className="min-h-0 flex-1 overflow-x-auto">
                 <table className="w-full min-w-[520px] table-fixed text-left text-sm">
                   <colgroup>
                     <col className="w-[15%]" />
@@ -719,8 +719,8 @@ export function PortfolioView() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
-              <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex h-full min-h-[14rem] flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
+              <div className="mb-2.5 flex shrink-0 flex-wrap items-center justify-between gap-2">
                 <h2 className="text-sm font-medium">Käufe &amp; Verkäufe</h2>
                 <div className="flex gap-3 text-[11px] text-[var(--muted)]">
                   <span className="inline-flex items-center gap-1.5">
@@ -733,7 +733,9 @@ export function PortfolioView() {
                   </span>
                 </div>
               </div>
-              <CashflowChart data={liveCashflow} />
+              <div className="flex min-h-0 flex-1 flex-col justify-end">
+                <CashflowChart data={liveCashflow} />
+              </div>
             </div>
           </div>
         </>
