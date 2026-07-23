@@ -50,7 +50,9 @@ export function AddToCollectionButton({
     <div className={className}>
       <Button
         key={pulseKey}
-        className={`w-full collection-add-pulse ${added ? "!bg-emerald-500" : ""}`}
+        className={`w-full ${added ? "!bg-emerald-500" : ""} ${
+          pulseKey > 0 ? "collection-add-pulse" : ""
+        }`}
         disabled={loading}
         onClick={() => void handleAdd()}
       >

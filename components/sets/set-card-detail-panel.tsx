@@ -698,8 +698,11 @@ export function SetCardDetailPanel({
               aria-live="polite"
               className={`flex h-11 w-full items-center justify-center gap-2 rounded-full text-sm font-medium text-white transition-[filter,background-color] hover:brightness-110 disabled:opacity-80 ${
                 addFeedback === "success"
-                  ? "bg-emerald-500 collection-add-pulse"
-                  : "bg-[var(--accent)] collection-add-pulse"
+                  ? "bg-emerald-500"
+                  : "bg-[var(--accent)]"
+              } ${
+                // Only pulse after click (pulseKey starts at 0)
+                pulseKey > 0 ? "collection-add-pulse" : ""
               }`}
             >
               {addFeedback === "loading"
