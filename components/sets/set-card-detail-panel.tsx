@@ -146,6 +146,7 @@ export function SetCardDetailPanel({
     setPulseKey((k) => k + 1);
     try {
       await onEditCollection();
+      setPulseKey((k) => k + 1);
       setAddFeedback("success");
       if (addFeedbackTimer.current) clearTimeout(addFeedbackTimer.current);
       addFeedbackTimer.current = setTimeout(() => {
