@@ -1,12 +1,23 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { TransactionDrawer } from "@/components/portfolio/transaction-drawer";
-import { CardImage } from "@/components/ui/card-image";
 import {
+  TransactionDrawer,
+  type PositionOption,
+  type TransactionSavePayload,
+} from "@/components/portfolio/transaction-drawer";
+import { CardImage } from "@/components/ui/card-image";
+import { useAuthMode } from "@/components/auth/use-auth-mode";
+import {
+  clearPortfolioAssetsCache,
   usePortfolioAssets,
   type LivePosition,
 } from "@/hooks/use-portfolio-assets";
+import { applyAssetSale } from "@/lib/apply-asset-sale";
+import {
+  invalidateCollectionCache,
+  invalidateSealedCache,
+} from "@/lib/assets-client-cache";
 import { formatCurrency, formatPercent } from "@/lib/format";
 
 type TxKind = "Kauf" | "Verkauf";
@@ -78,6 +89,7 @@ function posToTx(p: LivePosition): DetailedTransaction {
 
 export function PortfolioTransactions() {
   const live = usePortfolioAssets();
+  const { isAuthenticated } = useAuthMode();
   const [range, setRange] = useState<TxRange>("max");
   const [cashMode, setCashMode] = useState<CashMode>("monatlich");
   const [search, setSearch] = useState("");
@@ -91,6 +103,19 @@ export function PortfolioTransactions() {
   const [pageSize, setPageSize] = useState(25);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [localTx, setLocalTx] = useState<DetailedTransaction[]>([]);
+
+  const drawerPositions: PositionOption[] = useMemo(
+    () =>
+      live.positions.map((p) => ({
+        id: p.id,
+        label: p.setName ? `${p.name} (${p.setName})` : p.name,
+        kind: p.kind,
+        quantity: p.quantity,
+        setName: p.setName,
+        imageUrl: p.imageUrl,
+      })),
+    [live.positions],
+  );
 
   const assetTx = useMemo(
     () => live.positions.map(posToTx),
@@ -236,29 +261,62 @@ export function PortfolioTransactions() {
       <TransactionDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        onSave={(payload) => {
+        positions={drawerPositions}
+        onSave={async (payload: TransactionSavePayload) => {
+          // Verkauf → remove from Assets inventory
+          if (payload.type === "Verkauf") {
+            const result = await applyAssetSale(
+              {
+                id: payload.positionId,
+                kind: payload.kind,
+                availableQty: payload.availableQty,
+              },
+              payload.quantity,
+              isAuthenticated,
+            );
+            if (!result.ok) {
+              throw new Error(result.error ?? "Verkauf fehlgeschlagen.");
+            }
+            clearPortfolioAssetsCache();
+            invalidateCollectionCache();
+            invalidateSealedCache();
+            live.refresh({ force: true });
+          }
+
           const total =
             payload.pricePerUnit * payload.quantity + payload.fees;
           const dateIso = payload.date;
           const [y, mo, d] = dateIso.split("-");
+          const pos = live.positions.find((p) => p.id === payload.positionId);
           setLocalTx((prev) => [
             {
               id: `local-${Date.now()}`,
               dateIso,
               dateLabel: `${d}.${mo}.${y}`,
               type: payload.type,
-              cardId: "charizard-ex",
+              cardId: payload.positionId,
               name: payload.positionLabel,
-              assetType: payload.positionId.startsWith("sealed")
-                ? "Sealed"
-                : "Karte",
-              setName: "—",
+              assetType: payload.kind,
+              setName: pos?.setName ?? "—",
               quantity: payload.quantity,
               pricePerUnit: payload.pricePerUnit,
               fees: payload.fees,
               total,
-              realizedProfit: payload.type === "Verkauf" ? null : null,
+              realizedProfit:
+                payload.type === "Verkauf"
+                  ? Math.round(
+                      (payload.pricePerUnit * payload.quantity -
+                        (pos
+                          ? (pos.invested / Math.max(1, pos.quantity)) *
+                            payload.quantity
+                          : 0) -
+                        payload.fees) *
+                        100,
+                    ) / 100
+                  : null,
               note: payload.note || payload.source,
+              imageUrl: pos?.imageUrl,
+              imageFallbacks: pos?.imageFallbacks,
             },
             ...prev,
           ]);

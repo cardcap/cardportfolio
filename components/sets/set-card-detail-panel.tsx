@@ -61,6 +61,8 @@ type SetCardDetailPanelProps = {
   /** Override primary collection button label */
   collectionButtonLabel?: string;
   onRemoveFromCollection?: () => void;
+  /** Sell card — open sell flow */
+  onSell?: () => void;
   /** Hide “Sammlungsdetails ansehen” (e.g. already on Assets) */
   hideCollectionLink?: boolean;
   /** Language badge override (default DE) */
@@ -116,6 +118,7 @@ export function SetCardDetailPanel({
   collectionDetails,
   collectionButtonLabel,
   onRemoveFromCollection,
+  onSell,
   hideCollectionLink = false,
   languageLabel = "DE",
 }: SetCardDetailPanelProps) {
@@ -735,6 +738,15 @@ export function SetCardDetailPanel({
               <p className="text-center text-xs font-medium text-emerald-400">
                 Karte ist in deiner Sammlung
               </p>
+            )}
+            {onSell && qty > 0 && (
+              <button
+                type="button"
+                onClick={onSell}
+                className="flex h-11 w-full items-center justify-center rounded-full bg-emerald-500 text-sm font-medium text-white hover:brightness-110"
+              >
+                Verkaufen
+              </button>
             )}
             {onRemoveFromCollection && qty > 0 && (
               <button

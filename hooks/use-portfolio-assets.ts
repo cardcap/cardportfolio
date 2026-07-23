@@ -85,7 +85,7 @@ export type LivePortfolioSnapshot = {
     language: LiveAllocSegment[];
     condition: LiveAllocSegment[];
   };
-  refresh: () => void;
+  refresh: (opts?: { force?: boolean }) => void;
 };
 
 type ApiCollectionItem = {

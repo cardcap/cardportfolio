@@ -23,7 +23,13 @@ import {
 import { useRequireAuth } from "@/components/auth/use-require-auth";
 import { useAuthMode } from "@/components/auth/use-auth-mode";
 import { CollectionImportDialog } from "@/components/sammlung/collection-import-dialog";
+import {
+  TransactionDrawer,
+  type TransactionSavePayload,
+} from "@/components/portfolio/transaction-drawer";
 import { SetCardDetailPanel } from "@/components/sets/set-card-detail-panel";
+import { applyCardGroupSale } from "@/lib/apply-asset-sale";
+import { clearPortfolioAssetsCache } from "@/hooks/use-portfolio-assets";
 import { PageHeader } from "@/components/layout/page-header";
 import { BulkActionBar } from "@/components/ui/bulk-action-bar";
 import { Button } from "@/components/ui/button";
@@ -39,7 +45,6 @@ import {
   peekCollectionCache,
   setCollectionCache,
 } from "@/lib/assets-client-cache";
-import { clearPortfolioAssetsCache } from "@/hooks/use-portfolio-assets";
 import {
   getLocalCollection,
   itemInvested,
@@ -533,6 +538,7 @@ export function SammlungView() {
   /** Multi-select for bulk actions (row ids from filtered list) */
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [sellDrawerOpen, setSellDrawerOpen] = useState(false);
   /** setId → ISO release date from catalog (for Erscheinungsdatum) */
   const [setReleaseById, setSetReleaseById] = useState<Record<string, string>>(
     {},
@@ -2541,6 +2547,9 @@ export function SammlungView() {
           }
           onEditCollection={startEdit}
           collectionButtonLabel="Bearbeiten"
+          onSell={() => {
+            setSellDrawerOpen(true);
+          }}
           onRemoveFromCollection={() => void removeSelected()}
           hideCollectionLink
           languageLabel={languageShort(selectedRow.language)}
@@ -2555,6 +2564,78 @@ export function SammlungView() {
               purchasePrice: e.purchasePrice,
               purchaseDate: e.purchaseDate ?? selectedRow.purchaseDate,
             })),
+          }}
+        />
+      )}
+
+      {selectedRow && (
+        <TransactionDrawer
+          open={sellDrawerOpen}
+          onClose={() => setSellDrawerOpen(false)}
+          initialType="Verkauf"
+          initialPositionId={
+            selectedRow.groupMemberIds?.[0] ?? selectedRow.id
+          }
+          positions={[
+            {
+              id: selectedRow.groupMemberIds?.[0] ?? selectedRow.id,
+              label: selectedRow.setName
+                ? `${selectedRow.name} (${selectedRow.setName})`
+                : selectedRow.name,
+              kind: "Karte",
+              quantity: selectedRow.quantity,
+              setName: selectedRow.setName,
+              imageUrl: selectedRow.imageUrl,
+            },
+          ]}
+          onSave={async (payload: TransactionSavePayload) => {
+            if (payload.type !== "Verkauf") return;
+            const memberIds =
+              selectedRow.groupMemberIds &&
+              selectedRow.groupMemberIds.length > 0
+                ? selectedRow.groupMemberIds
+                : [selectedRow.id];
+            // Build qty map for group members from raw items/local
+            const qtyById: Record<string, number> = {};
+            if (isAuthenticated) {
+              for (const it of items) {
+                if (memberIds.includes(it.id)) {
+                  qtyById[it.id] = it.quantity;
+                }
+              }
+            } else {
+              for (const it of localItems) {
+                if (memberIds.includes(it.id)) {
+                  qtyById[it.id] = it.quantity;
+                }
+              }
+            }
+            // Single-row groups: sell against first id with full qty
+            if (memberIds.length === 1) {
+              qtyById[memberIds[0]] = selectedRow.quantity;
+            } else if (Object.keys(qtyById).length === 0) {
+              // Fallback: put all qty on first member
+              qtyById[memberIds[0]] = selectedRow.quantity;
+            }
+
+            const result = await applyCardGroupSale(
+              memberIds,
+              payload.quantity,
+              isAuthenticated,
+              qtyById,
+            );
+            if (!result.ok) {
+              throw new Error(result.error ?? "Verkauf fehlgeschlagen.");
+            }
+            clearPortfolioAssetsCache();
+            invalidateCollectionCache();
+            setPanelOpen(false);
+            setSelectedId(null);
+            if (isAuthenticated) {
+              await loadCollection(true);
+            } else {
+              loadLocal();
+            }
           }}
         />
       )}

@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { formatCurrency } from "@/lib/format";
-import { getCard, sealedProducts, type Card } from "@/lib/mock-data";
 
 type TxType = "Kauf" | "Verkauf";
 
@@ -19,53 +18,92 @@ const SOURCES = [
 
 const SOURCE_CUSTOM = "Weitere hinzufügen";
 
-type PositionOption = {
+export type PositionOption = {
   id: string;
   label: string;
   kind: "Karte" | "Sealed";
-  cardId?: string;
+  quantity?: number;
+  setName?: string;
+  imageUrl?: string;
+};
+
+export type TransactionSavePayload = {
+  type: TxType;
+  positionId: string;
+  positionLabel: string;
+  kind: "Karte" | "Sealed";
+  date: string;
+  quantity: number;
+  pricePerUnit: number;
+  fees: number;
+  source: string;
+  note: string;
+  availableQty: number;
 };
 
 type TransactionDrawerProps = {
   open: boolean;
   onClose: () => void;
-  onSave?: (payload: {
-    type: TxType;
-    positionId: string;
-    positionLabel: string;
-    date: string;
-    quantity: number;
-    pricePerUnit: number;
-    fees: number;
-    source: string;
-    note: string;
-  }) => void;
+  /** Live asset positions for search (preferred over mock list). */
+  positions?: PositionOption[];
+  initialType?: TxType;
+  initialPositionId?: string;
+  onSave?: (
+    payload: TransactionSavePayload,
+  ) => void | Promise<void>;
 };
 
 export function TransactionDrawer({
   open,
   onClose,
   onSave,
+  positions: positionsProp,
+  initialType = "Kauf",
+  initialPositionId = "",
 }: TransactionDrawerProps) {
-  const [type, setType] = useState<TxType>("Kauf");
+  const [type, setType] = useState<TxType>(initialType);
   const [query, setQuery] = useState("");
-  const [positionId, setPositionId] = useState("");
+  const [positionId, setPositionId] = useState(initialPositionId);
   const [searchOpen, setSearchOpen] = useState(false);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [quantity, setQuantity] = useState(1);
-  const [price, setPrice] = useState("120");
-  const [fees, setFees] = useState("2,40");
+  const [price, setPrice] = useState("");
+  const [fees, setFees] = useState("0");
   const [source, setSource] = useState<string>("Cardmarket");
+  const [customSource, setCustomSource] = useState("");
+  const [useCustomSource, setUseCustomSource] = useState(false);
   const [note, setNote] = useState("");
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const resolvedSource = useCustomSource
+    ? customSource.trim() || SOURCE_CUSTOM
+    : source;
+
+  const positions = useMemo(
+    () => positionsProp ?? [],
+    [positionsProp],
+  );
 
   useEffect(() => {
     if (!open) {
       setSaved(false);
       setSearchOpen(false);
       setQuery("");
+      setUseCustomSource(false);
+      setCustomSource("");
+      setError(null);
+      setSaving(false);
       return;
     }
+    setType(initialType);
+    setPositionId(initialPositionId);
+    setQuery("");
+    setQuantity(1);
+    setPrice("");
+    setFees("0");
+    setNote("");
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (searchOpen) {
@@ -77,9 +115,7 @@ export function TransactionDrawer({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose, searchOpen]);
-
-  const positions = useMemo(() => buildPositionOptions(), []);
+  }, [open, onClose, searchOpen, initialType, initialPositionId]);
 
   // Only show results after the user types — no default suggestions
   const filtered = useMemo(() => {
@@ -91,6 +127,16 @@ export function TransactionDrawer({
   }, [positions, query]);
 
   const selected = positions.find((p) => p.id === positionId);
+  const maxQty =
+    type === "Verkauf" && selected?.quantity != null
+      ? Math.max(1, selected.quantity)
+      : 999;
+
+  useEffect(() => {
+    if (type === "Verkauf" && quantity > maxQty) {
+      setQuantity(maxQty);
+    }
+  }, [type, maxQty, quantity]);
 
   const priceNum = parseDe(price);
   const feesNum = parseDe(fees);
@@ -100,24 +146,40 @@ export function TransactionDrawer({
 
   if (!open) return null;
 
-  function handleSave() {
+  async function handleSave() {
     if (!selected) return;
-    onSave?.({
-      type,
-      positionId: selected.id,
-      positionLabel: selected.label,
-      date,
-      quantity,
-      pricePerUnit: priceNum,
-      fees: feesNum,
-      source,
-      note,
-    });
-    setSaved(true);
-    setTimeout(() => {
-      setSaved(false);
-      onClose();
-    }, 900);
+    if (!Number.isFinite(priceNum) || priceNum < 0) {
+      setError("Bitte einen gültigen Preis eingeben.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave?.({
+        type,
+        positionId: selected.id,
+        positionLabel: selected.label,
+        kind: selected.kind,
+        date,
+        quantity: Math.min(quantity, maxQty),
+        pricePerUnit: priceNum,
+        fees: Number.isFinite(feesNum) ? feesNum : 0,
+        source: resolvedSource,
+        note,
+        availableQty: selected.quantity ?? quantity,
+      });
+      setSaved(true);
+      setTimeout(() => {
+        setSaved(false);
+        onClose();
+      }, 900);
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Speichern fehlgeschlagen.",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -149,7 +211,6 @@ export function TransactionDrawer({
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
-          {/* Kauf / Verkauf */}
           <div className="flex rounded-full border border-[var(--border)] bg-[var(--background)] p-0.5">
             {(["Kauf", "Verkauf"] as const).map((t) => (
               <button
@@ -185,7 +246,6 @@ export function TransactionDrawer({
                   setSearchOpen(true);
                 }}
                 onBlur={() => {
-                  // Delay so option click registers first
                   window.setTimeout(() => setSearchOpen(false), 150);
                 }}
                 placeholder="Karte oder Sealed Produkt suchen…"
@@ -204,26 +264,38 @@ export function TransactionDrawer({
                         setPositionId(p.id);
                         setQuery("");
                         setSearchOpen(false);
+                        if (type === "Verkauf" && p.quantity) {
+                          setQuantity(1);
+                        }
                       }}
                       className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-[var(--surface-elevated)]"
                     >
                       <span className="truncate">{p.label}</span>
                       <span className="shrink-0 text-[10px] text-[var(--muted)]">
                         {p.kind}
+                        {p.quantity != null ? ` · ×${p.quantity}` : ""}
                       </span>
                     </button>
                   </li>
                 ))}
                 {filtered.length === 0 && (
                   <li className="px-3 py-2 text-sm text-[var(--muted)]">
-                    Keine Treffer
+                    {positions.length === 0
+                      ? "Keine Assets in Karten/Sealed."
+                      : "Keine Treffer"}
                   </li>
                 )}
               </ul>
             )}
             {searchOpen && query.trim().length === 0 && (
               <p className="mt-1.5 text-xs text-[var(--muted)]">
-                Tippe einen Namen, um zu suchen — keine Vorschläge.
+                Tippe einen Namen, um in deinen Assets zu suchen.
+              </p>
+            )}
+            {type === "Verkauf" && selected && (
+              <p className="mt-1.5 text-xs text-[var(--muted)]">
+                Im Bestand: {selected.quantity ?? "—"} · Verkauf entfernt die
+                Karte aus Assets.
               </p>
             )}
           </Field>
@@ -241,8 +313,19 @@ export function TransactionDrawer({
             <input
               type="number"
               min={1}
+              max={type === "Verkauf" ? maxQty : undefined}
               value={quantity}
-              onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))}
+              onChange={(e) =>
+                setQuantity(
+                  Math.max(
+                    1,
+                    Math.min(
+                      type === "Verkauf" ? maxQty : 9999,
+                      Number(e.target.value) || 1,
+                    ),
+                  ),
+                )
+              }
               className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 text-sm outline-none focus:border-[var(--accent)]"
             />
           </Field>
@@ -254,7 +337,7 @@ export function TransactionDrawer({
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 text-sm outline-none focus:border-[var(--accent)]"
-              placeholder="120,00 €"
+              placeholder="120,00"
             />
           </Field>
 
@@ -265,14 +348,23 @@ export function TransactionDrawer({
               value={fees}
               onChange={(e) => setFees(e.target.value)}
               className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 text-sm outline-none focus:border-[var(--accent)]"
-              placeholder="2,40 €"
+              placeholder="0,00"
             />
           </Field>
 
           <Field label="Bezugsquelle">
             <select
-              value={source}
-              onChange={(e) => setSource(e.target.value)}
+              value={useCustomSource ? SOURCE_CUSTOM : source}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === SOURCE_CUSTOM) {
+                  setUseCustomSource(true);
+                  setCustomSource("");
+                } else {
+                  setUseCustomSource(false);
+                  setSource(v);
+                }
+              }}
               className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 text-sm outline-none focus:border-[var(--accent)]"
             >
               {SOURCES.map((s) => (
@@ -280,10 +372,18 @@ export function TransactionDrawer({
                   {s}
                 </option>
               ))}
+              <option value={SOURCE_CUSTOM}>{SOURCE_CUSTOM}</option>
             </select>
-            <p className="mt-1.5 text-xs text-[var(--muted)]">
-              Wird automatisch in deiner Transaktionshistorie gespeichert.
-            </p>
+            {useCustomSource && (
+              <input
+                type="text"
+                value={customSource}
+                onChange={(e) => setCustomSource(e.target.value)}
+                placeholder="Eigene Bezugsquelle eingeben…"
+                className="mt-2 h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 text-sm outline-none focus:border-[var(--accent)]"
+                autoFocus
+              />
+            )}
           </Field>
 
           <Field label="Notiz (optional)">
@@ -305,12 +405,21 @@ export function TransactionDrawer({
             </div>
             <p className="mt-1 text-[11px] text-[var(--muted)]">
               Preis × Menge + Gebühren
+              {type === "Verkauf"
+                ? " · Verkauf entfernt aus dem Bestand"
+                : ""}
             </p>
           </div>
 
+          {error && (
+            <p className="rounded-lg bg-[var(--negative-soft)] px-3 py-2 text-sm text-[var(--negative)]">
+              {error}
+            </p>
+          )}
           {saved && (
             <p className="rounded-lg bg-[var(--positive-soft)] px-3 py-2 text-sm text-[var(--positive)]">
-              Transaktion gespeichert.
+              Transaktion gespeichert
+              {type === "Verkauf" ? " · aus Bestand entfernt" : ""}.
             </p>
           )}
         </div>
@@ -325,11 +434,11 @@ export function TransactionDrawer({
           </button>
           <button
             type="button"
-            disabled={!selected || !Number.isFinite(priceNum)}
-            onClick={handleSave}
+            disabled={!selected || !Number.isFinite(priceNum) || saving}
+            onClick={() => void handleSave()}
             className="h-10 flex-1 rounded-full bg-[var(--accent)] text-sm font-medium text-white hover:brightness-110 disabled:opacity-40"
           >
-            Transaktion speichern
+            {saving ? "Speichern…" : "Transaktion speichern"}
           </button>
         </div>
       </aside>
@@ -357,32 +466,4 @@ function Field({
 function parseDe(value: string): number {
   const cleaned = value.replace(/[€\s]/g, "").replace(",", ".");
   return Number.parseFloat(cleaned);
-}
-
-function buildPositionOptions(): PositionOption[] {
-  const cards: Card[] = [
-    getCard("charizard-ex"),
-    getCard("mew-ex"),
-    getCard("giratina-v"),
-    getCard("umbreon-v"),
-    getCard("lugia-v"),
-    getCard("pikachu-promo"),
-    getCard("rayquaza-vmax"),
-    getCard("koraidon-ex"),
-  ].filter(Boolean);
-
-  const fromCards: PositionOption[] = cards.map((c) => ({
-    id: `card-${c.id}`,
-    label: `${c.name} (${c.setCode})`,
-    kind: "Karte",
-    cardId: c.id,
-  }));
-
-  const fromSealed: PositionOption[] = sealedProducts.map((s) => ({
-    id: `sealed-${s.id}`,
-    label: s.name,
-    kind: "Sealed",
-  }));
-
-  return [...fromCards, ...fromSealed];
 }
