@@ -360,26 +360,17 @@ export function PortfolioTransactions() {
           icon="cart"
           label="Käufe"
           value={String(m.buyCount)}
-          hint={`${formatCurrency(m.buyVolume)} Einkaufsvolumen`}
           accent
         />
         <Metric
           icon="sell"
           label="Verkäufe"
           value={String(m.sellCount)}
-          hint={`${formatCurrency(m.sellVolume)} Verkaufserlös`}
         />
         <Metric
           icon="trend"
           label="Realisierter Gewinn"
           value={formatCurrency(m.realizedProfit)}
-          hint={
-            m.realizedProfit < 0
-              ? "Verlust aus erfassten Verkäufen"
-              : m.hasData
-                ? "Gewinn aus erfassten Verkäufen"
-                : "Verkäufe folgen, sobald sie erfasst werden"
-          }
           positive={
             m.realizedProfit > 0
               ? true
@@ -397,8 +388,16 @@ export function PortfolioTransactions() {
 
       {/* Secondary */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Strip label="Ø Kauf" value={formatCurrency(m.avgBuy)} icon="bag" />
-        <Strip label="Ø Verkauf" value={formatCurrency(m.avgSell)} icon="cart" />
+        <Strip
+          label="Gesamt Kauf"
+          value={formatCurrency(m.buyVolume)}
+          icon="bag"
+        />
+        <Strip
+          label="Gesamt Verkauf"
+          value={formatCurrency(m.sellVolume)}
+          icon="cart"
+        />
         <Strip label="Letzte Transaktion" value={m.lastTxDate} icon="cal" />
         <Strip
           label="Transaktionen gesamt"
