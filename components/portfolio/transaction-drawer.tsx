@@ -47,6 +47,7 @@ export function TransactionDrawer({
   const [type, setType] = useState<TxType>("Kauf");
   const [query, setQuery] = useState("");
   const [positionId, setPositionId] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [quantity, setQuantity] = useState(1);
   const [price, setPrice] = useState("120");
@@ -58,20 +59,29 @@ export function TransactionDrawer({
   useEffect(() => {
     if (!open) {
       setSaved(false);
+      setSearchOpen(false);
+      setQuery("");
       return;
     }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        if (searchOpen) {
+          setSearchOpen(false);
+          return;
+        }
+        onClose();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, onClose, searchOpen]);
 
   const positions = useMemo(() => buildPositionOptions(), []);
 
+  // Only show results after the user types — no default suggestions
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return positions.slice(0, 8);
+    if (!q) return [];
     return positions
       .filter((p) => p.label.toLowerCase().includes(q))
       .slice(0, 12);
