@@ -46,6 +46,10 @@ const ranges: { id: TxRange; label: string }[] = [
   { id: "max", label: "Max" },
 ];
 
+/** Desktop history columns — even gaps, fixed numeric widths, flexible name/note */
+const TX_GRID =
+  "2xl:grid 2xl:grid-cols-[5.5rem_4.75rem_minmax(9rem,1.15fr)_3.5rem_3rem_5.5rem_4.75rem_5.5rem_6.5rem_minmax(4.5rem,0.85fr)] 2xl:items-center 2xl:gap-x-3";
+
 export function PortfolioTransactions() {
   const live = usePortfolioAssets();
   const { isAuthenticated } = useAuthMode();
@@ -632,17 +636,23 @@ export function PortfolioTransactions() {
           </p>
         </div>
 
-        <div className="hidden border-b border-[var(--border)] px-4 py-2.5 text-[10px] uppercase tracking-wider text-[var(--muted)] 2xl:grid 2xl:grid-cols-[6rem_5rem_minmax(11rem,1.4fr)_4rem_3rem_5.5rem_4.5rem_5.5rem_6rem_minmax(5rem,0.9fr)] 2xl:gap-2 2xl:px-5">
+        <div
+          className={`hidden border-b border-[var(--border)] px-5 py-2.5 text-[10px] uppercase tracking-wider text-[var(--muted)] ${TX_GRID}`}
+        >
           <span>Datum</span>
           <span>Transaktion</span>
           <span>Position</span>
-          <span>Typ</span>
+          <span className="text-center">Typ</span>
           <span className="text-right">Menge</span>
           <span className="text-right">Preis / Stück</span>
           <span className="text-right">Gebühren</span>
           <span className="text-right">Gesamt</span>
-          <span className="text-right">Realisierter Gewinn</span>
-          <span>Notiz</span>
+          <span className="text-right leading-tight">
+            Realisierter
+            <br />
+            Gewinn
+          </span>
+          <span className="text-right">Notiz</span>
         </div>
 
         <ul className="divide-y divide-[var(--border)]">
@@ -742,10 +752,14 @@ function TxRow({ row }: { row: DetailedTransaction }) {
       </div>
 
       {/* desktop */}
-      <div className="hidden items-center gap-2 2xl:grid 2xl:grid-cols-[6rem_5rem_minmax(11rem,1.4fr)_4rem_3rem_5.5rem_4.5rem_5.5rem_6rem_minmax(5rem,0.9fr)]">
-        <span className="text-sm text-[var(--muted)]">{row.dateLabel}</span>
-        <TypeBadge type={row.type} />
-        <div className="flex min-w-0 items-center gap-2">
+      <div className={`hidden ${TX_GRID}`}>
+        <span className="whitespace-nowrap text-sm text-[var(--muted)]">
+          {row.dateLabel}
+        </span>
+        <div>
+          <TypeBadge type={row.type} />
+        </div>
+        <div className="flex min-w-0 items-center gap-2.5">
           <CardImage
             src={row.imageUrl ?? ""}
             fallbacks={row.imageFallbacks}
@@ -754,19 +768,21 @@ function TxRow({ row }: { row: DetailedTransaction }) {
           />
           <span className="truncate text-sm font-medium">{row.name}</span>
         </div>
-        <AssetBadge type={row.assetType} />
+        <div className="flex justify-center">
+          <AssetBadge type={row.assetType} />
+        </div>
         <span className="tabular-nums text-right text-sm">{row.quantity}</span>
-        <span className="tabular-nums text-right text-sm">
+        <span className="tabular-nums whitespace-nowrap text-right text-sm">
           {formatCurrency(row.pricePerUnit)}
         </span>
-        <span className="tabular-nums text-right text-sm text-[var(--muted)]">
+        <span className="tabular-nums whitespace-nowrap text-right text-sm text-[var(--muted)]">
           {formatCurrency(row.fees)}
         </span>
-        <span className="tabular-nums text-right text-sm font-medium">
+        <span className="tabular-nums whitespace-nowrap text-right text-sm font-medium">
           {formatCurrency(row.total)}
         </span>
         <span
-          className={`tabular-nums text-right text-sm font-medium ${
+          className={`tabular-nums whitespace-nowrap text-right text-sm font-medium ${
             profit == null
               ? "text-[var(--muted)]"
               : profit >= 0
@@ -778,7 +794,9 @@ function TxRow({ row }: { row: DetailedTransaction }) {
             ? "—"
             : `${profit >= 0 ? "+" : ""}${formatCurrency(profit)}`}
         </span>
-        <span className="truncate text-sm text-[var(--muted)]">{row.note}</span>
+        <span className="truncate text-right text-sm text-[var(--muted)]">
+          {row.note || "—"}
+        </span>
       </div>
     </li>
   );
