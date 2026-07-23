@@ -168,12 +168,21 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    const body = (await request.json()) as { id?: string };
-    if (!body.id?.trim()) {
+    // Prefer query ?id= (reliable with DELETE); body is fallback
+    let id = request.nextUrl.searchParams.get("id")?.trim() ?? "";
+    if (!id) {
+      try {
+        const body = (await request.json()) as { id?: string };
+        id = body.id?.trim() ?? "";
+      } catch {
+        /* no body */
+      }
+    }
+    if (!id) {
       return NextResponse.json({ error: "ID fehlt." }, { status: 400 });
     }
 
-    const ok = await removeSealedItem(userId, body.id.trim());
+    const ok = await removeSealedItem(userId, id);
     if (!ok) {
       return NextResponse.json(
         { error: "Eintrag nicht gefunden." },

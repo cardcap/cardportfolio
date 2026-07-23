@@ -17,19 +17,20 @@ function notify() {
 }
 
 export function getLocalSealed(): SealedProduct[] {
-  if (typeof window === "undefined") return [...sealedProducts];
+  if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      // First visit: seed from demo mock data
+    if (raw === null) {
+      // First visit only: seed from demo mock data
       const seed = sealedProducts.map((p) => ({ ...p }));
       localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
       return seed;
     }
     const parsed = JSON.parse(raw) as SealedProduct[];
-    return Array.isArray(parsed) ? parsed : [...sealedProducts];
+    // Empty array is valid (user deleted everything) — never re-seed
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
-    return [...sealedProducts];
+    return [];
   }
 }
 

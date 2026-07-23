@@ -491,7 +491,8 @@ export function SealedView() {
 
   const removeChecked = async () => {
     if (checkedIds.size === 0) return;
-    const rows = filtered.filter((p) => checkedIds.has(p.id));
+    // Use full inventory, not only current filter page — avoids missed deletes
+    const rows = inventory.filter((p) => checkedIds.has(p.id));
     if (rows.length === 0) return;
     const ok = window.confirm(
       rows.length === 1
@@ -500,23 +501,42 @@ export function SealedView() {
     );
     if (!ok) return;
 
+    const removeIds = new Set(rows.map((r) => r.id));
+    // Optimistic UI: drop rows immediately
+    setInventory((prev) => prev.filter((p) => !removeIds.has(p.id)));
+    setCheckedIds(new Set());
+    if (detailId && removeIds.has(detailId)) setDetailId(null);
+
     setBulkBusy(true);
     try {
-      for (const row of rows) {
-        if (!isAuthenticated) {
+      if (!isAuthenticated) {
+        for (const row of rows) {
           removeLocalSealed(row.id);
-        } else {
-          const res = await fetch("/api/sealed", {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: row.id }),
-          });
-          if (!res.ok) removeLocalSealed(row.id);
+        }
+        setInventory(getLocalSealed());
+      } else {
+        const failures: string[] = [];
+        for (const row of rows) {
+          const res = await fetch(
+            `/api/sealed?id=${encodeURIComponent(row.id)}`,
+            { method: "DELETE" },
+          );
+          if (!res.ok) failures.push(row.name);
+        }
+        await loadInventory();
+        // Notify portfolio/dashboard hooks to drop cached assets
+        window.dispatchEvent(new Event(SEALED_CHANGED_EVENT));
+        if (failures.length > 0) {
+          window.alert(
+            failures.length === 1
+              ? `„${failures[0]}“ konnte nicht gelöscht werden.`
+              : `${failures.length} Produkte konnten nicht gelöscht werden.`,
+          );
         }
       }
-      setCheckedIds(new Set());
+    } catch {
       await loadInventory();
-      if (!isAuthenticated) setInventory(getLocalSealed());
+      window.alert("Löschen fehlgeschlagen. Bitte erneut versuchen.");
     } finally {
       setBulkBusy(false);
     }
@@ -667,21 +687,29 @@ export function SealedView() {
       `„${detailProduct.name}“ komplett aus dem Sealed-Inventar entfernen?`,
     );
     if (!ok) return;
+    const id = detailProduct.id;
+    // Optimistic
+    setInventory((prev) => prev.filter((p) => p.id !== id));
+    setDetailId(null);
     setDetailBusy(true);
     try {
       if (!isAuthenticated) {
-        const next = removeLocalSealed(detailProduct.id);
-        setInventory(next);
+        setInventory(removeLocalSealed(id));
       } else {
-        const res = await fetch("/api/sealed", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: detailProduct.id }),
-        });
-        if (!res.ok) removeLocalSealed(detailProduct.id);
+        const res = await fetch(
+          `/api/sealed?id=${encodeURIComponent(id)}`,
+          { method: "DELETE" },
+        );
+        if (!res.ok) {
+          await loadInventory();
+          window.alert("Löschen fehlgeschlagen.");
+          return;
+        }
         await loadInventory();
       }
-      setDetailId(null);
+    } catch {
+      await loadInventory();
+      window.alert("Löschen fehlgeschlagen.");
     } finally {
       setDetailBusy(false);
     }
