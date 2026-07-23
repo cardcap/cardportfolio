@@ -289,7 +289,7 @@ export function SetsView() {
             Alle Expansionen von Base Set bis aktuell – Fortschritt im Überblick
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <Link
             href="/kartendatenbank"
             className="inline-flex h-9 items-center rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 text-sm text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"
@@ -302,13 +302,6 @@ export function SetsView() {
           >
             Meine Karten →
           </Link>
-          <button
-            type="button"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--muted)]"
-            aria-label="Benachrichtigungen"
-          >
-            <BellIcon />
-          </button>
         </div>
       </div>
 

@@ -150,7 +150,7 @@ export function TopLosersView() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <Segmented
             options={scopes}
             value={scope}
@@ -161,14 +161,6 @@ export function TopLosersView() {
             value={range}
             onChange={setRange}
           />
-          <Link
-            href="/wunschliste"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"
-            aria-label="Wunschliste"
-            title="Wunschliste"
-          >
-            <BellIcon />
-          </Link>
         </div>
       </div>
 

@@ -880,14 +880,7 @@ export function SealedView() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href="/kartendatenbank"
-            className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 text-sm font-medium text-white transition-all hover:brightness-110"
-          >
-            <span className="text-base leading-none">+</span>
-            Produkt hinzufügen
-          </Link>
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <button
             type="button"
             className="inline-flex h-9 items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 text-sm text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"
@@ -895,13 +888,13 @@ export function SealedView() {
             <ImportIcon />
             Excel-Import
           </button>
-          <button
-            type="button"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--muted)]"
-            aria-label="Benachrichtigungen"
+          <Link
+            href="/kartendatenbank"
+            className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 text-sm font-medium text-white transition-all hover:brightness-110"
           >
-            <BellIcon />
-          </button>
+            <span className="text-base leading-none">+</span>
+            Produkt hinzufügen
+          </Link>
         </div>
       </div>
 

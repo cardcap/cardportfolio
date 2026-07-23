@@ -179,25 +179,7 @@ export function WishlistView() {
             Behalte Karten und Sealed Produkte im Blick
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setOnlyTarget(true);
-              setTargetFilter("reached");
-              setPage(1);
-            }}
-            className="relative flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"
-            aria-label="Preisziele anzeigen"
-            title="Preisziele erreicht anzeigen"
-          >
-            <BellIcon />
-            {alarmsActive > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[10px] font-semibold text-white">
-                {alarmsActive}
-              </span>
-            )}
-          </button>
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <button
             type="button"
             className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--muted)]"

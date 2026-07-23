@@ -300,13 +300,6 @@ export function SetDetailView({
                 <GridIcon />
               </button>
             </div>
-            <button
-              type="button"
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--muted)]"
-              aria-label="Benachrichtigungen"
-            >
-              <BellIcon />
-            </button>
           </div>
         </div>
 
@@ -364,7 +357,13 @@ export function SetDetailView({
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Link
+              href="/sets"
+              className="inline-flex h-10 items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 text-sm text-[var(--muted)] hover:text-[var(--foreground)]"
+            >
+              ← Zur Set-Übersicht
+            </Link>
             <button
               type="button"
               className="inline-flex h-10 items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 text-sm font-medium text-white hover:brightness-110"
@@ -372,12 +371,6 @@ export function SetDetailView({
               <span className="text-base leading-none">+</span>
               Karte hinzufügen
             </button>
-            <Link
-              href="/sets"
-              className="inline-flex h-10 items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 text-sm text-[var(--muted)] hover:text-[var(--foreground)]"
-            >
-              ← Zur Set-Übersicht
-            </Link>
           </div>
         </div>
 

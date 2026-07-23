@@ -26,7 +26,6 @@ import {
 } from "@/lib/local-transactions";
 
 type TxKind = "Kauf" | "Verkauf";
-type TxRange = "30d" | "6m" | "1y" | "max";
 type CashMode = "monatlich" | "kumuliert";
 type SortKey = "newest" | "oldest" | "total-desc" | "total-asc";
 
@@ -39,13 +38,6 @@ type TxCashflowMonth = {
   net: number;
 };
 
-const ranges: { id: TxRange; label: string }[] = [
-  { id: "30d", label: "30 Tage" },
-  { id: "6m", label: "6 Monate" },
-  { id: "1y", label: "1 Jahr" },
-  { id: "max", label: "Max" },
-];
-
 /** Desktop history columns — even gaps, fixed numeric widths, flexible name/note */
 const TX_GRID =
   "2xl:grid 2xl:grid-cols-[5.5rem_4.75rem_minmax(9rem,1.15fr)_3.5rem_3rem_5.5rem_4.75rem_5.5rem_6.5rem_minmax(4.5rem,0.85fr)] 2xl:items-center 2xl:gap-x-3";
@@ -53,7 +45,6 @@ const TX_GRID =
 export function PortfolioTransactions() {
   const live = usePortfolioAssets();
   const { isAuthenticated } = useAuthMode();
-  const [range, setRange] = useState<TxRange>("max");
   const [cashMode, setCashMode] = useState<CashMode>("monatlich");
   const [search, setSearch] = useState("");
   const [txType, setTxType] = useState("Alle");
@@ -327,89 +318,72 @@ export function PortfolioTransactions() {
         }}
       />
 
-      {/* Range */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setDrawerOpen(true)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 text-sm font-medium text-white hover:brightness-110"
-          >
-            <span className="text-base leading-none">+</span>
-            Transaktion erfassen
-          </button>
-        </div>
-        <div className="flex rounded-full border border-[var(--border)] bg-[var(--surface)] p-0.5">
-          {ranges.map((r) => (
-            <button
-              key={r.id}
-              type="button"
-              onClick={() => setRange(r.id)}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium ${
-                range === r.id
-                  ? "bg-[var(--accent)] text-white"
-                  : "text-[var(--muted)] hover:text-[var(--foreground)]"
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
+      {/* Primary action — far right */}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => setDrawerOpen(true)}
+          className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 text-sm font-medium text-white hover:brightness-110"
+        >
+          <span className="text-base leading-none">+</span>
+          Transaktion erfassen
+        </button>
       </div>
 
-      {/* Primary metrics (larger) — volumes + P/L */}
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <Metric
-          icon="cart"
-          label="Gesamt Kauf"
-          value={formatCurrency(m.buyVolume)}
-          tone="buy"
-        />
-        <Metric
-          icon="moneybag"
-          label="Gesamt Verkauf"
-          value={formatCurrency(m.sellVolume)}
-          tone="sell"
-        />
-        <Metric
-          icon="trend"
-          label="Realisierter Gewinn"
-          value={formatCurrency(m.realizedProfit)}
-          positive={
-            m.realizedProfit > 0
-              ? true
-              : m.realizedProfit < 0
-                ? false
-                : undefined
-          }
-        />
-        <Metric
-          icon="fee"
-          label="Gebühren"
-          value={formatCurrency(m.fees)}
-        />
-      </div>
+      {/* KPI stack — same grid + padding so icons align column-wise */}
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <Metric
+            icon="cart"
+            label="Gesamt Kauf"
+            value={formatCurrency(m.buyVolume)}
+            tone="buy"
+          />
+          <Metric
+            icon="moneybag"
+            label="Gesamt Verkauf"
+            value={formatCurrency(m.sellVolume)}
+            tone="sell"
+          />
+          <Metric
+            icon="trend"
+            label="Realisierter Gewinn"
+            value={formatCurrency(m.realizedProfit)}
+            positive={
+              m.realizedProfit > 0
+                ? true
+                : m.realizedProfit < 0
+                  ? false
+                  : undefined
+            }
+          />
+          <Metric
+            icon="fee"
+            label="Gebühren"
+            value={formatCurrency(m.fees)}
+          />
+        </div>
 
-      {/* Secondary — counts + meta */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Strip
-          label="Käufe"
-          value={String(m.buyCount)}
-          icon="cart"
-          tone="buy"
-        />
-        <Strip
-          label="Verkäufe"
-          value={String(m.sellCount)}
-          icon="moneybag"
-          tone="sell"
-        />
-        <Strip label="Letzte Transaktion" value={m.lastTxDate} icon="cal" />
-        <Strip
-          label="Transaktionen gesamt"
-          value={String(m.totalTx)}
-          icon="list"
-        />
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <Strip
+            label="Käufe"
+            value={String(m.buyCount)}
+            icon="cart"
+            tone="buy"
+          />
+          <Strip
+            label="Verkäufe"
+            value={String(m.sellCount)}
+            icon="moneybag"
+            tone="sell"
+          />
+          <Strip label="Letzte Transaktion" value={m.lastTxDate} icon="cal" />
+          <Strip
+            label="Transaktionen gesamt"
+            value={String(m.totalTx)}
+            icon="list"
+          />
+        </div>
       </div>
 
       {/* Cashflow + types */}
@@ -1030,6 +1004,11 @@ function toneClasses(
   };
 }
 
+/** Shared KPI layout so icons stack column-aligned (no indent between rows). */
+const KPI_ICON_BOX =
+  "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full";
+const KPI_PAD = "flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3.5";
+
 function Metric({
   icon,
   label,
@@ -1049,18 +1028,16 @@ function Metric({
   const t = toneClasses(tone, positive);
 
   return (
-    <div className="flex items-center gap-3.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-4 sm:px-5 sm:py-5">
-      <span
-        className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full sm:h-14 sm:w-14 ${t.icon}`}
-      >
+    <div className={KPI_PAD}>
+      <span className={`${KPI_ICON_BOX} ${t.icon}`}>
         <MIcon type={icon} />
       </span>
       <div className="min-w-0">
-        <p className="text-xs font-medium uppercase tracking-wider text-[var(--muted)] sm:text-[13px]">
+        <p className="text-[11px] font-medium uppercase tracking-wider text-[var(--muted)]">
           {label}
         </p>
         <p
-          className={`tabular-nums mt-0.5 text-2xl font-semibold tracking-tight sm:text-[1.65rem] ${t.value}`}
+          className={`tabular-nums mt-0.5 text-lg font-semibold tracking-tight sm:text-xl ${t.value}`}
         >
           {value}
         </p>
@@ -1095,13 +1072,11 @@ function Strip({
       : "bg-[var(--surface-elevated)] text-[var(--muted)] ring-1 ring-[var(--border)]";
 
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-      <span
-        className={`inline-flex h-11 w-11 items-center justify-center rounded-full ${iconRing}`}
-      >
+    <div className={KPI_PAD}>
+      <span className={`${KPI_ICON_BOX} ${iconRing}`}>
         <MIcon type={icon} />
       </span>
-      <div>
+      <div className="min-w-0">
         <p className="text-[11px] uppercase tracking-wider text-[var(--muted)]">
           {label}
         </p>

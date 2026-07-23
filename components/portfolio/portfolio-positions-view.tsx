@@ -277,13 +277,6 @@ export function PortfolioPositionsView() {
             <ExportIcon />
             Exportieren
           </button>
-          <button
-            type="button"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--muted)]"
-            aria-label="Benachrichtigungen"
-          >
-            <BellIcon />
-          </button>
         </div>
       </div>
 

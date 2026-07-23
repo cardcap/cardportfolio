@@ -1483,13 +1483,7 @@ export function SammlungView() {
             title="Karten"
             subtitle={`${displayMetrics.totalCards.toLocaleString("de-DE")} Exemplare in deiner Sammlung`}
           >
-            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
-              <Link
-                href="/kartendatenbank"
-                className="inline-flex h-10 w-full items-center justify-center rounded-full bg-[var(--accent)] px-4 text-sm font-medium text-white transition-all hover:brightness-110 sm:w-auto"
-              >
-                + Karte hinzufügen
-              </Link>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
               <Button
                 className="w-full sm:w-auto"
                 variant="secondary"
@@ -1497,6 +1491,12 @@ export function SammlungView() {
               >
                 Excel-Import
               </Button>
+              <Link
+                href="/kartendatenbank"
+                className="inline-flex h-10 w-full items-center justify-center rounded-full bg-[var(--accent)] px-4 text-sm font-medium text-white transition-all hover:brightness-110 sm:w-auto"
+              >
+                + Karte hinzufügen
+              </Link>
             </div>
           </PageHeader>
 
