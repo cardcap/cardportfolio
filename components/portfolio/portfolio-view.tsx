@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DonutChart } from "@/components/charts/donut-chart";
-import { PortfolioAnalyse } from "@/components/portfolio/portfolio-analyse";
 import { PortfolioTransactions } from "@/components/portfolio/portfolio-transactions";
 import { CardImage } from "@/components/ui/card-image";
 import { InfoTip } from "@/components/ui/metric-card";
@@ -16,7 +15,7 @@ import {
 } from "@/hooks/use-portfolio-assets";
 
 type Scope = "gesamt" | "karten" | "sealed";
-type Tab = "uebersicht" | "analyse" | "transaktionen";
+type Tab = "uebersicht" | "transaktionen";
 type Range = "1W" | "1M" | "3M" | "6M" | "1J" | "MAX";
 type AllocDim = "assetType" | "set" | "language" | "condition";
 type ChartSeries = "gesamt" | "karten" | "sealed";
@@ -24,9 +23,10 @@ type ChartSeries = "gesamt" | "karten" | "sealed";
 const ranges: Range[] = ["1W", "1M", "3M", "6M", "1J", "MAX"];
 
 function tabFromSearch(raw: string | null): Tab {
-  if (raw === "analyse" || raw === "transaktionen" || raw === "uebersicht") {
+  if (raw === "transaktionen" || raw === "uebersicht") {
     return raw;
   }
+  // Legacy ?tab=analyse → Übersicht
   return "uebersicht";
 }
 
@@ -210,7 +210,6 @@ export function PortfolioView() {
         {(
           [
             ["uebersicht", "Übersicht"],
-            ["analyse", "Analyse"],
             ["transaktionen", "Transaktionen"],
           ] as const
         ).map(([id, label]) => (
@@ -740,8 +739,6 @@ export function PortfolioView() {
           </div>
         </>
       )}
-
-      {tab === "analyse" && <PortfolioAnalyse />}
 
       {tab === "transaktionen" && <PortfolioTransactions />}
     </div>

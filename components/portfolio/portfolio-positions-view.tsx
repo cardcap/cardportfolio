@@ -246,13 +246,6 @@ export function PortfolioPositionsView() {
               Portfolio
             </Link>
             <span className="mx-1.5 opacity-50">/</span>
-            <Link
-              href="/portfolio?tab=analyse"
-              className="hover:text-[var(--foreground)]"
-            >
-              Analyse
-            </Link>
-            <span className="mx-1.5 opacity-50">/</span>
             <span className="text-[var(--foreground)]">Positionen</span>
           </p>
           <h1 className="mt-1.5 text-2xl font-semibold tracking-tight">
@@ -297,10 +290,10 @@ export function PortfolioPositionsView() {
       {/* Back + range */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Link
-          href="/portfolio?tab=analyse"
+          href="/portfolio"
           className="inline-flex h-9 items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 text-sm text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"
         >
-          ← Zurück zur Analyse
+          ← Zurück zum Portfolio
         </Link>
         <div className="flex rounded-full border border-[var(--border)] bg-[var(--surface)] p-0.5">
           {ranges.map((r) => (
