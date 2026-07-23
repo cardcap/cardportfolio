@@ -481,11 +481,6 @@ export function PortfolioTransactions() {
                   count={m.buyCount}
                   percent={m.buySharePct}
                   unit="Stk"
-                  filterActive={txType === "Kauf"}
-                  onClick={() => {
-                    setTxType((t) => (t === "Kauf" ? "Alle" : "Kauf"));
-                    setPage(1);
-                  }}
                 />
                 <ShareBar
                   color="#4ade80"
@@ -493,11 +488,6 @@ export function PortfolioTransactions() {
                   count={m.sellCount}
                   percent={m.sellSharePct}
                   unit="Stk"
-                  filterActive={txType === "Verkauf"}
-                  onClick={() => {
-                    setTxType((t) => (t === "Verkauf" ? "Alle" : "Verkauf"));
-                    setPage(1);
-                  }}
                 />
               </div>
 
@@ -511,11 +501,6 @@ export function PortfolioTransactions() {
                   count={m.cardTx}
                   percent={m.cardSharePct}
                   unit="Stk"
-                  filterActive={assetType === "Karte"}
-                  onClick={() => {
-                    setAssetType((t) => (t === "Karte" ? "Alle" : "Karte"));
-                    setPage(1);
-                  }}
                 />
                 <ShareBar
                   color="#a78bfa"
@@ -523,11 +508,6 @@ export function PortfolioTransactions() {
                   count={m.sealedTx}
                   percent={m.sealedSharePct}
                   unit="Stk"
-                  filterActive={assetType === "Sealed"}
-                  onClick={() => {
-                    setAssetType((t) => (t === "Sealed" ? "Alle" : "Sealed"));
-                    setPage(1);
-                  }}
                 />
               </div>
 
@@ -964,32 +944,22 @@ function CashflowChart({
   );
 }
 
-/** Interactive share bar — Stück + Anteil %, clickable filter. */
+/** Display-only share bar — Stück + Anteil % (not clickable). */
 function ShareBar({
   color,
   label,
   count,
   percent,
   unit = "Stk",
-  filterActive,
-  onClick,
 }: {
   color: string;
   label: string;
   count: number;
   percent: number;
   unit?: string;
-  filterActive?: boolean;
-  onClick?: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`group w-full rounded-lg px-1 py-1.5 text-left transition-colors hover:bg-[var(--surface-elevated)]/60 ${
-        filterActive ? "bg-[var(--accent-soft)]/40" : ""
-      }`}
-    >
+    <div className="w-full rounded-lg px-1 py-1.5">
       <div className="mb-1.5 flex items-center justify-between gap-2 text-xs">
         <span className="flex min-w-0 items-center gap-1.5">
           <span
@@ -1013,14 +983,14 @@ function ShareBar({
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-[var(--border)]">
         <div
-          className="h-full rounded-full transition-all group-hover:brightness-110"
+          className="h-full rounded-full"
           style={{
             width: `${Math.min(100, Math.max(0, percent))}%`,
             backgroundColor: color,
           }}
         />
       </div>
-    </button>
+    </div>
   );
 }
 
